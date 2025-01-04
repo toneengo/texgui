@@ -3,11 +3,14 @@
 using namespace TexGui;
 using namespace Math;
 
-Widget* Column::addRow(Widget* widget, float size)
+Widget* Column::addRow(Widget* widget, float size, uint32_t flags)
 {
     if (size == -1 && widget && widget->m_inherit.height == 0)
         size = widget->m_box.height;
 
+    if (widget) {
+        widget->m_render_flags = flags;
+    }
     m_children.push_back(widget);
     m_heights.push_back(size);
     if (size < 1) 

@@ -12,5 +12,6 @@ Image::Image(const char* image)
 
 void Image::draw(GLContext* ctx)
 {
+    Widget::draw(ctx);
     ctx->drawTexture(m_box, m_texentry, m_state, m_pixel_size, 0);
 }

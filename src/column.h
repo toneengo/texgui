@@ -10,7 +10,7 @@ class Column : public Widget
 {
     friend class Widget;
 public:
-    Widget* addRow(Widget* widget, float size = 0);
+    Widget* addRow(Widget* widget, float size = 0, uint32_t flags = 0);
     bool contains(const Math::fvec2& pos) override;
     void clear() override;
 

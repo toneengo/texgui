@@ -91,6 +91,19 @@ void Widget::update()
 
     if (m_inherit.x != -1) m_box.x = m_bounds.x + m_bounds.width * m_inherit.x;
     if (m_inherit.y != -1) m_box.y = m_bounds.y + m_bounds.width * m_inherit.y;
+
+    if (m_render_flags & ALIGN_CENTER_X)
+        m_box.x = m_bounds.width / 2 - m_box.width / 2;
+    if (m_render_flags & ALIGN_CENTER_Y)
+        m_box.y = m_bounds.height / 2 - m_box.height / 2;
+    if (m_render_flags & ALIGN_LEFT)
+        m_box.x = 0;
+    if (m_render_flags & ALIGN_RIGHT)
+        m_box.x = m_bounds.width - m_box.width;
+    if (m_render_flags & ALIGN_TOP)
+        m_box.y = 0;
+    if (m_render_flags & ALIGN_BOTTOM)
+        m_box.y = m_bounds.height - m_box.height;
 }
 
 void Widget::draw(GLContext* ctx)

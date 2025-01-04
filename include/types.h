@@ -18,17 +18,14 @@ enum TexGui_flags : uint32_t
     SLICE_3  = 0x10,
     BLUR     = 0x40,
     WRAPPED  = 0x80,
-};
 
-enum Align : uint32_t
-{
-    ALIGN_NONE,
-    ALIGN_LEFT,
-    ALIGN_CENTER,
-    ALIGN_RIGHT,
-
-    ALIGN_TOP,
-    ALIGN_BOTTOM,
+    ALIGN_NONE = 0x100,
+    ALIGN_LEFT = 0x200,
+    ALIGN_CENTER_Y = 0x400,
+    ALIGN_CENTER_X = 0x800,
+    ALIGN_RIGHT = 0x1000,
+    ALIGN_TOP = 0x2000,
+    ALIGN_BOTTOM = 0x4000,
 };
 
 enum TexGui_state : uint8_t 

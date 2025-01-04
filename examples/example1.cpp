@@ -215,9 +215,10 @@ void main() {
         if (sel != lastSel)
         {
             col.clear();
-            col.addRow(sel == Lollipop ? &lolimg : &tenimg, -1);
+            col.addRow(sel == Lollipop ? &lolimg : &tenimg, 100, ALIGN_CENTER_X | ALIGN_CENTER_Y);
             col.addRow(sel == Lollipop ? &lollab : &tenlab);
-            col.addRow(sel == Lollipop ? &lolbut : &tenbut);
+            col.addRow(nullptr);
+            col.addRow(sel == Lollipop ? &lolbut : &tenbut, 32);
             lastSel = selection[Lollipop] ? Lollipop : Tennis;
         }
 
