@@ -26,7 +26,7 @@ public:
     void loadFont(const char* font);
     void preloadTextures(const char* dir);
 
-    int drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, float scale, uint32_t flags);
+    int drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, float scale, uint32_t flags, float width = 0);
     void drawTexture(const Math::fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags);
     void drawQuad(const Math::fbox& rect, const Math::fvec4& col);
 
@@ -83,6 +83,7 @@ protected:
     int m_pixel_size = 2;
 
     int m_font_height;
+    int m_line_height;
 
 };
 

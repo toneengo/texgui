@@ -99,9 +99,10 @@ void GLContext::setScreenSize(int width, int height)
 }
 
 Character buf[128];
-int GLContext::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, float scale, uint32_t flags)
+int GLContext::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, float scale, uint32_t flags, float width)
 {
     size_t numchars = strlen(text);
+    size_t numcopy = numchars;
 
     float currx = 0;
 
@@ -119,9 +120,31 @@ int GLContext::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& co
 
     currx = pos.x;
 
+    const CharInfo& hyphen = m_char_map['-'];
     for (int idx = 0; idx < numchars; idx++)
     {
         const CharInfo& info = m_char_map[text[idx]];
+        if (flags & WRAPPED && currx + (info.advance + hyphen.advance) * scale > width)
+        {
+            if (text[idx] != ' ' && (idx > 0 && text[idx - 1] != ' '))
+            {
+                Character h = {
+                    .rect = fbox(
+                        currx + hyphen.bearing.x * scale + m_widget_pos.x,
+                        pos.y - hyphen.bearing.y * scale + m_font_height * scale + m_widget_pos.y,
+                        hyphen.size.x * scale,
+                        hyphen.size.y * scale
+                    ),
+                    .col = col,
+                    .layer = hyphen.layer,
+                    .scale = scale,
+                };
+                m_vObjects.push_back(h);
+                numcopy++;
+            }
+            currx = 0;
+            pos.y += m_line_height;
+        }
         Character c = {
             .rect = fbox(
                 currx + info.bearing.x * scale + m_widget_pos.x,
@@ -138,7 +161,7 @@ int GLContext::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& co
         currx += (info.advance) * scale;
     }
 
-    m_vCommands.push_back({Command::CHARACTER, uint32_t(numchars), flags, nullptr});
+    m_vCommands.push_back({Command::CHARACTER, uint32_t(numcopy), flags, nullptr});
     return currx;
 }
 
@@ -248,6 +271,7 @@ void GLContext::loadFont(const char* font)
 
     int currIdx = 0;
     m_font_height = face->height >> 6;
+    m_line_height = face->height >> 6;
     for (unsigned char c = 0; c < 128; c++)
     {
         // load character glyph 

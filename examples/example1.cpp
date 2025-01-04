@@ -193,6 +193,9 @@ void main() {
 
     Image lolimg("lollipop");
     Image tenimg("tennis");
+
+    Label lollab("a very tasty and red lollipop");
+    Label tenlab("a green tennis ball");
     Column col = Column();
 
     Widget* box1 = (*row2)[0];
@@ -213,6 +216,7 @@ void main() {
         {
             col.clear();
             col.addRow(sel == Lollipop ? &lolimg : &tenimg, -1);
+            col.addRow(sel == Lollipop ? &lollab : &tenlab);
             col.addRow(sel == Lollipop ? &lolbut : &tenbut);
             lastSel = selection[Lollipop] ? Lollipop : Tennis;
         }

@@ -13,5 +13,6 @@
 #include "listitem.h"
 #include "box.h"
 #include "image.h"
+#include "label.h"
 
 #include "uicontext.h"
