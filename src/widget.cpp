@@ -165,6 +165,7 @@ Widget* Widget::findWidget(ivec2& pos)
     for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
     {
         Widget* child = *it;
+        if (!child) continue;
         if (child->visible() && child->contains(pos - fvec2(m_padding.left, m_padding.top)))
         {
             pos -= ivec2(m_padding.left, m_padding.top);
