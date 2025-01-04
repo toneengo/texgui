@@ -211,15 +211,23 @@ void main() {
         glBindTextureUnit(0, bg);
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
-        int sel = selection[Lollipop] ? Lollipop : Tennis;
-        if (sel != lastSel)
+        if (selection[Lollipop])
         {
             col.clear();
-            col.addRow(sel == Lollipop ? &lolimg : &tenimg, 100, ALIGN_CENTER_X | ALIGN_CENTER_Y);
-            col.addRow(sel == Lollipop ? &lollab : &tenlab);
+            col.addRow(&lolimg, 100, ALIGN_CENTER_X | ALIGN_CENTER_Y);
+            col.addRow(&lollab);
             col.addRow(nullptr);
-            col.addRow(sel == Lollipop ? &lolbut : &tenbut, 32);
-            lastSel = selection[Lollipop] ? Lollipop : Tennis;
+            col.addRow(&lolbut, 32);
+            lastSel = Lollipop;
+        }
+        else if (selection[Tennis])
+        {
+            col.clear();
+            col.addRow(&tenimg, 100, ALIGN_CENTER_X | ALIGN_CENTER_Y);
+            col.addRow(&tenlab);
+            col.addRow(nullptr);
+            col.addRow(&tenbut, 32);
+            lastSel = Tennis;
         }
 
         uictx.render();
