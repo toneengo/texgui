@@ -64,7 +64,7 @@ void main() {
     rect.x -= screenSz.x / 2;
     rect.y = screenSz.y / 2 - rect.y - rect.w;
 
-    float scale = text[index].scale;
+    float scale = text[index + gl_InstanceID].scale;
 
     uv = quad[gl_VertexID];
 
@@ -114,11 +114,11 @@ void main() {
         ivec2(1, 0)
     ); 
 
-    vec4 rect = colquads[index].rect;
+    vec4 rect = colquads[index + gl_InstanceID].rect;
     rect.x -= screenSz.x / 2;
     rect.y = screenSz.y / 2 - rect.y - rect.w;
 
-    col = colquads[index].col;
+    col = colquads[index + gl_InstanceID].col;
 
     vec2 size = rect.zw / vec2(screenSz.x/2.0, screenSz.y/2.0);
     vec2 pos = quad[gl_VertexID] * size + rect.xy / vec2(screenSz.x/2.0, screenSz.y/2.0);
@@ -145,18 +145,18 @@ void main() {
     ); 
 
     int ATLAS_SIZE = 512;
-    vec4 rect = quads[index].rect;
+    vec4 rect = quads[index + gl_InstanceID].rect;
     rect.x -= screenSz.x / 2;
     rect.y = screenSz.y / 2 - rect.y - rect.w;
 
-    vec4 texBounds = quads[index].texBounds;
+    vec4 texBounds = quads[index + gl_InstanceID].texBounds;
 
     uv = quad[gl_VertexID];
 
     uv = vec2(texBounds.x, texBounds.y) / ATLAS_SIZE +
          uv * (vec2(texBounds.z, -texBounds.w)) / ATLAS_SIZE;
 
-    layer = quads[index].layer;
+    layer = quads[index + gl_InstanceID].layer;
 
     vec2 size = rect.zw / vec2(screenSz.x/2.0, screenSz.y/2.0);
     vec2 pos = quad[gl_VertexID] * size + rect.xy / vec2(screenSz.x/2.0, screenSz.y/2.0);
@@ -193,12 +193,12 @@ void main() {
     ); 
 
     int ATLAS_SIZE = 512;
-    int px = quads[index].pixelSize;
-    vec4 rect = quads[index].rect;
+    int px = quads[index + gl_InstanceID / 9].pixelSize;
+    vec4 rect = quads[index + gl_InstanceID / 9].rect;
     rect.x -= screenSz.x / 2;
     rect.y = screenSz.y / 2 - rect.y - rect.w;
 
-    vec4 texBounds = quads[index].texBounds;
+    vec4 texBounds = quads[index + gl_InstanceID / 9].texBounds;
 
     float top = slices.x;
     float right = slices.y;
@@ -250,7 +250,7 @@ void main() {
     uv = vec2(texBounds.x, texBounds.y) / ATLAS_SIZE +
          uv * (vec2(texBounds.z, -texBounds.w)) / ATLAS_SIZE;
 
-    layer = quads[index].layer;
+    layer = quads[index + gl_InstanceID / 9].layer;
 
     vec2 size = rect.zw / round(vec2(screenSz.x/2.0, screenSz.y/2.0));
     vec2 pos = quad[gl_VertexID] * size + rect.xy / round(vec2(screenSz.x/2.0, screenSz.y/2.0));
