@@ -135,10 +135,10 @@ int GLContext::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& co
         };
 
         m_vObjects.push_back(c);
-        m_vCommands.push_back({Command::CHARACTER, flags, nullptr});
         currx += (info.advance) * scale;
     }
 
+    m_vCommands.push_back({Command::CHARACTER, uint32_t(numchars), flags, nullptr});
     return currx;
 }
 
@@ -164,7 +164,7 @@ void GLContext::drawTexture(const fbox& rect, TexEntry* e, int state, int pixel_
     };
 
     m_vObjects.push_back(q);
-    m_vCommands.push_back({Command::QUAD, flags, e});
+    m_vCommands.push_back({Command::QUAD, 1, flags, e});
 }
 
 void GLContext::drawQuad(const Math::fbox& rect, const Math::fvec4& col)
@@ -175,7 +175,7 @@ void GLContext::drawQuad(const Math::fbox& rect, const Math::fvec4& col)
     };
 
     m_vObjects.push_back(q);
-    m_vCommands.push_back({Command::COLQUAD, 0, nullptr});
+    m_vCommands.push_back({Command::COLQUAD, 1, 0, nullptr});
 }
 
 void GLContext::draw() {
@@ -194,24 +194,24 @@ void GLContext::draw() {
                 m_shaders.quad9slice.use();
                 glUniform4f(m_shaders.quad9slice.slices,
                             c.texentry->top, c.texentry->right, c.texentry->bottom, c.texentry->left);
-                glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 9);
+                glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number * 9);
             }
             else {
                 m_shaders.quad.use();
-                glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1);
+                glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number);
             }
         }
         else if (c.type == Command::COLQUAD)
         {
             m_shaders.colquad.use();
-            glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1);
+            glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number);
         }
         else if (c.type == Command::CHARACTER)
         {
             m_shaders.text.use();
-            glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1);
+            glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number);
         }
-        count++;
+        count += c.number;
     }
     m_vObjects.clear();
     m_vCommands.clear();

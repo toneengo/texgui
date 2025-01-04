@@ -60,7 +60,7 @@ void main() {
         ivec2(1, 0)
     ); 
 
-    vec4 rect = text[index].rect;
+    vec4 rect = text[index + gl_InstanceID].rect;
     rect.x -= screenSz.x / 2;
     rect.y = screenSz.y / 2 - rect.y - rect.w;
 
@@ -72,8 +72,8 @@ void main() {
     uv = vec2(0.0, rect.w / fontPx) +
          uv * (vec2(rect.z, -rect.w)) / fontPx;
 
-    layer = text[index].layer;
-    colour = text[index].col;
+    layer = text[index + gl_InstanceID].layer;
+    colour = text[index + gl_InstanceID].col;
 
     vec2 size = rect.zw / round(vec2(screenSz.x/2.0, screenSz.y/2.0)) * scale;
     vec2 pos = quad[gl_VertexID] * size + rect.xy / round(vec2(screenSz.x/2.0, screenSz.y/2.0));

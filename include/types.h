@@ -470,6 +470,7 @@ struct Command
         COLQUAD
     } type;
 
+    uint32_t number;
     uint32_t flags;
     TexEntry * texentry;
 };
