@@ -182,8 +182,8 @@ void main() {
     int val;
     for (int i = 0; i < 15; i++)
     {
-        Widget* item1 = listrow->addCol(new ListItem(new Image("lollipop"), &val, 0), -1);
-        Widget* item2 = listrow->addCol(new ListItem(new Image("tennis"), &val, 1), -1);
+        Widget* item1 = listrow->addCol(new ListItem(new Image("lollipop"), &val, Lollipop), -1);
+        Widget* item2 = listrow->addCol(new ListItem(new Image("tennis"), &val, Tennis), -1);
     }
 
     uictx.addWidget(window2);
@@ -213,7 +213,7 @@ void main() {
         glBindTextureUnit(0, bg);
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
-        if (selection[Lollipop])
+        if (val == Lollipop)
         {
             col.clear();
             col.addRow(&lolimg, 100, ALIGN_CENTER_X | ALIGN_CENTER_Y);
@@ -222,7 +222,7 @@ void main() {
             col.addRow(&lolbut, 32);
             lastSel = Lollipop;
         }
-        else if (selection[Tennis])
+        else if (val == Tennis)
         {
             col.clear();
             col.addRow(&tenimg, 100, ALIGN_CENTER_X | ALIGN_CENTER_Y);

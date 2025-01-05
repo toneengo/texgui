@@ -14,7 +14,8 @@ ListItem::ListItem(Widget* widget, int* v, int v_button)
     addChild(widget);
     if (widget)
     {
-        setSize({widget->m_box.width, widget->m_box.height});
+        setSize({widget->m_box.width + m_padding.left + m_padding.right,
+                 widget->m_box.height + m_padding.top + m_padding.bottom});
     }
 }
 
