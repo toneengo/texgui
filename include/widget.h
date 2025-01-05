@@ -12,6 +12,7 @@ class Widget
 friend class Row;
 friend class Column;
 friend class Label;
+friend class ListItem;
 public:
     Widget(float xpos = 0, float ypos = 0, float width = 0, float height = 0);
     virtual void       draw(GLContext* ctx);

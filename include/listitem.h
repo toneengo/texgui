@@ -10,17 +10,17 @@ class ListItem : public Widget
 {
     friend class Widget;
 public:
-    ListItem(const char* image, const char* label, bool* binding);
+    ListItem(Widget* widget, int* v, int v_button);
     virtual void draw(GLContext* ctx) override;
     virtual void onMouseDownEvent(int button, int action) override;
 protected:
     TexEntry* m_image_texentry;
-    std::string m_label;
     int m_data;
     Math::fvec2 m_col_pos;
     bool m_wrap;
 
-    bool* m_binding;
+    int* m_binding;
+    int  m_value;
 };
 
 NAMESPACE_END(TexGui);

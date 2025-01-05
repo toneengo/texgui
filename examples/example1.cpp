@@ -178,10 +178,12 @@ void main() {
     Row* listrow = (Row*)(*row2)[1]->addChild(new Row());
     listrow->setSize({0, 40});
     listrow->setFlags(WRAPPED);
+
+    int val;
     for (int i = 0; i < 15; i++)
     {
-        Widget* item1 = listrow->addCol(new ListItem("lollipop", "", &selection[0]), -1);
-        Widget* item2 = listrow->addCol(new ListItem("tennis", "", &selection[1]), -1);
+        Widget* item1 = listrow->addCol(new ListItem(new Image("lollipop"), &val, 0), -1);
+        Widget* item2 = listrow->addCol(new ListItem(new Image("tennis"), &val, 1), -1);
     }
 
     uictx.addWidget(window2);

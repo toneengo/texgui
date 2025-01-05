@@ -167,6 +167,7 @@ int GLContext::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& co
 
 void GLContext::drawTexture(const fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags)
 {
+    if (!e) return;
     int layer = 0;
     //#TODO: don't hard code numebrs
     if (getFlagBit(e->has_state, state))
