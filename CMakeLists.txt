@@ -44,7 +44,7 @@ target_link_directories(example1 PRIVATE ${CMAKE_BINARY_DIR})
 target_link_libraries(example1 PRIVATE texgui)
 
 add_custom_target(resources
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/resources ${CMAKE_CURRENT_BINARY_DIR}/resources
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/resources ${CMAKE_CURRENT_BINARY_DIR}/resources
 )
 
 add_dependencies(example1 texgui)
