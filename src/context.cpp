@@ -469,30 +469,6 @@ void GLContext::preloadTextures(const char* dir)
                 memcpy(active + 4 * tc(rect.x, rect.y + row), e._active + (4 * e.bounds.w * row), e.bounds.w * 4);
     }
 
-    if(!stbi_write_png("resources/atlas.png", ATLAS_SIZE, ATLAS_SIZE, 4, atlas, 4 * ATLAS_SIZE))
-    {
-        std::cout << "Failed to write out atlas image\n";
-        exit(1);
-    }
-
-    if(!stbi_write_png("resources/hover.png", ATLAS_SIZE, ATLAS_SIZE, 4, hover, 4 * ATLAS_SIZE))
-    {
-        std::cout << "Failed to write out atlas image\n";
-        exit(1);
-    }
-
-    if(!stbi_write_png("resources/press.png", ATLAS_SIZE, ATLAS_SIZE, 4, press, 4 * ATLAS_SIZE))
-    {
-        std::cout << "Failed to write out atlas image\n";
-        exit(1);
-    }
-
-    if(!stbi_write_png("resources/active.png", ATLAS_SIZE, ATLAS_SIZE, 4, active, 4 * ATLAS_SIZE))
-    {
-        std::cout << "Failed to write out atlas image\n";
-        exit(1);
-    }
-
     glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, &m_ta.texture.buf);
     glTextureStorage3D(m_ta.texture.buf, 1, GL_RGBA8, ATLAS_SIZE, ATLAS_SIZE, 4);
 
