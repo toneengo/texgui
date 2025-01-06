@@ -15,6 +15,9 @@ public:
 
     // Renders all GUI elements in 'data'.
     void render();
+    
+    // Appends the draw commands to the GL context
+    void draw();
 
     // Clears render data.
     void clear();

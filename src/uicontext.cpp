@@ -9,8 +9,12 @@ using namespace Math;
 
 void UIContext::render()
 {
-    m_screen->draw(m_gl_context);
     m_gl_context->draw();
+}
+
+void UIContext::draw()
+{
+    m_screen->draw(m_gl_context);
 }
 
 UIContext::UIContext(GLFWwindow* window)

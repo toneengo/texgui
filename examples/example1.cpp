@@ -232,6 +232,7 @@ void main() {
             lastSel = Tennis;
         }
 
+        uictx.draw();
         uictx.render();
 
         glfwSwapBuffers(window);
