@@ -170,6 +170,7 @@ void main() {
 
     //window 2
     Widget* window2 = new Window("window 2", 200, 100, 800, 400);
+    window2->setFlags(ALIGN_RIGHT);
 
     Widget* row2 = window2->addChild(new Row(180, 0));
 

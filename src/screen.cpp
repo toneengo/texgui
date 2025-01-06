@@ -79,7 +79,7 @@ void Screen::charCallback(unsigned int codepoint)
 void Screen::framebufferSizeCallback(int width, int height)
 {
     m_gl_context->setScreenSize(width, height);
-    m_box.size = m_gl_context->getScreenSize();
+    setSize({float(width), float(height)});
 }
 
 void Screen::draw(RenderState& state)
