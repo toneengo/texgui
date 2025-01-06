@@ -28,7 +28,7 @@ public:
         m_needs_update = true;
     }
     inline void        setAlign(uint32_t xa, uint32_t ya) { m_align.x = xa, m_align.y = ya; }
-    void               setFlags(unsigned int flags) {  m_render_flags = flags; };
+    void               setFlags(unsigned int flags) { m_render_flags = flags; m_needs_update = true; };
 
     inline Math::fvec2 getPos() { return m_box.pos; };
     inline Math::fvec2 getSize() { return m_box.size; };
