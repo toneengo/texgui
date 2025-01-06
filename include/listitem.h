@@ -11,7 +11,7 @@ class ListItem : public Widget
     friend class Widget;
 public:
     ListItem(Widget* widget, int* v, int v_button);
-    virtual void draw(GLContext* ctx) override;
+    virtual void draw(RenderState& state);
     virtual void onMouseDownEvent(int button, int action) override;
 protected:
     TexEntry* m_image_texentry;

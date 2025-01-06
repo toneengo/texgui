@@ -1,3 +1,4 @@
+#include "types.h"
 #ifndef __gl_h_
 #include "glad/gl.h"
 #endif
@@ -30,7 +31,6 @@ constexpr int ATLAS_SIZE = 512;
 std::unordered_map<char, TexGui::CharInfo> m_char_map;
 
 GLContext::GLContext(GLFWwindow* window)
-    : fontPx(0.0)
 {
     glEnable(GL_MULTISAMPLE);
     m_ta.font.bind = 0;
@@ -88,11 +88,6 @@ void GLContext::bindBuffers()
     glBindTextureUnit(m_ta.texture.bind, m_ta.texture.buf);
 }
 
-void GLContext::setWidgetPos(Math::fvec2 pos)
-{
-    m_widget_pos = pos;
-}
-
 void GLContext::setScreenSize(int width, int height)
 {
     m_screen_size.x = width;
@@ -101,8 +96,7 @@ void GLContext::setScreenSize(int width, int height)
     glNamedBufferSubData(m_ub.screen_size.buf, 0, sizeof(int) * 2, &m_screen_size);
 }
 
-Character buf[128];
-int GLContext::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, float scale, uint32_t flags, float width)
+int RenderState::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, float scale, uint32_t flags, float width)
 {
     size_t numchars = strlen(text);
     size_t numcopy = numchars;
@@ -110,7 +104,7 @@ int GLContext::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& co
     float currx = 0;
 
     if (flags & CENTER_Y)
-        pos.y -= m_font_height / 2.0 * scale;
+        pos.y -= font_height / 2.0 * scale;
 
     if (flags & CENTER_X)
     {
@@ -134,7 +128,7 @@ int GLContext::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& co
                 Character h = {
                     .rect = fbox(
                         currx + hyphen.bearing.x * scale + m_widget_pos.x,
-                        pos.y - hyphen.bearing.y * scale + m_font_height * scale + m_widget_pos.y,
+                        pos.y - hyphen.bearing.y * scale + font_height * scale + m_widget_pos.y,
                         hyphen.size.x * scale,
                         hyphen.size.y * scale
                     ),
@@ -142,16 +136,16 @@ int GLContext::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& co
                     .layer = hyphen.layer,
                     .scale = scale,
                 };
-                m_vObjects.push_back(h);
+                objects.push_back(h);
                 numcopy++;
             }
             currx = 0;
-            pos.y += m_line_height;
+            pos.y += line_height;
         }
         Character c = {
             .rect = fbox(
                 currx + info.bearing.x * scale + m_widget_pos.x,
-                pos.y - info.bearing.y * scale + m_font_height * scale + m_widget_pos.y,
+                pos.y - info.bearing.y * scale + font_height * scale + m_widget_pos.y,
                 info.size.x * scale,
                 info.size.y * scale
             ),
@@ -160,15 +154,15 @@ int GLContext::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& co
             .scale = scale,
         };
 
-        m_vObjects.push_back(c);
+        objects.push_back(c);
         currx += (info.advance) * scale;
     }
 
-    m_vCommands.push_back({Command::CHARACTER, uint32_t(numcopy), flags, nullptr});
+    commands.push_back({Command::CHARACTER, uint32_t(numcopy), flags, nullptr});
     return currx;
 }
 
-void GLContext::drawTexture(const fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags)
+void RenderState::drawTexture(const fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags)
 {
     if (!e) return;
     int layer = 0;
@@ -190,27 +184,29 @@ void GLContext::drawTexture(const fbox& rect, TexEntry* e, int state, int pixel_
         .pixelSize = pixel_size
     };
 
-    m_vObjects.push_back(q);
-    m_vCommands.push_back({Command::QUAD, 1, flags, e});
+    objects.push_back(q);
+    commands.push_back({Command::QUAD, 1, flags, e});
 }
 
-void GLContext::drawQuad(const Math::fbox& rect, const Math::fvec4& col)
+void RenderState::drawQuad(const Math::fbox& rect, const Math::fvec4& col)
 {
     ColQuad q = {
         .rect = fbox(rect.pos + m_widget_pos, rect.size),
         .col = col,
     };
 
-    m_vObjects.push_back(q);
-    m_vCommands.push_back({Command::COLQUAD, 1, 0, nullptr});
+    objects.push_back(q);
+    commands.push_back({Command::COLQUAD, 1, 0, nullptr});
 }
 
-void GLContext::draw() {
+void GLContext::render(const RenderState& state) {
+    auto& objects = state.objects;
+    auto& commands = state.commands;
     bindBuffers();
-    glNamedBufferSubData(m_ssb.objects.buf, 0, sizeof(Object) * m_vObjects.size(), m_vObjects.data());
+    glNamedBufferSubData(m_ssb.objects.buf, 0, sizeof(Object) * objects.size(), objects.data());
 
     int count = 0;
-    for (auto& c : m_vCommands)
+    for (auto& c : commands)
     {
         glNamedBufferSubData(m_ub.objIndex.buf, 0, sizeof(int), &count);
         Object o;
@@ -240,8 +236,6 @@ void GLContext::draw() {
         }
         count += c.number;
     }
-    m_vObjects.clear();
-    m_vCommands.clear();
 }
 
 #include <ft2build.h>
@@ -266,16 +260,16 @@ void GLContext::loadFont(const char* font)
     
     FT_Set_Pixel_Sizes(face, 0, 48);
 
-    fontPx = 48;
+    font_px = 48;
     glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, &m_ta.font.buf);
-    glTextureStorage3D(m_ta.font.buf, 1, GL_R8, fontPx, fontPx, 128);
+    glTextureStorage3D(m_ta.font.buf, 1, GL_R8, font_px, font_px, 128);
 
-    unsigned char * empty = new unsigned char[int(fontPx * fontPx)];
-    memset(empty, 0, fontPx * fontPx * sizeof(unsigned char));
+    unsigned char * empty = new unsigned char[int(font_px * font_px)];
+    memset(empty, 0, font_px * font_px * sizeof(unsigned char));
 
     int currIdx = 0;
-    m_font_height = face->height >> 6;
-    m_line_height = face->height >> 6;
+    font_height = face->height >> 6;
+    line_height = face->height >> 6;
     for (unsigned char c = 0; c < 128; c++)
     {
         // load character glyph 
@@ -287,7 +281,7 @@ void GLContext::loadFont(const char* font)
 
         if (c == 'a')
         {
-            m_font_height = (face->glyph->metrics.height) >> 6;
+            font_height = (face->glyph->metrics.height) >> 6;
         }
 
         m_char_map[c] = {
@@ -297,7 +291,7 @@ void GLContext::loadFont(const char* font)
             .advance = (uint32_t)face->glyph->advance.x >> 6,
         };
 
-        glTextureSubImage3D(m_ta.font.buf, 0, 0, 0, currIdx, fontPx, fontPx, 1, GL_RED, GL_UNSIGNED_BYTE, empty);
+        glTextureSubImage3D(m_ta.font.buf, 0, 0, 0, currIdx, font_px, font_px, 1, GL_RED, GL_UNSIGNED_BYTE, empty);
         glTextureSubImage3D(m_ta.font.buf, 0, 0, 0, currIdx, face->glyph->bitmap.width, face->glyph->bitmap.rows, 1, GL_RED, GL_UNSIGNED_BYTE, face->glyph->bitmap.buffer);
 
         currIdx++;
@@ -315,7 +309,7 @@ void GLContext::loadFont(const char* font)
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 
     m_shaders.text.use();
-    glUniform1f(m_shaders.text.getLocation("fontPx"), fontPx);
+    glUniform1f(m_shaders.text.getLocation("fontPx"), font_px);
 }
 
 struct TexData

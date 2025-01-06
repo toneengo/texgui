@@ -15,7 +15,7 @@ friend class Label;
 friend class ListItem;
 public:
     Widget(float xpos = 0, float ypos = 0, float width = 0, float height = 0);
-    virtual void       draw(GLContext* ctx);
+    virtual void       draw(RenderState& state);
     virtual void       update();
 
     inline void        setPos(Math::fvec2 pos) { m_box.pos = pos; };

@@ -10,7 +10,7 @@ class Image : public Widget
     friend class Widget;
 public:
     Image(const char* image);
-    virtual void draw(GLContext* ctx) override;
+    virtual void draw(RenderState& state);
 protected:
 };
 

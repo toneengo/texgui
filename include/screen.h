@@ -14,7 +14,7 @@ class Screen : public Widget
 public:
     Screen(GLContext* gl_ctx);
 
-    void draw(GLContext* ctx);
+    void draw(RenderState& state);
     void cursorPosCallback(double x, double y);
     void mouseButtonCallback(int button, int action);
     void keyCallback(int key, int scancode, int action, int mods);

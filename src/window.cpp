@@ -55,11 +55,11 @@ void Window::onMouseDownEvent(int button, int action)
     m_resizing = false;
 }
 
-void Window::draw(GLContext* ctx)
+void Window::draw(RenderState& state)
 {
-    ctx->drawTexture(m_box, m_texentry, m_state, m_pixel_size, SLICE_9);
+    state.drawTexture(m_box, m_texentry, m_state, m_pixel_size, SLICE_9);
 
-    ctx->drawText(m_title.c_str(), {m_box.x + m_padding.left, m_box.y + m_texentry->top * m_pixel_size / 2}, m_text_color, m_text_scale, CENTER_Y);
+    state.drawText(m_title.c_str(), {m_box.x + m_padding.left, m_box.y + m_texentry->top * m_pixel_size / 2}, m_text_color, m_text_scale, CENTER_Y);
 
-    Widget::draw(ctx);
+    Widget::draw(state);
 }

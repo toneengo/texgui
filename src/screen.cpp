@@ -82,11 +82,7 @@ void Screen::framebufferSizeCallback(int width, int height)
     m_box.size = m_gl_context->getScreenSize();
 }
 
-void Screen::draw(GLContext* ctx)
+void Screen::draw(RenderState& state)
 {
-    glEnable(GL_SCISSOR_TEST);
-    ibox ogSx;
-    glGetIntegerv(GL_SCISSOR_BOX, (GLint*)&ogSx);
-    Widget::draw(ctx);
-    glDisable(GL_SCISSOR_TEST);
+    Widget::draw(state);
 }

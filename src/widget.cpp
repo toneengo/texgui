@@ -106,14 +106,14 @@ void Widget::update()
         m_box.y = m_bounds.height - m_box.height;
 }
 
-void Widget::draw(GLContext* ctx)
+void Widget::draw(RenderState& state)
 {
     if (!m_visible) return;
 
     if (m_needs_update)
         update();
 
-    ctx->setWidgetPos(ctx->m_widget_pos + m_box.pos + fvec2(m_padding.left, m_padding.top));
+    state.m_widget_pos += m_box.pos + fvec2(m_padding.left, m_padding.top);
     for (auto& w : m_children)
     {
         if (w == nullptr) continue;
@@ -122,9 +122,9 @@ void Widget::draw(GLContext* ctx)
             w->m_needs_update = true;
 
         if (w->m_visible)
-            w->draw(ctx);
+            w->draw(state);
     }
-    ctx->setWidgetPos(ctx->m_widget_pos - m_box.pos - fvec2(m_padding.left, m_padding.top));
+    state.m_widget_pos -= m_box.pos + fvec2(m_padding.left, m_padding.top);
     m_needs_update = false;
 }
 

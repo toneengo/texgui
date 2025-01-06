@@ -71,7 +71,7 @@ void Column::update()
     m_width = m_render_flags & WRAPPED ? currWidth + m_box.width : m_box.width;
 }
 
-void Column::draw(GLContext* ctx)
+void Column::draw(RenderState& state)
 {
-    Widget::draw(ctx);
+    Widget::draw(state);
 }

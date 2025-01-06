@@ -10,8 +10,8 @@ Box::Box(int x, int y, int width, int height)
     m_padding = Defaults::Box::Padding;
 }
 
-void Box::draw(GLContext* ctx)
+void Box::draw(RenderState& state)
 {
-    ctx->drawTexture(m_box, m_texentry, m_state, m_pixel_size, m_render_flags);
-    Widget::draw(ctx);
+    state.drawTexture(m_box, m_texentry, m_state, m_pixel_size, m_render_flags);
+    Widget::draw(state);
 }

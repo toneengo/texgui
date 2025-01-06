@@ -10,8 +10,8 @@ Image::Image(const char* image)
     setSize(fvec2(m_texentry->bounds.width * m_pixel_size, m_texentry->bounds.height * m_pixel_size));
 }
 
-void Image::draw(GLContext* ctx)
+void Image::draw(RenderState& state)
 {
-    Widget::draw(ctx);
-    ctx->drawTexture(m_box, m_texentry, m_state, m_pixel_size, 0);
+    Widget::draw(state);
+    state.drawTexture(m_box, m_texentry, m_state, m_pixel_size, 0);
 }

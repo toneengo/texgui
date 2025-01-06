@@ -70,7 +70,7 @@ void Row::update()
     m_height = m_render_flags & WRAPPED ? currHeight + m_box.height : m_box.height;
 }
 
-void Row::draw(GLContext* ctx)
+void Row::draw(RenderState& state)
 {
-    Widget::draw(ctx);
+    Widget::draw(state);
 }

@@ -20,7 +20,7 @@ public:
     {
         (addRow(nullptr, rows), ...);
     }
-    virtual void draw(GLContext* ctx) override;
+    virtual void draw(RenderState& state);
     virtual void update() override;
 
 protected:

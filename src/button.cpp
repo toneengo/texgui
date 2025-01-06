@@ -33,13 +33,13 @@ void Button::onMouseDownEvent(int button, int action)
         m_function();
 }
 
-void Button::draw(GLContext* ctx)
+void Button::draw(RenderState& state)
 {
-    Widget::draw(ctx);
+    Widget::draw(state);
 
-    ctx->drawTexture(m_box, m_texentry, m_state, m_pixel_size, SLICE_9);
+    state.drawTexture(m_box, m_texentry, m_state, m_pixel_size, SLICE_9);
 
-    ctx->drawText(m_label.c_str(),
+    state.drawText(m_label.c_str(),
         m_state & STATE_PRESS ? m_box.pos + m_box.size / 2 + m_pressed_offset
                               : m_box.pos + m_box.size / 2,
 

@@ -20,7 +20,7 @@ public:
     {
         (addCol(nullptr, columns), ...);
     }
-    virtual void draw(GLContext* ctx) override;
+    virtual void draw(RenderState& state);
     virtual void update() override;
 
 protected:

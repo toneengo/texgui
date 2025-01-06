@@ -26,9 +26,9 @@ void ListItem::onMouseDownEvent(int button, int action)
         *m_binding = m_value;
 }
 
-void ListItem::draw(GLContext* ctx)
+void ListItem::draw(RenderState& state)
 {
-    int state = m_state & STATE_ACTIVE ? STATE_ACTIVE : m_state;
-    ctx->drawTexture(m_box, m_texentry, state, m_pixel_size, SLICE_9);
-    Widget::draw(ctx);
+    int s = m_state & STATE_ACTIVE ? STATE_ACTIVE : m_state;
+    state.drawTexture(m_box, m_texentry, s, m_pixel_size, SLICE_9);
+    Widget::draw(state);
 }

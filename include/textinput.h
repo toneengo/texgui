@@ -11,7 +11,7 @@ class TextInput : public Widget
     friend class Widget;
 public:
     TextInput(const char* placeholder, int x = 0, int y = 0, int width = INHERIT, int height = INHERIT);
-    virtual void draw(GLContext* ctx);
+    virtual void draw(RenderState& state);
     void onCursorPosEvent(int x, int y);
     void onMouseDownEvent(int button, int action);
     void onKeyEvent(int key, int scancode, int action, int mods);

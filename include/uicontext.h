@@ -13,11 +13,8 @@ public:
     UIContext(GLFWwindow* window);
     ~UIContext();
 
-    // Renders all GUI elements in 'data'.
-    void render();
-    
     // Appends the draw commands to the GL context
-    void draw();
+    RenderState draw();
 
     // Clears render data.
     void clear();
@@ -27,9 +24,9 @@ public:
     void loadFont(const char* font);
     Screen* screenPtr() { return m_screen; };
     void preloadTextures(const char* dir);
+    GLContext* m_gl_context;
 private:
     Screen* m_screen;
-    GLContext* m_gl_context;
 };
 
 NAMESPACE_END(TexGui);

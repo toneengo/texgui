@@ -10,7 +10,7 @@ class GridList : public Widget
     friend class Widget;
 public:
     GridList();
-    virtual void draw(GLContext* ctx) override;
+    virtual void draw(RenderState& state);
 
 protected:
 

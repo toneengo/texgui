@@ -12,7 +12,7 @@ class Label : public Widget
     friend class Widget;
 public:
     Label(const char* label, int xpos = 0, int ypos = 0, int width = 0, int height = 0);
-    virtual void draw(GLContext* ctx);
+    virtual void draw(RenderState& state);
 protected:
     std::string m_label;
 };

@@ -123,7 +123,7 @@ void TextInput::onCharEvent(unsigned int codepoint)
         m_offsetx -= advance * m_text_scale;
 }
 
-void TextInput::draw(GLContext* ctx)
+void TextInput::draw(RenderState& state)
 {
     // Calculate time elapsed since last loop
     auto startTime = stc::steady_clock::now();
@@ -137,15 +137,15 @@ void TextInput::draw(GLContext* ctx)
         accumulator -= flashTime;
     }
 
-    Widget::draw(ctx);
+    Widget::draw(state);
 
-    ctx->drawTexture(m_box, m_texentry, m_state, m_pixel_size, SLICE_9);
+    state.drawTexture(m_box, m_texentry, m_state, m_pixel_size, SLICE_9);
 
     /*
     ibox ogSx;
     glGetIntegerv(GL_SCISSOR_BOX, (GLint*)&ogSx);
 
-    fvec2 parentPos = ctx->getWidgetPos();
+    fvec2 parentPos = state,getWidgetPos();
     glScissor(parentPos.x + m_box.x,
         ogSx.y + ogSx.height - parentPos.y - m_box.y - m_box.height,
         m_box.width, m_box.height);
@@ -153,7 +153,7 @@ void TextInput::draw(GLContext* ctx)
 
     if (m_sel.x != m_sel.y)
         //#TODO: dont use static colour
-        ctx->drawQuad(
+        state.drawQuad(
             fbox(
                 fmin(m_pos_buf[m_sel.x], m_pos_buf[m_sel.y]) +
                     m_box.x + m_offsetx + m_padding.left,
@@ -165,7 +165,7 @@ void TextInput::draw(GLContext* ctx)
         );
 
 
-    ctx->drawText(
+    state.drawText(
         !getFlagBit(m_state, STATE_ACTIVE) && m_text_buf.size() == 0
         ? m_placeholder.c_str() : m_text_buf.c_str(),
         {m_box.x + m_offsetx + m_padding.left, m_box.y + m_box.height / 2},
@@ -176,7 +176,7 @@ void TextInput::draw(GLContext* ctx)
 
     if (showTextCursor && getFlagBit(m_state, STATE_ACTIVE))
     {
-        ctx->drawText("|",
+        state.drawText("|",
             {m_box.x + m_pos_buf[m_text_cur] - 5 + m_offsetx + m_padding.left, m_box.y + m_box.height / 2}, m_text_color, m_text_scale, CENTER_Y);
     }
 

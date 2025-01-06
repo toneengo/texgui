@@ -7,14 +7,11 @@
 using namespace TexGui;
 using namespace Math;
 
-void UIContext::render()
+RenderState UIContext::draw()
 {
-    m_gl_context->draw();
-}
-
-void UIContext::draw()
-{
-    m_screen->draw(m_gl_context);
+    RenderState state;
+    m_screen->draw(state);
+    return state;
 }
 
 UIContext::UIContext(GLFWwindow* window)

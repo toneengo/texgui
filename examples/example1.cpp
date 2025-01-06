@@ -136,6 +136,8 @@ void main() {
 
     screen = uictx.screenPtr();
 
+    GLContext* glctx = uictx.m_gl_context;
+
     glfwSetFramebufferSizeCallback(window,
         [](GLFWwindow* window, int width, int height) { screen->framebufferSizeCallback(width, height); }
     );
@@ -235,8 +237,8 @@ void main() {
             lastSel = Tennis;
         }
 
-        uictx.draw();
-        uictx.render();
+        auto state = uictx.draw();
+        glctx->render(state);
 
         glfwSwapBuffers(window);
     }
