@@ -519,5 +519,10 @@ struct RenderState
     void drawQuad(const Math::fbox& rect, const Math::fvec4& col);
     void drawTexture(const Math::fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags);
     int drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, float scale, uint32_t flags, float width = 0);
+
+    void clear() {
+        objects.clear();
+        commands.clear();
+    }
 };
 NAMESPACE_END(TexGui);
