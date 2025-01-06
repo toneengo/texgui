@@ -1,6 +1,10 @@
 #define STB_DS_IMPLEMENTATION
 #include "stb_ds.h"
+
+#ifndef __gl_h_
 #include "glad/gl.h"
+#endif
+
 #include "shader.h"
 
 using namespace TexGui;

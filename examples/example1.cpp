@@ -1,6 +1,9 @@
 #include "texgui.h"
 #include "GLFW/glfw3.h"
+
+#ifndef __gl_h_
 #include "glad/gl.h"
+#endif
 #include "stdio.h"
 
 #include "stb_image.h"

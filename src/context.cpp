@@ -1,4 +1,7 @@
+#ifndef __gl_h_
 #include "glad/gl.h"
+#endif
+
 #include "context.h"
 #include "widget.h"
 #include "screen.h"

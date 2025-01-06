@@ -1,6 +1,7 @@
 #pragma once
 
-#ifndef __gl_h_
+#ifdef __gl_h__
+#else
 #include "glad/gl.h"
 #endif
 #include "GLFW/glfw3.h"
