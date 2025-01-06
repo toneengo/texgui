@@ -5,7 +5,7 @@
 using namespace TexGui;
 using namespace Math;
 
-Window::Window(const char* title, int xpos, int ypos, int width, int height)
+Window::Window(const char* title, float xpos, float ypos, float width, float height)
     : Widget(xpos, ypos, width, height), m_title(title), m_moving(false), m_resizing(false)
 {
     assignTexture(Defaults::Window::Texture);
