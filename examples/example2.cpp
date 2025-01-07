@@ -1,4 +1,3 @@
-/*
 #include "texgui.h"
 #include "GLFW/glfw3.h"
 
@@ -9,18 +8,11 @@
 
 #include "stb_image.h"
 
+#include "immediate.h"
+
 GLFWwindow* window;
 using namespace TexGui;
 
-void framebuffer_size_callback(GLFWwindow* window, int width, int height)
-{
-    glViewport(0, 0, width, height);
-}
-
-void message_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, GLchar const* message, void const* user_param)
-{
-    printf("%s \n", message);
-}
 
 int SCR_WIDTH;
 int SCR_HEIGHT;
@@ -31,6 +23,7 @@ enum {
     Tennis = 1,
 };
 
+static InputState input;
 Screen* screen;
 int main()
 {
@@ -60,7 +53,12 @@ int main()
     // Setup debug messages
     glEnable(GL_DEBUG_OUTPUT);
     glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-    glDebugMessageCallback(message_callback, nullptr);
+    glDebugMessageCallback(
+        [](GLenum src, GLenum t, GLuint id, GLenum sev, GLsizei ln, auto* message, auto* user_param)
+        {
+            printf("%s \n", message);
+        }, nullptr);
+
     glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_NOTIFICATION, 0, nullptr, GL_FALSE);
 
     unsigned int VAO;
@@ -143,10 +141,21 @@ void main() {
         [](GLFWwindow* window, int width, int height) { screen->framebufferSizeCallback(width, height); }
     );
     glfwSetCursorPosCallback(window,
-        [](GLFWwindow* window, double x, double y) { screen->cursorPosCallback(x, y); }
+        [](GLFWwindow* window, double x, double y) { 
+            input.cursor_pos = Math::ivec2(x, y);
+            screen->cursorPosCallback(x, y); 
+        }
     );
     glfwSetMouseButtonCallback(window,
-        [](GLFWwindow* window, int button, int action, int mods) { screen->mouseButtonCallback(button, action); }
+        [](GLFWwindow* window, int button, int action, int mods) {
+            if (button == GLFW_MOUSE_BUTTON_1)
+            {
+                if (action == GLFW_RELEASE)    input.lmb = KEY_Release;
+                else if (input.lmb == KEY_Off) input.lmb = KEY_Press;
+            }
+
+            screen->mouseButtonCallback(button, action); 
+        }
     );
     glfwSetKeyCallback(window,
         [](GLFWwindow* window, int key, int scancode, int action, int mods) { screen->keyCallback(key, scancode, action, mods); }
@@ -155,63 +164,11 @@ void main() {
         [](GLFWwindow* window, unsigned int codepoint) { screen->charCallback(codepoint); }
     );
 
-    //floating text input box
-    uictx.addWidget(new TextInput("Enter text here :-)", 500, 200, 200, 32));
-
-    //window 1
-    Widget* window1 = uictx.addWidget(new Window("window 1", 400, 600, 400, 200));
-    Widget* sendbutton = new Button("send!!", [](){printf("sent lololo\n");});
-    Widget* button = new Button("yes", [](){printf("sent lololo\n");});
-    Widget* input = new TextInput("Enter text:");
-
-    Widget* row1 = window1->addChild(new Row(70, 0, 0));
-    (*row1)[0] = sendbutton;
-    (*row1)[1] = input;
-    (*row1)[2] = button;
-
-    //window 2
-    Widget* window2 = new Window("window 2", 200, 100, 800, 400);
-    window2->setFlags(ALIGN_RIGHT);
-
-    Widget* row2 = window2->addChild(new Row(180, 0));
-
-    (*row2)[0] = new Box();
-    (*row2)[0]->assignTexture("box1");
-
-    (*row2)[1] = new Box();
-    (*row2)[1]->assignTexture("box2");
-    (*row2)[1]->setFlags(0);
-
-    Row* listrow = (Row*)(*row2)[1]->addChild(new Row());
-    listrow->setSize({0, 40});
-    listrow->setFlags(WRAPPED);
-
-    int val;
-    for (int i = 0; i < 15; i++)
-    {
-        Widget* item1 = listrow->addCol(new ListItem(new Image("lollipop"), &val, Lollipop), -1);
-        Widget* item2 = listrow->addCol(new ListItem(new Image("tennis"), &val, Tennis), -1);
-    }
-
-    uictx.addWidget(window2);
-
-    int lastSel = selection[Lollipop] ? Lollipop : Tennis;
-
-    Button lolbut( "lollipop time!!", [](){printf("lollipop:-)\n");} );
-    Button tenbut( "tenis", [](){printf("tenis:-(\n");} );
-
-    Image lolimg("lollipop");
-    Image tenimg("tennis");
-
-    Label lollab("a very tasty and red lollipop");
-    Label tenlab("a green tennis ball");
-    Column col = Column();
-
-    Widget* box1 = (*row2)[0];
-    box1->addChild(&col);
-
     while (!glfwWindowShouldClose(window))
     {
+        if (input.lmb == KEY_Release) input.lmb = KEY_Off;
+        if (input.lmb == KEY_Press) input.lmb = KEY_On;
+
         glfwPollEvents();
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -220,31 +177,24 @@ void main() {
         glBindTextureUnit(0, bg);
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
-        if (val == Lollipop)
+        RenderState immState = {};
+        ImmCtx baseCtx = { &input, &immState, Math::fbox(0,0, SCR_WIDTH, SCR_HEIGHT) }; 
+
+        auto win = imm_window(baseCtx, "bob", 0, 400, 100);
+
+        // Split the window into 2 columns
+        auto cells = imm_row(win, {140, 0});
+        // Put a button in the left cell
+        if (imm_button(cells[0], "pigeon balls"))
         {
-            col.clear();
-            col.addRow(&lolimg, 100, ALIGN_CENTER_X | ALIGN_CENTER_Y);
-            col.addRow(&lollab);
-            col.addRow(nullptr);
-            col.addRow(&lolbut, 32);
-            lastSel = Lollipop;
-        }
-        else if (val == Tennis)
-        {
-            col.clear();
-            col.addRow(&tenimg, 100, ALIGN_CENTER_X | ALIGN_CENTER_Y);
-            col.addRow(&tenlab);
-            col.addRow(nullptr);
-            col.addRow(&tenbut, 32);
-            lastSel = Tennis;
+            std::printf("pigeon gang\n");
         }
 
         auto state = uictx.draw();
-        glctx->render(state);
+        glctx->render(immState);
 
         glfwSwapBuffers(window);
     }
     glfwTerminate();
     return 0;
 }
-*/

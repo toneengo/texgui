@@ -6,6 +6,7 @@
 build/**
 .cache/**
 out/**
+vcpkg_installed/**
 
 # Local-only files
 CMakeFiles/**
