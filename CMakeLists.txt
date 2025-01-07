@@ -14,7 +14,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 project("texgui")
 
-add_library(texgui SHARED)
+add_library(texgui STATIC)
 add_executable(example1)
 
 find_package(OpenGL REQUIRED)
