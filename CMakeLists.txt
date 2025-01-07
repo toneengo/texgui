@@ -14,20 +14,21 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 project("texgui")
 
-add_library(texgui STATIC)
-add_executable(example1)
+if (BUILD_STATIC_LIBS)
+    add_library(texgui STATIC)
+endif()
+
+if (BUILD_SHARED_LIBS)
+    add_library(texgui SHARED)
+endif()
 
 find_package(OpenGL REQUIRED)
 find_package(glfw3 CONFIG REQUIRED)
 find_package(Freetype REQUIRED)
 find_package(glm CONFIG REQUIRED)
 
-add_subdirectory(src)
-add_subdirectory(include/src)
 
-add_subdirectory(examples)
-
-foreach(TARGET texgui example1)
+foreach(TARGET texgui)
     set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${PROJECT}")
 
     target_link_libraries(${TARGET} PRIVATE OpenGL::GL)
@@ -40,12 +41,25 @@ foreach(TARGET texgui example1)
     target_include_directories(${TARGET} PRIVATE "src/")
 endforeach(TARGET)
 
-target_link_directories(example1 PRIVATE ${CMAKE_BINARY_DIR})
-target_link_libraries(example1 PRIVATE texgui)
+if (BUILD_EXAMPLE)
+    add_executable(example1)
+    add_executable(example2)
+    list(APPEND Examples example1 example2)
 
-add_custom_target(resources
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/resources ${CMAKE_CURRENT_BINARY_DIR}/resources
-)
+    add_custom_target(resources
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/resources ${CMAKE_CURRENT_BINARY_DIR}/resources
+    )
 
-add_dependencies(example1 texgui)
-add_dependencies(example1 resources)
+    foreach(X IN LISTS Examples)
+        add_dependencies(${X} texgui)
+        add_dependencies(${X} resources)
+        target_link_directories(${X} PRIVATE ${CMAKE_BINARY_DIR})
+        target_link_libraries(${X} PRIVATE texgui)
+        target_include_directories(${X} PRIVATE "include/")
+    endforeach()
+
+    add_subdirectory(examples)
+endif()
+
+add_subdirectory(src)
+add_subdirectory(include/src)

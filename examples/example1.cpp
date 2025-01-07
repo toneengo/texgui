@@ -1,4 +1,3 @@
-/*
 #include "texgui.h"
 #include "GLFW/glfw3.h"
 
@@ -247,4 +246,3 @@ void main() {
     glfwTerminate();
     return 0;
 }
-*/

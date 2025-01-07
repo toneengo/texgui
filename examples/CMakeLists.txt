@@ -1,10 +1,2 @@
-file(GLOB_RECURSE src_f CONFIGURE_DEPENDS
-    "*.hpp"
-    "*.h"
-    "*.cpp"
-    "*.c"
-)
-
-target_sources(example1 PRIVATE
-    ${src_f}
-)
+target_sources(example1 PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/example1.cpp")
+target_sources(example2 PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/example2.cpp")
