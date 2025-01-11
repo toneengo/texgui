@@ -9,6 +9,7 @@ NAMESPACE_BEGIN(TexGui);
 
 class Widget
 {
+friend class Screen;
 friend class Row;
 friend class Column;
 friend class Label;
@@ -35,7 +36,7 @@ public:
 
     void    setPadding(float px) { m_padding = Math::fvec4(px); };
     Widget* addChild(Widget* widget);
-    Widget* findWidget(Math::ivec2& pos);
+    virtual Widget* findWidget(Math::ivec2& pos);
     virtual bool    contains(const Math::fvec2& pos);
     bool    visible() { return m_visible; };
     void    assignTexture(std::string tex);

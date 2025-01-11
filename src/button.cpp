@@ -1,5 +1,6 @@
 #include "defaults.h"
 #include "button.h"
+#include "types.h"
 #include "util.h"
 
 using namespace TexGui;
@@ -36,6 +37,8 @@ void Button::onMouseDownEvent(int button, int action)
 void Button::draw(RenderState& state)
 {
     Widget::draw(state);
+    
+    if (contains(g_cursor_pos)) m_state |= STATE_HOVER;
 
     state.drawTexture(m_box, m_texentry, m_state, m_pixel_size, SLICE_9);
 

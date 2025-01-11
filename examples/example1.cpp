@@ -238,7 +238,11 @@ void main() {
             lastSel = Tennis;
         }
 
+
         auto state = uictx.draw();
+
+        Button imm("press", [](){ printf("im drawn every frame\n"); }, 200, 200, 500, 200);
+        imm.draw(state);
         glctx->render(state);
 
         glfwSwapBuffers(window);

@@ -20,6 +20,9 @@ public:
     void keyCallback(int key, int scancode, int action, int mods);
     void charCallback(unsigned int codepoint);
     void framebufferSizeCallback(int width, int height);
+
+    void clearI() { m_immediates.clear(); }
+    void addChildI(Widget* widget) { m_immediates.push_back(widget); }
 private:
     GLContext* m_gl_context;
     Math::ivec2 m_cursor_pos;
@@ -27,6 +30,8 @@ private:
     Widget* m_hovered_widget = nullptr;
     Widget* m_active_widget = nullptr;
     Math::ivec2 m_active_widget_pos;
+
+    std::vector<Widget*> m_immediates;
 
     bool m_drag_active = false;
 };

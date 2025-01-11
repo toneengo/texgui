@@ -525,4 +525,6 @@ struct RenderState
         commands.clear();
     }
 };
+
+inline Math::ivec2 g_cursor_pos;
 NAMESPACE_END(TexGui);

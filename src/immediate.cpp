@@ -52,12 +52,15 @@ bool imm_button(ImmCtx& ctx, const char* text)
 
     bool click = false;
 
-    if (ctx.bounds.contains(ctx.input->cursor_pos))
+    if (ctx.bounds.contains(g_input_state.cursor_pos))
     {
         state |= STATE_HOVER;
 
-        if (ctx.input->lmb) state |= STATE_PRESS;
-        if (ctx.input->lmb == KEY_Press) click = true;
+        if (g_input_state.lmb == KEY_Press)
+        {
+            state |= STATE_PRESS;
+            click = true;
+        }
     }
 
     ctx.rs->drawTexture(ctx.bounds, &m_tex_map[Defaults::Button::Texture], state, 2, SLICE_9);
@@ -67,6 +70,42 @@ bool imm_button(ImmCtx& ctx, const char* text)
                                 : ctx.bounds.pos + ctx.bounds.size / 2,
 
             {1,1,1,1}, 0.5, CENTER_X | CENTER_Y);
+
+    return click;
+}
+
+ImmCtx ImmCtx::Window(const char* name, uint32_t flags, float w, float h)
+{
+    fbox winBounds(0,0, w, h);
+    rs->drawTexture(winBounds, &m_tex_map[Defaults::Window::Texture], 0, 2, SLICE_9);
+    fbox internal = fbox::pad(winBounds, Defaults::Window::Padding);
+    return withBounds(internal);
+}
+
+bool ImmCtx::Button(const char* text)
+{
+    uint32_t state = 0;
+
+    bool click = false;
+
+    if (bounds.contains(input->cursor_pos))
+    {
+        state |= STATE_HOVER;
+
+        if (g_input_state.lmb == KEY_Press)
+        {
+            state |= STATE_PRESS;
+            click = true;
+        }
+    }
+
+    rs->drawTexture(bounds, &m_tex_map[Defaults::Button::Texture], state, 2, SLICE_9);
+
+    rs->drawText(text, 
+        state & STATE_PRESS ? bounds.pos + bounds.size / 2 + Defaults::Button::POffset
+                            : bounds.pos + bounds.size / 2,
+
+        {1,1,1,1}, 0.5, CENTER_X | CENTER_Y);
 
     return click;
 }

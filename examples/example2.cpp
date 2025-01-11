@@ -142,18 +142,11 @@ void main() {
     );
     glfwSetCursorPosCallback(window,
         [](GLFWwindow* window, double x, double y) { 
-            input.cursor_pos = Math::ivec2(x, y);
             screen->cursorPosCallback(x, y); 
         }
     );
     glfwSetMouseButtonCallback(window,
         [](GLFWwindow* window, int button, int action, int mods) {
-            if (button == GLFW_MOUSE_BUTTON_1)
-            {
-                if (action == GLFW_RELEASE)    input.lmb = KEY_Release;
-                else if (input.lmb == KEY_Off) input.lmb = KEY_Press;
-            }
-
             screen->mouseButtonCallback(button, action); 
         }
     );
@@ -177,21 +170,20 @@ void main() {
         glBindTextureUnit(0, bg);
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
-        RenderState immState = {};
-        ImmCtx baseCtx = { &input, &immState, Math::fbox(0,0, SCR_WIDTH, SCR_HEIGHT) }; 
-
-        auto win = imm_window(baseCtx, "bob", 0, 400, 100);
+        auto win = g_immediate_ctx.Window("bob", 0, 400, 100);
 
         // Split the window into 2 columns
-        auto cells = imm_row(win, {140, 0});
+        auto cells = win.Row(140, 0);
         // Put a button in the left cell
-        if (imm_button(cells[0], "pigeon balls"))
+        if (cells[0].Button("pigeon balls"))
         {
             std::printf("pigeon gang\n");
         }
 
-        auto state = uictx.draw();
-        glctx->render(immState);
+        //auto state = uictx.draw();
+        glctx->render(g_immediate_state);
+
+        clearImmediate();
 
         glfwSwapBuffers(window);
     }
