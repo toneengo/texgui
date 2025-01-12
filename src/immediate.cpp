@@ -76,9 +76,12 @@ bool imm_button(ImmCtx& ctx, const char* text)
 
 ImmCtx ImmCtx::Window(const char* name, uint32_t flags, float w, float h)
 {
+    static TexEntry* wintex = &m_tex_map[Defaults::Window::Texture];
+    fvec4 padding = Defaults::Window::Padding;
+    padding.top = wintex->top * Defaults::PixelSize;
     fbox winBounds(0,0, w, h);
-    rs->drawTexture(winBounds, &m_tex_map[Defaults::Window::Texture], 0, 2, SLICE_9);
-    fbox internal = fbox::pad(winBounds, Defaults::Window::Padding);
+    rs->drawTexture(winBounds, wintex, 0, 2, SLICE_9);
+    fbox internal = fbox::pad(winBounds, padding);
     return withBounds(internal);
 }
 

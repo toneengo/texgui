@@ -170,10 +170,10 @@ void main() {
         glBindTextureUnit(0, bg);
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
-        auto win = g_immediate_ctx.Window("bob", 0, 400, 100);
+        auto win = g_immediate_ctx.Window("bob", 0, 400, 160);
 
         // Split the window into 2 columns
-        auto cells = win.Row(140, 0);
+        auto cells = win.Column(140, 0);
         // Put a button in the left cell
         if (cells[0].Button("pigeon balls"))
         {

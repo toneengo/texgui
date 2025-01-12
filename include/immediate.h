@@ -73,24 +73,42 @@ public:
         return row;
     }
 
+    template <typename... Rows>
+    std::vector<ImmCtx> Column(Rows... rows)
+    {
+        float absoluteHeight = 0;
+        float n = 0;
+        float inherit = 0;
+        auto _height = [&inherit, &absoluteHeight, &n](float col) {
+            if (col < 1)
+            {
+                absoluteHeight += col;
+                inherit++;
+            }
+            n++;
+        };
+
+        std::vector<ImmCtx> column;
+        auto _column = [&column, &absoluteHeight, &n, &inherit, this](float row) {
+            float x = 0, y = 0;
+            float spacing = Defaults::Row::Spacing;
+            float height = row >= 1 ? row : bounds.height - absoluteHeight - (spacing * (n - 1)) * row / inherit;
+
+            ImmCtx out = *this;
+            out.bounds = Math::fbox(bounds.x + x, bounds.y + y, bounds.width, height);
+
+            column.push_back(out);
+
+            y += height + spacing;
+        };
+        (_height(rows), ...);
+        (_column(rows), ...);
+        return column;
+    }
 private:
     
 
 };
-
-ImmCtx imm_window(ImmCtx& ctx, const char* name, uint32_t flags, float w, float h);
-
-void imm_row(ImmCtx& ctx, ImmCtx* out, const float* widths, uint32_t n);
-
-template <uint32_t N>
-std::array<ImmCtx, N> imm_row(ImmCtx& ctx, const float (&widths)[N])
-{
-    std::array<ImmCtx, N> out;
-    imm_row(ctx, &out[0], widths, N);
-    return out;
-}
-
-bool imm_button(ImmCtx& ctx, const char* text);
 
 inline InputState g_input_state;
 inline RenderState g_immediate_state = {};
