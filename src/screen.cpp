@@ -10,7 +10,6 @@ Screen::Screen(GLContext* gl_ctx)
     m_box.pos = {0.0, 0.0};
     m_box.size = gl_ctx->m_screen_size;
     m_window_scale = gl_ctx->m_window_scale;
-    ImmBase = { &g_input_state, &g_immediate_state, m_box };
 }
 
 void Screen::cursorPosCallback(double x, double y)

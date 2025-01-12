@@ -26,9 +26,7 @@ struct InputState
 class ImmCtx
 {
 public:
-    InputState* input;
     RenderState* rs;
-
     Math::fbox bounds;
 
     inline ImmCtx withBounds(Math::fbox bounds) const
@@ -59,6 +57,15 @@ public:
 private:
     void _Row_Internal(ImmCtx* out, const float* widths, uint32_t n, float height);
     void _Column_Internal(ImmCtx* out, const float* widths, uint32_t n, float height);
+
+    struct WindowState
+    {
+        Math::fvec2 pos;
+        bool active = false;
+        bool moving;
+        bool resizing;
+    };
+    std::vector<WindowState> m_windowStates;
 };
 
 inline InputState g_input_state;
