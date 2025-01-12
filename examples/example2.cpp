@@ -170,15 +170,17 @@ void main() {
         glBindTextureUnit(0, bg);
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
-        auto win = g_immediate_ctx.Window("bob", 0, 400, 160);
+        auto win = ImmBase.Window("bob", 200, 100, 400, 600);
 
         // Split the window into 2 columns
-        auto cells = win.Column(140, 0);
+        auto cells = win.Column({140, 0});
         // Put a button in the left cell
         if (cells[0].Button("pigeon balls"))
         {
             std::printf("pigeon gang\n");
         }
+
+        cells[1].Box(0, 0, 0, 0, "box1");
 
         //auto state = uictx.draw();
         glctx->render(g_immediate_state);

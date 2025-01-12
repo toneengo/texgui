@@ -10,7 +10,7 @@ Screen::Screen(GLContext* gl_ctx)
     m_box.pos = {0.0, 0.0};
     m_box.size = gl_ctx->m_screen_size;
     m_window_scale = gl_ctx->m_window_scale;
-    g_immediate_ctx = { &g_input_state, &g_immediate_state, m_box };
+    ImmBase = { &g_input_state, &g_immediate_state, m_box };
 }
 
 void Screen::cursorPosCallback(double x, double y)
@@ -88,7 +88,7 @@ void Screen::framebufferSizeCallback(int width, int height)
 {
     m_gl_context->setScreenSize(width, height);
     setSize({float(width), float(height)});
-    g_immediate_ctx.bounds = m_box;
+    ImmBase.bounds = m_box;
 }
 
 void Screen::draw(RenderState& state)
