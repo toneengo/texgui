@@ -57,20 +57,26 @@ public:
 private:
     void _Row_Internal(ImmCtx* out, const float* widths, uint32_t n, float height);
     void _Column_Internal(ImmCtx* out, const float* widths, uint32_t n, float height);
+};
 
-    struct WindowState
-    {
-        Math::fvec2 pos;
-        bool active = false;
-        bool moving;
-        bool resizing;
-    };
-    std::vector<WindowState> m_windowStates;
+struct WindowState
+{
+    Math::fvec2 pos;
+    bool active = false;
+    bool moving = false;
+    bool resizing = false;
 };
 
 inline InputState g_input_state;
 inline RenderState g_immediate_state = {};
+inline int g_window_count = 0;
 inline ImmCtx ImmBase;
+inline std::vector<WindowState> g_windowStates;
+
+inline void clearImmediateUI()
+{
+    g_window_count = 0;
+}
 
 inline void clearImmediate()
 {
@@ -78,5 +84,3 @@ inline void clearImmediate()
 }
 
 NAMESPACE_END(TexGui);
-
-

@@ -12,12 +12,25 @@ NAMESPACE_BEGIN(TexGui);
 
 ImmCtx ImmCtx::Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags)
 {
+    int id = g_window_count++;
+    if (g_window_count > g_windowStates.size())
+        g_windowStates.push_back({});
+
+    uint32_t state = 0;
+
+    fbox winBounds(xpos, ypos, width, height);
+    if (winBounds.contains(g_input_state.cursor_pos) && g_input_state.lmb == KEY_Press)
+        g_windowStates[id].active = true;
+    else if (g_input_state.lmb == KEY_Press)
+        g_windowStates[id].active = false;
+
+    if (g_windowStates[id].active) state |= STATE_ACTIVE;
+
     static TexEntry* wintex = &m_tex_map[Defaults::Window::Texture];
     fvec4 padding = Defaults::Window::Padding;
     padding.top = wintex->top * Defaults::PixelSize;
-    fbox winBounds(xpos, ypos, width, height);
 
-    g_immediate_state.drawTexture(winBounds, wintex, 0, Defaults::PixelSize, SLICE_9);
+    g_immediate_state.drawTexture(winBounds, wintex, state, Defaults::PixelSize, SLICE_9);
     g_immediate_state.drawText(name, {winBounds.x + padding.left, winBounds.y + wintex->top * Defaults::PixelSize / 2},
                  Defaults::Font::Color, Defaults::Font::Scale, CENTER_Y);
 

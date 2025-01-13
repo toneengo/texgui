@@ -186,6 +186,7 @@ void main() {
         glctx->render(g_immediate_state);
 
         clearImmediate();
+        clearImmediateUI();
 
         glfwSwapBuffers(window);
     }
