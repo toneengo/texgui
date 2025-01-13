@@ -1,3 +1,4 @@
+#include "GLFW/glfw3.h"
 #include "screen.h"
 #include "immediate.h"
 
@@ -46,8 +47,8 @@ void Screen::mouseButtonCallback(int button, int action)
 {
     if (button == GLFW_MOUSE_BUTTON_1)
     {
-        if (action == GLFW_RELEASE)    g_input_state.lmb = KEY_Release;
-        else if (action == GLFW_PRESS) g_input_state.lmb = KEY_Press;
+        if (action == GLFW_RELEASE) g_input_state.lmb = KEY_Release;
+        else if (g_input_state.lmb == KEY_Off) g_input_state.lmb = KEY_Press;
     }
 
     //Deactivates current active widget if it is not hovered

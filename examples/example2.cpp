@@ -159,9 +159,6 @@ void main() {
 
     while (!glfwWindowShouldClose(window))
     {
-        if (input.lmb == KEY_Release) input.lmb = KEY_Off;
-        if (input.lmb == KEY_Press) input.lmb = KEY_On;
-
         glfwPollEvents();
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);

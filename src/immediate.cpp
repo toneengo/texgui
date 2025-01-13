@@ -10,32 +10,71 @@ extern std::unordered_map<std::string, TexEntry> m_tex_map;
 
 NAMESPACE_BEGIN(TexGui);
 
+#define _PX Defaults::PixelSize
 ImmCtx ImmCtx::Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags)
 {
-    int id = g_window_count++;
-    if (g_window_count > g_windowStates.size())
-        g_windowStates.push_back({});
+    if (!g_windowStates.contains(name))
+    {
+        WindowState _ws = {
+            .box = {xpos, ypos, width, height},
+            .initial_box = {xpos, ypos, width, height},
+        };
+        g_windowStates.insert({name, _ws});
+    }
 
-    uint32_t state = 0;
-
-    fbox winBounds(xpos, ypos, width, height);
-    if (winBounds.contains(g_input_state.cursor_pos) && g_input_state.lmb == KEY_Press)
-        g_windowStates[id].active = true;
-    else if (g_input_state.lmb == KEY_Press)
-        g_windowStates[id].active = false;
-
-    if (g_windowStates[id].active) state |= STATE_ACTIVE;
+    WindowState& wstate = g_windowStates[name];
 
     static TexEntry* wintex = &m_tex_map[Defaults::Window::Texture];
-    fvec4 padding = Defaults::Window::Padding;
-    padding.top = wintex->top * Defaults::PixelSize;
+    uint32_t state = 0;
 
-    g_immediate_state.drawTexture(winBounds, wintex, state, Defaults::PixelSize, SLICE_9);
-    g_immediate_state.drawText(name, {winBounds.x + padding.left, winBounds.y + wintex->top * Defaults::PixelSize / 2},
+    if (wstate.box.contains(g_input_state.cursor_pos) && g_input_state.lmb == KEY_Press)
+        wstate.active = true;
+    else if (g_input_state.lmb == KEY_Press)
+        wstate.active = false;
+
+    if (g_input_state.lmb != KEY_Held)
+    {
+        wstate.moving = false;
+        wstate.resizing = false;
+    }
+
+    if (fbox(wstate.box.x, wstate.box.y, wstate.box.width, wintex->top * _PX).contains(g_input_state.cursor_pos) && g_input_state.lmb == KEY_Press)
+    {
+        wstate.last_cursor_pos = g_input_state.cursor_pos;
+        wstate.moving = true;
+    }
+
+    if (fbox(wstate.box.x + wstate.box.width - wintex->right * _PX,
+             wstate.box.y + wstate.box.height - wintex->bottom * _PX,
+             wintex->right * _PX, wintex->bottom * _PX).contains(g_input_state.cursor_pos) && g_input_state.lmb == KEY_Press)
+    {
+        wstate.last_cursor_pos = g_input_state.cursor_pos;
+        wstate.resizing = true;
+    }
+
+    if (wstate.moving)
+    {
+        wstate.box.pos += g_input_state.cursor_pos - wstate.last_cursor_pos;
+        wstate.last_cursor_pos = g_input_state.cursor_pos;
+    }
+    else if (wstate.resizing)
+    {
+        wstate.box.size += g_input_state.cursor_pos - wstate.last_cursor_pos;
+        wstate.last_cursor_pos = g_input_state.cursor_pos;
+    }
+
+    if (wstate.active) state |= STATE_ACTIVE;
+
+    fvec4 padding = Defaults::Window::Padding;
+    padding.top = wintex->top * _PX;
+
+    g_immediate_state.drawTexture(wstate.box, wintex, state, _PX, SLICE_9);
+    g_immediate_state.drawText(name, {wstate.box.x + padding.left, wstate.box.y + wintex->top * _PX / 2},
                  Defaults::Font::Color, Defaults::Font::Scale, CENTER_Y);
 
-    fbox internal = fbox::pad(winBounds, padding);
+    fbox internal = fbox::pad(wstate.box, padding);
     return withBounds(internal);
+
 }
 
 bool ImmCtx::Button(const char* text)
@@ -48,14 +87,11 @@ bool ImmCtx::Button(const char* text)
     {
         state |= STATE_HOVER;
 
-        if (g_input_state.lmb == KEY_Press)
-        {
-            state |= STATE_PRESS;
-            click = true;
-        }
+        if (g_input_state.lmb) state |= STATE_PRESS;
+        if (g_input_state.lmb == KEY_Press) click = true;
     }
 
-    g_immediate_state.drawTexture(bounds, &m_tex_map[Defaults::Button::Texture], state, Defaults::PixelSize, SLICE_9);
+    g_immediate_state.drawTexture(bounds, &m_tex_map[Defaults::Button::Texture], state, _PX, SLICE_9);
 
     g_immediate_state.drawText(text, 
         state & STATE_PRESS ? bounds.pos + bounds.size / 2 + Defaults::Button::POffset

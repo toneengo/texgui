@@ -1,3 +1,4 @@
+#include "GLFW/glfw3.h"
 #include "defaults.h"
 #include "widget.h"
 #include "util.h"

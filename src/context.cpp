@@ -2,6 +2,7 @@
 #ifndef __gl_h_
 #include "glad/gl.h"
 #endif
+#include "GLFW/glfw3.h"
 
 #include "context.h"
 #include "widget.h"

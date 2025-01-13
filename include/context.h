@@ -3,13 +3,15 @@
 #ifndef __gl_h_
 #include "glad/gl.h"
 #endif
-#include "GLFW/glfw3.h"
+//#include "GLFW/glfw3.h"
 #include "common.h"
 #include "shader.h"
 #include "types.h"
 #include <unordered_map>
 #include <vector>
 
+
+struct GLFWwindow;
 NAMESPACE_BEGIN(TexGui);
 
 class GLContext
