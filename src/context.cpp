@@ -168,13 +168,13 @@ void RenderState::drawTexture(const fbox& rect, TexEntry* e, int state, int pixe
     if (!e) return;
     int layer = 0;
     //#TODO: don't hard code numebrs
-    if (getFlagBit(e->has_state, state))
+    if (getBit(e->has_state, state))
     {
-        if (getFlagBit(state, STATE_PRESS) && getFlagBit(e->has_state, STATE_PRESS))
+        if (getBit(state, STATE_PRESS) && getBit(e->has_state, STATE_PRESS))
             layer = 2;
-        else if (getFlagBit(state, STATE_HOVER) && getFlagBit(e->has_state, STATE_HOVER))
+        else if (getBit(state, STATE_HOVER) && getBit(e->has_state, STATE_HOVER))
             layer = 1;
-        else if (getFlagBit(e->has_state, STATE_ACTIVE))
+        else if (getBit(e->has_state, STATE_ACTIVE))
             layer = 3;
     }
 

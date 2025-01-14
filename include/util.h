@@ -41,12 +41,12 @@ inline int binarySearch(const std::vector<T>& arr, const U val)
     return l;
 }
 
-inline void setFlagBit(unsigned int& dest, const unsigned int flag, bool on)
+inline void setBit(unsigned int& dest, const unsigned int flag, bool on)
 {
     dest = on ? dest | flag : dest & ~(flag);
 }
 
-inline bool getFlagBit(const unsigned int dest, const unsigned int flag)
+inline bool getBit(const unsigned int dest, const unsigned int flag)
 {
     return dest & flag;
 }

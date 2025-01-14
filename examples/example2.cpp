@@ -65,8 +65,8 @@ int main()
     glGenVertexArrays(1, &VAO);
     glBindVertexArray(VAO);
 
-    glDisable(GL_DEPTH_TEST);
-    glDisable(GL_STENCIL_TEST);
+    //glDisable(GL_DEPTH_TEST);
+    //glDisable(GL_STENCIL_TEST);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -157,16 +157,18 @@ void main() {
         [](GLFWwindow* window, unsigned int codepoint) { screen->charCallback(codepoint); }
     );
 
+    //glEnable(GL_DEPTH_TEST);
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         glUseProgram(bg_shader);
         glBindTextureUnit(0, bg);
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
+        ImmBase.Window("not bob", 400, 500, 200, 200);
         auto win = ImmBase.Window("bob", 200, 100, 400, 600);
 
         // Split the window into 2 columns

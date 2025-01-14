@@ -1,5 +1,6 @@
 #include "immediate.h"
 #include "defaults.h"
+#include "util.h"
 
 #include <unordered_map>
 
@@ -9,6 +10,25 @@ using namespace Math;
 extern std::unordered_map<std::string, TexEntry> m_tex_map;
 
 NAMESPACE_BEGIN(TexGui);
+
+uint32_t ImmCtx::getBoxState(fbox box)
+{
+    uint32_t state = 0;
+    if (box.contains(g_input_state.cursor_pos))
+    {
+        state |= STATE_HOVER;
+
+        if (g_input_state.lmb) state |= STATE_PRESS;
+        if (g_input_state.lmb == KEY_Press) state |= STATE_ACTIVE;
+
+        return state;
+    }
+
+    if (g_input_state.lmb == KEY_Press)
+        setBit(state, STATE_ACTIVE, 0);
+
+    return state;
+}
 
 #define _PX Defaults::PixelSize
 ImmCtx ImmCtx::Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags)
@@ -25,13 +45,9 @@ ImmCtx ImmCtx::Window(const char* name, float xpos, float ypos, float width, flo
     WindowState& wstate = g_windowStates[name];
 
     static TexEntry* wintex = &m_tex_map[Defaults::Window::Texture];
-    uint32_t state = 0;
 
-    if (wstate.box.contains(g_input_state.cursor_pos) && g_input_state.lmb == KEY_Press)
-        wstate.active = true;
-    else if (g_input_state.lmb == KEY_Press)
-        wstate.active = false;
-
+    wstate.state = getBoxState(wstate.box);
+    
     if (g_input_state.lmb != KEY_Held)
     {
         wstate.moving = false;
@@ -63,12 +79,10 @@ ImmCtx ImmCtx::Window(const char* name, float xpos, float ypos, float width, flo
         wstate.last_cursor_pos = g_input_state.cursor_pos;
     }
 
-    if (wstate.active) state |= STATE_ACTIVE;
-
     fvec4 padding = Defaults::Window::Padding;
     padding.top = wintex->top * _PX;
 
-    g_immediate_state.drawTexture(wstate.box, wintex, state, _PX, SLICE_9);
+    g_immediate_state.drawTexture(wstate.box, wintex, wstate.state, _PX, SLICE_9);
     g_immediate_state.drawText(name, {wstate.box.x + padding.left, wstate.box.y + wintex->top * _PX / 2},
                  Defaults::Font::Color, Defaults::Font::Scale, CENTER_Y);
 
@@ -79,17 +93,8 @@ ImmCtx ImmCtx::Window(const char* name, float xpos, float ypos, float width, flo
 
 bool ImmCtx::Button(const char* text)
 {
-    uint32_t state = 0;
-
     bool click = false;
-
-    if (bounds.contains(g_input_state.cursor_pos))
-    {
-        state |= STATE_HOVER;
-
-        if (g_input_state.lmb) state |= STATE_PRESS;
-        if (g_input_state.lmb == KEY_Press) click = true;
-    }
+    auto state = getBoxState(bounds);
 
     g_immediate_state.drawTexture(bounds, &m_tex_map[Defaults::Button::Texture], state, _PX, SLICE_9);
 
@@ -119,7 +124,21 @@ ImmCtx ImmCtx::Box(float xpos, float ypos, float width, float height, const char
     return withBounds(internal);
 }
 
-void ImmCtx::_Row_Internal(ImmCtx* out, const float* widths, uint32_t n, float height)
+void ImmCtx::TextInput(const char* name, std::string buf)
+{
+    /*
+    static TexEntry* inputtex = &m_tex_map[Defaults::TextInput::Texture];
+    state.drawTexture(bounds, inputtex, state, m_pixel_size, SLICE_9);
+    
+    g_immediate_state.drawTexture(text, 
+        state & STATE_PRESS ? bounds.pos + bounds.size / 2 + Defaults::Button::POffset
+                            : bounds.pos + bounds.size / 2,
+        Defaults::Font::Color, Defaults::Font::Scale, CENTER_X | CENTER_Y);
+        */
+    ;
+}
+
+void ImmCtx::Row_Internal(ImmCtx* out, const float* widths, uint32_t n, float height)
 {
     if (height < 1) {
         height = height == 0 ? bounds.height : bounds.height * height;
@@ -154,7 +173,7 @@ void ImmCtx::_Row_Internal(ImmCtx* out, const float* widths, uint32_t n, float h
     }
 }
 
-void ImmCtx::_Column_Internal(ImmCtx* out, const float* heights, uint32_t n, float width)
+void ImmCtx::Column_Internal(ImmCtx* out, const float* heights, uint32_t n, float width)
 {
     if (width < 1) {
         width = width == 0 ? bounds.width : bounds.width * width;

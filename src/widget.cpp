@@ -35,10 +35,10 @@ void Widget::onCursorPosEvent(int x, int y)
 {
     m_cursor_pos = {x, y};
     if (!contains(fvec2(x, y) + m_box.pos))
-        setFlagBit(m_state, STATE_HOVER, 0);
+        setBit(m_state, STATE_HOVER, 0);
     /*
     if (!enter)
-        setFlagBit(m_state, STATE_PRESS, 0);
+        setBit(m_state, STATE_PRESS, 0);
     */
 }
 
@@ -47,7 +47,7 @@ void Widget::onCursorEnterEvent()
     if (m_parent)
         m_parent->onCursorEnterEvent();
 
-    setFlagBit(m_state, STATE_HOVER, 1);
+    setBit(m_state, STATE_HOVER, 1);
 }
 
 void Widget::onCursorExitEvent()
@@ -55,7 +55,7 @@ void Widget::onCursorExitEvent()
     if (m_parent)
         m_parent->onCursorExitEvent();
     
-    setFlagBit(m_state, STATE_HOVER, 0);
+    setBit(m_state, STATE_HOVER, 0);
 }
 
 void Widget::onMouseDownEvent(int button, int action)
@@ -67,16 +67,16 @@ void Widget::onMouseDownEvent(int button, int action)
     {
         if (m_state & STATE_HOVER)
         {
-            setFlagBit(m_state, STATE_PRESS, 1);
-            setFlagBit(m_state, STATE_ACTIVE, 1);
+            setBit(m_state, STATE_PRESS, 1);
+            setBit(m_state, STATE_ACTIVE, 1);
             return;
         }
 
-        setFlagBit(m_state, STATE_ACTIVE, 0);
+        setBit(m_state, STATE_ACTIVE, 0);
     }
 
     if (action == GLFW_RELEASE) {
-        setFlagBit(m_state, STATE_PRESS, 0);
+        setBit(m_state, STATE_PRESS, 0);
     }
 }
 

@@ -20,12 +20,12 @@ void Window::onCursorPosEvent(int x, int y)
     if (m_moving)
     {
         setPos(fvec2(x - m_cursor_offset.x, y - m_cursor_offset.y));
-        setFlagBit(m_state, STATE_HOVER, 1);
+        setBit(m_state, STATE_HOVER, 1);
     }
     else if (m_resizing)
     {
         setSize(m_cursor_pos + m_cursor_offset);
-        setFlagBit(m_state, STATE_HOVER, 1);
+        setBit(m_state, STATE_HOVER, 1);
     }
 }
 
@@ -33,7 +33,7 @@ void Window::onMouseDownEvent(int button, int action)
 {
     Widget::onMouseDownEvent(button, action);
 
-    if (!getFlagBit(m_state, STATE_ACTIVE)) return;
+    if (!getBit(m_state, STATE_ACTIVE)) return;
     if (action == GLFW_PRESS &&
         fbox(0, 0, m_box.width, m_texentry->top * m_pixel_size).contains(m_cursor_pos))
     {

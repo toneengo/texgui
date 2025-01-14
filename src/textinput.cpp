@@ -27,7 +27,7 @@ TextInput::TextInput(const char* placeholder, int x, int y, int width, int heigh
 void TextInput::onCursorPosEvent(int x, int y)
 {
     Widget::onCursorPosEvent(x, y);
-    if (getFlagBit(m_state, STATE_PRESS) && m_sel.x != -1)
+    if (getBit(m_state, STATE_PRESS) && m_sel.x != -1)
         m_sel.y = binarySearch(m_pos_buf, x - m_offsetx);
 }
 
@@ -39,7 +39,7 @@ void TextInput::onMouseDownEvent(int button, int action)
         m_text_cur = binarySearch(m_pos_buf, m_cursor_pos.x - m_offsetx);
         m_sel = {m_text_cur, m_text_cur};
     }
-    if (!getFlagBit(m_state, STATE_ACTIVE))
+    if (!getBit(m_state, STATE_ACTIVE))
         m_sel = {-1, -1};
 }
 
@@ -165,9 +165,8 @@ void TextInput::draw(RenderState& state)
             {115/255.0, 164/255.0, 194/255.0, 1.0}
         );
 
-
     state.drawText(
-        !getFlagBit(m_state, STATE_ACTIVE) && m_text_buf.size() == 0
+        !getBit(m_state, STATE_ACTIVE) && m_text_buf.size() == 0
         ? m_placeholder.c_str() : m_text_buf.c_str(),
         {m_box.x + m_offsetx + m_padding.left, m_box.y + m_box.height / 2},
         m_text_color,
@@ -175,7 +174,7 @@ void TextInput::draw(RenderState& state)
         CENTER_Y
     );
 
-    if (showTextCursor && getFlagBit(m_state, STATE_ACTIVE))
+    if (showTextCursor && getBit(m_state, STATE_ACTIVE))
     {
         state.drawText("|",
             {m_box.x + m_pos_buf[m_text_cur] - 5 + m_offsetx + m_padding.left, m_box.y + m_box.height / 2}, m_text_color, m_text_scale, CENTER_Y);

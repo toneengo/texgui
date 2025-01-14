@@ -41,11 +41,12 @@ public:
     ImmCtx Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags = 0);
     bool Button(const char* text);
     ImmCtx Box(float xpos, float ypos, float width, float height, const char* texture = nullptr);
+    void TextInput(const char* name, std::string buf);
     template <uint32_t N>
     std::array<ImmCtx, N> Row(const float (&widths)[N], float height = 0)
     {
         std::array<ImmCtx, N> out;
-        _Row_Internal(&out[0], widths, N, height);
+        Row_Internal(&out[0], widths, N, height);
         return out;
     }
 
@@ -53,12 +54,13 @@ public:
     std::array<ImmCtx, N> Column(const float (&heights)[N], float width = 0)
     {
         std::array<ImmCtx, N> out;
-        _Column_Internal(&out[0], heights, N, width);
+        Column_Internal(&out[0], heights, N, width);
         return out;
     }
 private:
-    void _Row_Internal(ImmCtx* out, const float* widths, uint32_t n, float height);
-    void _Column_Internal(ImmCtx* out, const float* widths, uint32_t n, float height);
+    void Row_Internal(ImmCtx* out, const float* widths, uint32_t n, float height);
+    void Column_Internal(ImmCtx* out, const float* widths, uint32_t n, float height);
+    uint32_t getBoxState(Math::fbox box);
 };
 
 struct WindowState
@@ -67,7 +69,7 @@ struct WindowState
     Math::fbox initial_box;
     Math::fvec2 last_cursor_pos;
 
-    bool active = false;
+    uint32_t state = 0;
     bool moving = false;
     bool resizing = false;
 };
