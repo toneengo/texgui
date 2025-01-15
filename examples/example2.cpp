@@ -158,6 +158,7 @@ void main() {
     );
 
     //glEnable(GL_DEPTH_TEST);
+    std::string str;
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
@@ -179,7 +180,7 @@ void main() {
             std::printf("pigeon gang\n");
         }
 
-        cells[1].Box(0, 0, 0, 0, "box1");
+        cells[1].TextInput("enter text", str);
 
         //auto state = uictx.draw();
         glctx->render(g_immediate_state);

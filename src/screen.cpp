@@ -78,6 +78,7 @@ void Screen::keyCallback(int key, int scancode, int action, int mods)
 
 void Screen::charCallback(unsigned int codepoint)
 {
+    g_input_state.chars.push(codepoint);
     if (m_active_widget)
     {
         m_active_widget->onCharEvent(codepoint);

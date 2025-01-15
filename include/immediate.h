@@ -5,6 +5,7 @@
 #include "types.h"
 #include <unordered_map>
 #include <array>
+#include <queue>
 
 NAMESPACE_BEGIN(TexGui);
 
@@ -22,7 +23,7 @@ struct InputState
 {
     Math::ivec2 cursor_pos;
     uint8_t lmb;
-
+    std::queue<unsigned int> chars;
 };
 
 class ImmCtx
@@ -41,7 +42,7 @@ public:
     ImmCtx Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags = 0);
     bool Button(const char* text);
     ImmCtx Box(float xpos, float ypos, float width, float height, const char* texture = nullptr);
-    void TextInput(const char* name, std::string buf);
+    void TextInput(const char* name, std::string& buf);
     template <uint32_t N>
     std::array<ImmCtx, N> Row(const float (&widths)[N], float height = 0)
     {
@@ -60,7 +61,9 @@ public:
 private:
     void Row_Internal(ImmCtx* out, const float* widths, uint32_t n, float height);
     void Column_Internal(ImmCtx* out, const float* widths, uint32_t n, float height);
-    uint32_t getBoxState(Math::fbox box);
+    uint32_t getBoxState(uint32_t& state, Math::fbox box);
+
+    std::unordered_map<std::string, uint32_t>* buttonStates;
 };
 
 struct WindowState
@@ -72,6 +75,15 @@ struct WindowState
     uint32_t state = 0;
     bool moving = false;
     bool resizing = false;
+
+    std::unordered_map<std::string, uint32_t> buttonStates;
+};
+
+struct TextInputState 
+{
+    Math::fvec2 select_pos;
+    bool selecting = false;
+    uint32_t state = 0;
 };
 
 inline InputState g_input_state;
@@ -81,6 +93,7 @@ inline ImmCtx ImmBase;
 //inline std::vector<WindowState> g_windowStates;
 
 inline std::unordered_map<std::string, WindowState> g_windowStates;
+inline std::unordered_map<std::string, TextInputState> g_textInputStates;
 
 inline void clearImmediateUI()
 {
@@ -92,6 +105,8 @@ inline void clearImmediate()
     if (g_input_state.lmb == KEY_Press) g_input_state.lmb = KEY_Held;
     if (g_input_state.lmb == KEY_Release) g_input_state.lmb = KEY_Off;
     g_immediate_state.clear();
+    if (!g_input_state.chars.empty())
+        g_input_state.chars.pop();
 }
 
 NAMESPACE_END(TexGui);

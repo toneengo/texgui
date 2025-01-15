@@ -11,18 +11,25 @@ extern std::unordered_map<std::string, TexEntry> m_tex_map;
 
 NAMESPACE_BEGIN(TexGui);
 
-uint32_t ImmCtx::getBoxState(fbox box)
+uint32_t ImmCtx::getBoxState(uint32_t& state, fbox box)
 {
-    uint32_t state = 0;
     if (box.contains(g_input_state.cursor_pos))
     {
         state |= STATE_HOVER;
 
-        if (g_input_state.lmb) state |= STATE_PRESS;
-        if (g_input_state.lmb == KEY_Press) state |= STATE_ACTIVE;
+        if (g_input_state.lmb == KEY_Press) {
+            state |= STATE_PRESS;
+            state |= STATE_ACTIVE;
+        }
+
+        if (g_input_state.lmb == KEY_Release)
+            setBit(state, STATE_PRESS, 0);
 
         return state;
     }
+
+    setBit(state, STATE_HOVER, 0);
+    setBit(state, STATE_PRESS, 0);
 
     if (g_input_state.lmb == KEY_Press)
         setBit(state, STATE_ACTIVE, 0);
@@ -35,18 +42,17 @@ ImmCtx ImmCtx::Window(const char* name, float xpos, float ypos, float width, flo
 {
     if (!g_windowStates.contains(name))
     {
-        WindowState _ws = {
+        g_windowStates.insert({name, {
             .box = {xpos, ypos, width, height},
             .initial_box = {xpos, ypos, width, height},
-        };
-        g_windowStates.insert({name, _ws});
+        }});
     }
 
     WindowState& wstate = g_windowStates[name];
 
     static TexEntry* wintex = &m_tex_map[Defaults::Window::Texture];
 
-    wstate.state = getBoxState(wstate.box);
+    getBoxState(wstate.state, wstate.box);
     
     if (g_input_state.lmb != KEY_Held)
     {
@@ -87,6 +93,8 @@ ImmCtx ImmCtx::Window(const char* name, float xpos, float ypos, float width, flo
                  Defaults::Font::Color, Defaults::Font::Scale, CENTER_Y);
 
     fbox internal = fbox::pad(wstate.box, padding);
+
+    buttonStates = &wstate.buttonStates;
     return withBounds(internal);
 
 }
@@ -94,7 +102,13 @@ ImmCtx ImmCtx::Window(const char* name, float xpos, float ypos, float width, flo
 bool ImmCtx::Button(const char* text)
 {
     bool click = false;
-    auto state = getBoxState(bounds);
+    if (!buttonStates->contains(text))
+    {
+        buttonStates->insert({text, 0});
+    }
+
+    uint32_t& state = buttonStates->at(text);
+    getBoxState(state, bounds);
 
     g_immediate_state.drawTexture(bounds, &m_tex_map[Defaults::Button::Texture], state, _PX, SLICE_9);
 
@@ -124,18 +138,35 @@ ImmCtx ImmCtx::Box(float xpos, float ypos, float width, float height, const char
     return withBounds(internal);
 }
 
-void ImmCtx::TextInput(const char* name, std::string buf)
+void ImmCtx::TextInput(const char* name, std::string& buf)
 {
-    /*
     static TexEntry* inputtex = &m_tex_map[Defaults::TextInput::Texture];
-    state.drawTexture(bounds, inputtex, state, m_pixel_size, SLICE_9);
+    if (!g_textInputStates.contains(name))
+    {
+        g_textInputStates.insert({name, {}});
+    }
     
-    g_immediate_state.drawTexture(text, 
-        state & STATE_PRESS ? bounds.pos + bounds.size / 2 + Defaults::Button::POffset
-                            : bounds.pos + bounds.size / 2,
-        Defaults::Font::Color, Defaults::Font::Scale, CENTER_X | CENTER_Y);
-        */
-    ;
+    auto& tstate = g_textInputStates[name];
+
+    getBoxState(tstate.state, bounds);
+    
+    if (!g_input_state.chars.empty() && tstate.state & STATE_ACTIVE)
+    {
+        buf.push_back(g_input_state.chars.front());
+    }
+
+    g_immediate_state.drawTexture(bounds, inputtex, tstate.state, _PX, SLICE_9);
+    float offsetx = 0;
+    fvec4 padding = Defaults::TextInput::Padding;
+    fvec4 color = Defaults::Font::Color;
+    g_immediate_state.drawText(
+        !getBit(tstate.state, STATE_ACTIVE) && buf.size() == 0
+        ? name : buf.c_str(),
+        {bounds.x + offsetx + padding.left, bounds.y + bounds.height / 2},
+        Defaults::Font::Color,
+        Defaults::Font::Scale,
+        CENTER_Y
+    );
 }
 
 void ImmCtx::Row_Internal(ImmCtx* out, const float* widths, uint32_t n, float height)
