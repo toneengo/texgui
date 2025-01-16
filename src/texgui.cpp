@@ -309,7 +309,6 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
 
 bool Container::Button(const char* text)
 {
-    bool click = false;
     if (!buttonStates->contains(text))
     {
         buttonStates->insert({text, 0});
@@ -325,7 +324,8 @@ bool Container::Button(const char* text)
                             : bounds.pos + bounds.size / 2,
         Defaults::Font::Color, Defaults::Font::Scale, CENTER_X | CENTER_Y);
 
-    return click;
+    auto& io = GTexGui->io;
+    return state & STATE_ACTIVE && io.lmb == KEY_Release && bounds.contains(io.cursorPos) ? true : false;
 }
 
 Container Container::Box(float xpos, float ypos, float width, float height, const char* texture)
