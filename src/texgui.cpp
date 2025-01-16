@@ -1,6 +1,9 @@
 #include "texgui.h"
+#include "context.h"
+#include "types.h"
 #include "GLFW/glfw3.h"
 #include <cassert>
+#include <cstring>
 
 using namespace TexGui;
 
@@ -81,22 +84,6 @@ struct TexGuiContext
 };
 
 TexGuiContext* GTexGui = nullptr;
-struct RenderData
-{
-    std::vector<Object> objects;
-    std::vector<Command> commands;
-
-    Math::fvec2 m_widget_pos = Math::fvec2(0);
-
-    void drawQuad(const Math::fbox& rect, const Math::fvec4& col);
-    void drawTexture(const Math::fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags);
-    int drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, float scale, uint32_t flags, float width = 0);
-
-    void clear() {
-        objects.clear();
-        commands.clear();
-    }
-};
 
 RenderData renderData;
 

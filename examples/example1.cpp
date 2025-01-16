@@ -1,16 +1,12 @@
 #include "texgui.h"
+#include "glad/gl.h"
 #include "GLFW/glfw3.h"
 
-#ifndef __gl_h_
-#include "glad/gl.h"
-#endif
 #include "stdio.h"
 
 #include "stb_image.h"
 
 GLFWwindow* window;
-using namespace TexGui;
-
 
 int SCR_WIDTH;
 int SCR_HEIGHT;
@@ -126,8 +122,8 @@ void main() {
     TexGui::Defaults::PixelSize = 2;
 
     TexGui::initGlfwOpenGL(window);
-    loadFont("resources/fonts/unifont.ttf");
-    loadTextures("resources/sprites");
+    TexGui::loadFont("resources/fonts/unifont.ttf");
+    TexGui::loadTextures("resources/sprites");
 
     //glEnable(GL_DEPTH_TEST);
     std::string str;
@@ -156,7 +152,7 @@ void main() {
 
         TexGui::render();
 
-        clear();
+        TexGui::clear();
 
         glfwSwapBuffers(window);
     }

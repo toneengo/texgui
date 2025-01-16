@@ -101,23 +101,6 @@ void GLContext::setScreenSize(int width, int height)
     glNamedBufferSubData(m_ub.screen_size.buf, 0, sizeof(int) * 2, &m_screen_size);
 }
 
-struct RenderData
-{
-    std::vector<Object> objects;
-    std::vector<Command> commands;
-
-    Math::fvec2 m_widget_pos = Math::fvec2(0);
-
-    void drawQuad(const Math::fbox& rect, const Math::fvec4& col);
-    void drawTexture(const Math::fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags);
-    int drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, float scale, uint32_t flags, float width = 0);
-
-    void clear() {
-        objects.clear();
-        commands.clear();
-    }
-};
-
 int RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, float scale, uint32_t flags, float width)
 {
     size_t numchars = strlen(text);
