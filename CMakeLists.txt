@@ -43,8 +43,7 @@ endforeach(TARGET)
 
 if (BUILD_EXAMPLE)
     add_executable(example1)
-    add_executable(example2)
-    list(APPEND Examples example1 example2)
+    list(APPEND Examples example1)
 
     add_custom_target(resources
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/resources ${CMAKE_CURRENT_BINARY_DIR}/resources

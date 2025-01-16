@@ -460,5 +460,3 @@ void Container::Column_Internal(Container* out, const float* heights, uint32_t n
         y += height + spacing;
     }
 }
-
-
