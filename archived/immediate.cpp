@@ -1,4 +1,4 @@
-#include "immediate.h"
+#include "texgui.h"
 #include "defaults.h"
 #include "util.h"
 
@@ -11,7 +11,7 @@ extern std::unordered_map<std::string, TexEntry> m_tex_map;
 
 NAMESPACE_BEGIN(TexGui);
 
-uint32_t ImmCtx::getBoxState(uint32_t& state, fbox box)
+uint32_t getBoxState(uint32_t& state, fbox box)
 {
     if (box.contains(g_input_state.cursor_pos))
     {
@@ -38,7 +38,7 @@ uint32_t ImmCtx::getBoxState(uint32_t& state, fbox box)
 }
 
 #define _PX Defaults::PixelSize
-ImmCtx ImmCtx::Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags)
+Container Container::Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags)
 {
     if (!g_windowStates.contains(name))
     {
@@ -99,7 +99,7 @@ ImmCtx ImmCtx::Window(const char* name, float xpos, float ypos, float width, flo
 
 }
 
-bool ImmCtx::Button(const char* text)
+bool Container::Button(const char* text)
 {
     bool click = false;
     if (!buttonStates->contains(text))
@@ -120,7 +120,7 @@ bool ImmCtx::Button(const char* text)
     return click;
 }
 
-ImmCtx ImmCtx::Box(float xpos, float ypos, float width, float height, const char* texture)
+Container Container::Box(float xpos, float ypos, float width, float height, const char* texture)
 {
     if (width <= 1)
         width = width == 0 ? bounds.width : bounds.width * width;
@@ -138,7 +138,7 @@ ImmCtx ImmCtx::Box(float xpos, float ypos, float width, float height, const char
     return withBounds(internal);
 }
 
-void ImmCtx::TextInput(const char* name, std::string& buf)
+void Container::TextInput(const char* name, std::string& buf)
 {
     static TexEntry* inputtex = &m_tex_map[Defaults::TextInput::Texture];
     if (!g_textInputStates.contains(name))
@@ -169,7 +169,7 @@ void ImmCtx::TextInput(const char* name, std::string& buf)
     );
 }
 
-void ImmCtx::Row_Internal(ImmCtx* out, const float* widths, uint32_t n, float height)
+void Container::Row_Internal(Container* out, const float* widths, uint32_t n, float height)
 {
     if (height < 1) {
         height = height == 0 ? bounds.height : bounds.height * height;
@@ -204,7 +204,7 @@ void ImmCtx::Row_Internal(ImmCtx* out, const float* widths, uint32_t n, float he
     }
 }
 
-void ImmCtx::Column_Internal(ImmCtx* out, const float* heights, uint32_t n, float width)
+void Container::Column_Internal(Container* out, const float* heights, uint32_t n, float width)
 {
     if (width < 1) {
         width = width == 0 ? bounds.width : bounds.width * width;

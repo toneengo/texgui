@@ -20,6 +20,7 @@ void message_callback(GLenum source, GLenum type, GLuint id, GLenum severity,
                       void const *user_param) {
   printf("%s \n", message);
 }
+/*
 
 int SCR_WIDTH;
 int SCR_HEIGHT;
@@ -31,8 +32,10 @@ enum {
 };
 
 Screen *screen;
+*/
 int main() {
 
+    /*
   glfwInit();
   // OpenGL version
   glfwWindowHint(GLFW_SAMPLES, 4);
@@ -255,5 +258,7 @@ void main() {
     glfwSwapBuffers(window);
   }
   glfwTerminate();
+
+  */
   return 0;
 }

@@ -26,41 +26,41 @@ struct InputState
     std::queue<unsigned int> chars;
 };
 
-class ImmCtx
+class Container
 {
 public:
     RenderState* rs;
     Math::fbox bounds;
 
-    inline ImmCtx withBounds(Math::fbox bounds) const
+    inline Container withBounds(Math::fbox bounds) const
     {
-        ImmCtx copy = *this;
+        Container copy = *this;
         copy.bounds = bounds;
         return copy;
     }
 
-    ImmCtx Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags = 0);
+    Container Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags = 0);
     bool Button(const char* text);
-    ImmCtx Box(float xpos, float ypos, float width, float height, const char* texture = nullptr);
+    Container Box(float xpos, float ypos, float width, float height, const char* texture = nullptr);
     void TextInput(const char* name, std::string& buf);
     template <uint32_t N>
-    std::array<ImmCtx, N> Row(const float (&widths)[N], float height = 0)
+    std::array<Container, N> Row(const float (&widths)[N], float height = 0)
     {
-        std::array<ImmCtx, N> out;
+        std::array<Container, N> out;
         Row_Internal(&out[0], widths, N, height);
         return out;
     }
 
     template <uint32_t N>
-    std::array<ImmCtx, N> Column(const float (&heights)[N], float width = 0)
+    std::array<Container, N> Column(const float (&heights)[N], float width = 0)
     {
-        std::array<ImmCtx, N> out;
+        std::array<Container, N> out;
         Column_Internal(&out[0], heights, N, width);
         return out;
     }
 private:
-    void Row_Internal(ImmCtx* out, const float* widths, uint32_t n, float height);
-    void Column_Internal(ImmCtx* out, const float* widths, uint32_t n, float height);
+    void Row_Internal(Container* out, const float* widths, uint32_t n, float height);
+    void Column_Internal(Container* out, const float* widths, uint32_t n, float height);
     uint32_t getBoxState(uint32_t& state, Math::fbox box);
 
     std::unordered_map<std::string, uint32_t>* buttonStates;
@@ -89,7 +89,7 @@ struct TextInputState
 inline InputState g_input_state;
 inline RenderState g_immediate_state = {};
 inline int g_window_count = 0;
-inline ImmCtx ImmBase;
+inline Container ImmBase;
 //inline std::vector<WindowState> g_windowStates;
 
 inline std::unordered_map<std::string, WindowState> g_windowStates;

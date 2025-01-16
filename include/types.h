@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common.h"
-#include <vector>
 #include <stdint.h>
 
 NAMESPACE_BEGIN(TexGui);
@@ -500,31 +499,8 @@ struct TexEntry
     unsigned char* _active;
 };
 
-struct RenderData {
-    std::vector<Quad> quad;
-    std::vector<Character> text;
-};
-
 inline int line_height = 0;
 inline int font_height = 0;
 inline float font_px = 0;
 
-struct RenderState
-{
-    std::vector<Object> objects;
-    std::vector<Command> commands;
-
-    Math::fvec2 m_widget_pos = Math::fvec2(0);
-
-    void drawQuad(const Math::fbox& rect, const Math::fvec4& col);
-    void drawTexture(const Math::fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags);
-    int drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, float scale, uint32_t flags, float width = 0);
-
-    void clear() {
-        objects.clear();
-        commands.clear();
-    }
-};
-
-inline Math::ivec2 g_cursor_pos;
 NAMESPACE_END(TexGui);

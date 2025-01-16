@@ -8,8 +8,6 @@
 
 #include "stb_image.h"
 
-#include "immediate.h"
-
 GLFWwindow* window;
 using namespace TexGui;
 
@@ -23,8 +21,6 @@ enum {
     Tennis = 1,
 };
 
-static InputState input;
-Screen* screen;
 int main()
 {
 
@@ -129,33 +125,9 @@ void main() {
     // ************** ALL GUI STUFF ****************
     TexGui::Defaults::PixelSize = 2;
 
-    UIContext uictx(window);
-    uictx.loadFont("resources/fonts/unifont.ttf");
-    uictx.preloadTextures("resources/sprites");
-
-    screen = uictx.screenPtr();
-
-    GLContext* glctx = uictx.m_gl_context;
-
-    glfwSetFramebufferSizeCallback(window,
-        [](GLFWwindow* window, int width, int height) { screen->framebufferSizeCallback(width, height); }
-    );
-    glfwSetCursorPosCallback(window,
-        [](GLFWwindow* window, double x, double y) { 
-            screen->cursorPosCallback(x, y); 
-        }
-    );
-    glfwSetMouseButtonCallback(window,
-        [](GLFWwindow* window, int button, int action, int mods) {
-            screen->mouseButtonCallback(button, action); 
-        }
-    );
-    glfwSetKeyCallback(window,
-        [](GLFWwindow* window, int key, int scancode, int action, int mods) { screen->keyCallback(key, scancode, action, mods); }
-    );
-    glfwSetCharCallback(window,
-        [](GLFWwindow* window, unsigned int codepoint) { screen->charCallback(codepoint); }
-    );
+    TexGui::initGlfwOpenGL(window);
+    loadFont("resources/fonts/unifont.ttf");
+    loadTextures("resources/sprites");
 
     //glEnable(GL_DEPTH_TEST);
     std::string str;
@@ -169,8 +141,8 @@ void main() {
         glBindTextureUnit(0, bg);
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
-        ImmBase.Window("not bob", 400, 500, 200, 200);
-        auto win = ImmBase.Window("bob", 200, 100, 400, 600);
+        TexGui::Base.Window("not bob", 400, 500, 200, 200);
+        auto win = TexGui::Base.Window("bob", 200, 100, 400, 600);
 
         // Split the window into 2 columns
         auto cells = win.Column({140, 0});
@@ -182,11 +154,9 @@ void main() {
 
         cells[1].TextInput("enter text", str);
 
-        //auto state = uictx.draw();
-        glctx->render(g_immediate_state);
+        TexGui::render();
 
-        clearImmediate();
-        clearImmediateUI();
+        clear();
 
         glfwSwapBuffers(window);
     }

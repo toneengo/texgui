@@ -4,9 +4,9 @@
 #endif
 #include "GLFW/glfw3.h"
 
+
+#include "texgui.h"
 #include "context.h"
-#include "widget.h"
-#include "screen.h"
 #include "util.h"
 
 #include <filesystem>
@@ -31,11 +31,11 @@ using namespace TexGui::Math;
 constexpr int ATLAS_SIZE = 512;
 std::unordered_map<char, TexGui::CharInfo> m_char_map;
 
-GLContext::GLContext(GLFWwindow* window)
+GLContext::GLContext()
 {
-    glEnable(GL_MULTISAMPLE);
     m_ta.font.bind = 0;
     m_ta.texture.bind = 1;
+    glEnable(GL_MULTISAMPLE);
 
     glCreateBuffers(1, &m_ssb.objects.buf);
     glNamedBufferStorage(m_ssb.objects.buf, (1 << 16) / 16 * sizeof(Object), nullptr, GL_DYNAMIC_STORAGE_BIT);
@@ -45,17 +45,9 @@ GLContext::GLContext(GLFWwindow* window)
     glNamedBufferStorage(m_ub.objIndex.buf, sizeof(int), nullptr, GL_DYNAMIC_STORAGE_BIT);
     m_ub.objIndex.bind = 1;
 
-    glfwGetWindowContentScale(window, &m_window_scale, nullptr);
-    glfwGetWindowSize(window, &m_screen_size.x, &m_screen_size.y);
-    m_screen_size.x *= m_window_scale;
-    m_screen_size.y *= m_window_scale;
-    glViewport(0, 0, m_screen_size.x, m_screen_size.y);
-
     glCreateBuffers(1, &m_ub.screen_size.buf);
     glNamedBufferStorage(m_ub.screen_size.buf, sizeof(int) * 2, &m_screen_size, GL_DYNAMIC_STORAGE_BIT);
     m_ub.screen_size.bind = 0;
-
-    glNamedBufferSubData(m_ub.screen_size.buf, 0, sizeof(int) * 2, &m_screen_size);
 
     createShader(&m_shaders.text,
                  VERSION_HEADER + BUFFERS + TEXTVERT,
@@ -73,6 +65,18 @@ GLContext::GLContext(GLFWwindow* window)
     createShader(&m_shaders.colquad,
                  VERSION_HEADER + BUFFERS + COLQUADVERT,
                  VERSION_HEADER + BASICFRAG);
+}
+
+extern Container Base;
+void GLContext::initFromGlfwWindow(GLFWwindow* window)
+{
+    glfwGetWindowContentScale(window, &m_window_scale, nullptr);
+    glfwGetWindowSize(window, &m_screen_size.x, &m_screen_size.y);
+    m_screen_size.x *= m_window_scale;
+    m_screen_size.y *= m_window_scale; 
+    Base.bounds.size = m_screen_size;
+    glViewport(0, 0, m_screen_size.x, m_screen_size.y);
+    glNamedBufferSubData(m_ub.screen_size.buf, 0, sizeof(int) * 2, &m_screen_size);
 }
 
 GLContext::~GLContext()
@@ -97,7 +101,24 @@ void GLContext::setScreenSize(int width, int height)
     glNamedBufferSubData(m_ub.screen_size.buf, 0, sizeof(int) * 2, &m_screen_size);
 }
 
-int RenderState::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, float scale, uint32_t flags, float width)
+struct RenderData
+{
+    std::vector<Object> objects;
+    std::vector<Command> commands;
+
+    Math::fvec2 m_widget_pos = Math::fvec2(0);
+
+    void drawQuad(const Math::fbox& rect, const Math::fvec4& col);
+    void drawTexture(const Math::fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags);
+    int drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, float scale, uint32_t flags, float width = 0);
+
+    void clear() {
+        objects.clear();
+        commands.clear();
+    }
+};
+
+int RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, float scale, uint32_t flags, float width)
 {
     size_t numchars = strlen(text);
     size_t numcopy = numchars;
@@ -163,7 +184,7 @@ int RenderState::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& 
     return currx;
 }
 
-void RenderState::drawTexture(const fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags)
+void RenderData::drawTexture(const fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags)
 {
     if (!e) return;
     int layer = 0;
@@ -189,7 +210,7 @@ void RenderState::drawTexture(const fbox& rect, TexEntry* e, int state, int pixe
     commands.push_back({Command::QUAD, 1, flags, e});
 }
 
-void RenderState::drawQuad(const Math::fbox& rect, const Math::fvec4& col)
+void RenderData::drawQuad(const Math::fbox& rect, const Math::fvec4& col)
 {
     ColQuad q = {
         .rect = fbox(rect.pos + m_widget_pos, rect.size),
@@ -200,9 +221,11 @@ void RenderState::drawQuad(const Math::fbox& rect, const Math::fvec4& col)
     commands.push_back({Command::COLQUAD, 1, 0, nullptr});
 }
 
-void GLContext::render(const RenderState& state) {
-    auto& objects = state.objects;
-    auto& commands = state.commands;
+
+void GLContext::renderFromRD(const RenderData& data) {
+    auto& objects = data.objects;
+    auto& commands = data.commands;
+
     bindBuffers();
     glNamedBufferSubData(m_ssb.objects.buf, 0, sizeof(Object) * objects.size(), objects.data());
 
@@ -210,30 +233,32 @@ void GLContext::render(const RenderState& state) {
     for (auto& c : commands)
     {
         glNamedBufferSubData(m_ub.objIndex.buf, 0, sizeof(int), &count);
-        Object o;
-        if (c.type == Command::QUAD)
+        switch (c.type)
         {
-            if (c.flags & SLICE_9)
+            case Command::QUAD:
             {
-                m_shaders.quad9slice.use();
-                glUniform4f(m_shaders.quad9slice.slices,
-                            c.texentry->top, c.texentry->right, c.texentry->bottom, c.texentry->left);
-                glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number * 9);
+                if (c.flags & SLICE_9)
+                {
+                    m_shaders.quad9slice.use();
+                    glUniform4f(m_shaders.quad9slice.slices,
+                                c.texentry->top, c.texentry->right, c.texentry->bottom, c.texentry->left);
+                    glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number * 9);
+                }
+                else {
+                    m_shaders.quad.use();
+                    glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number);
+                }
             }
-            else {
-                m_shaders.quad.use();
+            case Command::COLQUAD:
+            {
+                m_shaders.colquad.use();
                 glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number);
             }
-        }
-        else if (c.type == Command::COLQUAD)
-        {
-            m_shaders.colquad.use();
-            glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number);
-        }
-        else if (c.type == Command::CHARACTER)
-        {
-            m_shaders.text.use();
-            glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number);
+            case Command::CHARACTER:
+            {
+                m_shaders.text.use();
+                glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number);
+            }
         }
         count += c.number;
     }
@@ -327,7 +352,7 @@ int tc(int x, int y)
 
 //#TODO: remove ATLAS_SIZE, determine width and height
 std::unordered_map<std::string, TexGui::TexEntry> m_tex_map;
-void GLContext::preloadTextures(const char* dir)
+void GLContext::loadTextures(const char* dir)
 {
     std::vector<std::filesystem::directory_entry> files;
     for (const auto& f : std::filesystem::recursive_directory_iterator(dir))

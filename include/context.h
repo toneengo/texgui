@@ -12,23 +12,26 @@
 
 
 struct GLFWwindow;
+struct RenderData;
 NAMESPACE_BEGIN(TexGui);
 
 class GLContext
 {
 friend class Screen;
 public:
-    GLContext(GLFWwindow* window);
+    GLContext();
     ~GLContext();
+
+    void initFromGlfwWindow(GLFWwindow* window);
     void bindBuffers();
 
     void setScreenSize(int width, int height);
     Math::ivec2 getScreenSize() { return m_screen_size; };
 
     void loadFont(const char* font);
-    void preloadTextures(const char* dir);
+    void loadTextures(const char* dir);
 
-    void render(const RenderState& state);
+    void renderFromRD(const RenderData& data);
 protected:
     // Buffer name/Buffer binding pair
     struct nameIdx
@@ -69,8 +72,6 @@ protected:
         Shader text;
     } m_shaders;
 
-    std::vector<Command> m_vCommands;
-    std::vector<Object> m_vObjects;
     Math::ivec2 m_screen_size;
     float m_window_scale;
     int m_pixel_size = 2;
