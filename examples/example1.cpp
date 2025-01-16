@@ -19,7 +19,6 @@ enum {
 
 int main()
 {
-
     glfwInit();
     // OpenGL version
     glfwWindowHint(GLFW_SAMPLES, 4);
@@ -141,7 +140,7 @@ void main() {
         auto win = TexGui::Base.Window("bob", 200, 100, 400, 600);
 
         // Split the window into 2 columns
-        auto cells = win.Column({140, 0});
+        auto cells = win.Column({0, 0});
         // Put a button in the left cell
         if (cells[0].Button("pigeon balls"))
         {

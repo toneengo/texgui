@@ -401,7 +401,7 @@ void Container::Row_Internal(Container* out, const float* widths, uint32_t n, fl
         if (widths[i] <= 1)
         {
             float mult = widths[i] == 0 ? 1 : widths[i];
-            width = bounds.width - absoluteWidth - (spacing * (n - 1)) / inherit;
+            width = (bounds.width - absoluteWidth - (spacing * (n - 1))) * mult / inherit;
         }
         else
             width = widths[i];
@@ -419,7 +419,7 @@ void Container::Column_Internal(Container* out, const float* heights, uint32_t n
         width = width == 0 ? bounds.width : bounds.width * width;
     }
     float absoluteHeight = 0;
-    float inherit = 0;
+    int inherit = 0;
     for (uint32_t i = 0; i < n; i++)
     {
         if (heights[i] >= 1)
@@ -436,7 +436,7 @@ void Container::Column_Internal(Container* out, const float* heights, uint32_t n
         if (heights[i] <= 1)
         {
             float mult = heights[i] == 0 ? 1 : heights[i];
-            height = bounds.height - absoluteHeight - (spacing * (n - 1)) / inherit;
+            height = (bounds.height - absoluteHeight - (spacing * (n - 1))) * mult / inherit;
         }
         else
             height = heights[i];
