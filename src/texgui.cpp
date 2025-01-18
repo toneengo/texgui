@@ -4,8 +4,11 @@
 #include "GLFW/glfw3.h"
 #include <cassert>
 #include <cstring>
+#include <mutex>
 
 using namespace TexGui;
+
+std::mutex inputLock;
 
 // GLFW data
 enum GlfwClientApi
@@ -98,6 +101,7 @@ void TexGui_ImplGlfw_CursorPosCallback(GLFWwindow* window, double x, double y)
         bd.PrevUserCallbackCursorPos(window, x, y);
 
     //#TODO: window scale
+    std::lock_guard<std::mutex> lock(inputLock);
     io.cursorPos = Math::fvec2(x, y);
 }
 
@@ -107,6 +111,8 @@ void TexGui_ImplGlfw_KeyCallback(GLFWwindow* window, int key, int scancode, int 
     auto& io = GTexGui->io;
     if (bd.PrevUserCallbackKey)
         bd.PrevUserCallbackKey(window, key, scancode, action, mods);
+
+    std::lock_guard<std::mutex> lock(inputLock);
 }
 
 enum KeyState : uint8_t
@@ -125,6 +131,7 @@ void TexGui_ImplGlfw_MouseButtonCallback(GLFWwindow* window, int button, int act
     if (bd.PrevUserCallbackMousebutton)
         bd.PrevUserCallbackMousebutton(window, button, action, mods);
 
+    std::lock_guard<std::mutex> lock(inputLock);
     if (button == GLFW_MOUSE_BUTTON_1)
     {
         if (action == GLFW_RELEASE) io.lmb = KEY_Release;
@@ -140,6 +147,7 @@ void TexGui_ImplGlfw_CharCallback(GLFWwindow* window, unsigned int codepoint)
     if (bd.PrevUserCallbackChar)
         bd.PrevUserCallbackChar(window, codepoint);
 
+    std::lock_guard<std::mutex> lock(inputLock);
     io.charQueue.push(codepoint);
 };
 
@@ -150,9 +158,10 @@ void TexGui_ImplGlfw_FramebufferSizeCallback(GLFWwindow* window, int width, int 
         bd.PrevUserCallbackFramebufferSize(window, width, height);
 
     GTexGui->renderCtx.setScreenSize(width, height);
+
+    std::lock_guard<std::mutex> lock(inputLock);
     Base.bounds.size = Math::fvec2(width, height);
 };
-
 
 bool initGlfwCallbacks(GLFWwindow* window)
 {
@@ -195,14 +204,36 @@ void TexGui::loadTextures(const char* dir)
     GTexGui->renderCtx.loadTextures(dir);
 }
 
+struct InputFrame
+{
+    Math::fvec2 cursorPos;
+    uint32_t lmb = 0;
+    unsigned int character = 0;
+};
+
+InputFrame inputFrame;
+
 void TexGui::clear()
 {
+    renderData.clear();
+
+    std::lock_guard<std::mutex> lock(inputLock);
     auto& io = GTexGui->io;
+
+    inputFrame.cursorPos = io.cursorPos;
+    inputFrame.lmb = io.lmb;
+
     if (io.lmb == KEY_Press) io.lmb = KEY_Held;
     if (io.lmb == KEY_Release) io.lmb = KEY_Off;
-    renderData.clear();
     if (!io.charQueue.empty())
+    {
+        inputFrame.character = io.charQueue.front();
         io.charQueue.pop();
+    }
+    else
+    {
+        inputFrame.character = 0;
+    }
 }
 
 inline void setBit(unsigned int& dest, const unsigned int flag, bool on)
@@ -218,7 +249,7 @@ inline bool getBit(const unsigned int dest, const unsigned int flag)
 using namespace Math;
 uint32_t getBoxState(uint32_t& state, fbox box)
 {
-    auto& io = GTexGui->io;
+    auto& io = inputFrame;
     if (box.contains(io.cursorPos))
     {
         state |= STATE_HOVER;
@@ -247,7 +278,7 @@ uint32_t getBoxState(uint32_t& state, fbox box)
 extern std::unordered_map<std::string, TexEntry> m_tex_map;
 Container Container::Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags)
 {
-    auto& io = GTexGui->io;
+    auto& io = inputFrame;
     if (!GTexGui->windows.contains(name))
     {
         GTexGui->windows.insert({name, {
@@ -324,7 +355,7 @@ bool Container::Button(const char* text)
                             : bounds.pos + bounds.size / 2,
         Defaults::Font::Color, Defaults::Font::Scale, CENTER_X | CENTER_Y);
 
-    auto& io = GTexGui->io;
+    auto& io = inputFrame;
     return state & STATE_ACTIVE && io.lmb == KEY_Release && bounds.contains(io.cursorPos) ? true : false;
 }
 
@@ -348,7 +379,7 @@ Container Container::Box(float xpos, float ypos, float width, float height, cons
 
 void Container::TextInput(const char* name, std::string& buf)
 {
-    auto& io = GTexGui->io;
+    auto& io = inputFrame;
     static TexEntry* inputtex = &m_tex_map[Defaults::TextInput::Texture];
     if (!GTexGui->textInputs.contains(name))
     {
@@ -359,9 +390,9 @@ void Container::TextInput(const char* name, std::string& buf)
 
     getBoxState(tstate.state, bounds);
     
-    if (!io.charQueue.empty() && tstate.state & STATE_ACTIVE)
+    if (io.character != 0 && tstate.state & STATE_ACTIVE)
     {
-        buf.push_back(io.charQueue.front());
+        buf.push_back(io.character);
     }
 
     renderData.drawTexture(bounds, inputtex, tstate.state, _PX, SLICE_9);
