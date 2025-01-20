@@ -5,6 +5,7 @@
 #include "stdio.h"
 
 #include "stb_image.h"
+#include "stb_image.h"
 
 GLFWwindow* window;
 

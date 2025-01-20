@@ -12,9 +12,8 @@ inline const std::string VERSION_HEADER = R"#(
 inline const std::string BUFFERS = R"#(
 struct Character {
     vec4 rect;
-    vec4 col;
+    ivec4 texBounds;
     int layer;
-    float scale;
 };
 
 struct Quad {
@@ -48,7 +47,8 @@ out vec2 uv;
 flat out vec4 colour;
 flat out int layer;
 
-uniform float fontPx;
+uniform int atlasWidth;
+uniform int atlasHeight;
 
 void main() {
     ivec2 quad[6] = ivec2[6](
@@ -61,21 +61,19 @@ void main() {
     ); 
 
     vec4 rect = text[index + gl_InstanceID].rect;
+    vec4 texBounds = text[index + gl_InstanceID].texBounds;
     rect.x -= screenSz.x / 2;
     rect.y = screenSz.y / 2 - rect.y - rect.w;
 
-    float scale = text[index + gl_InstanceID].scale;
-
     uv = quad[gl_VertexID];
 
-    rect.zw /= scale;
-    uv = vec2(0.0, rect.w / fontPx) +
-         uv * (vec2(rect.z, -rect.w)) / fontPx;
+    uv = vec2(texBounds.x/atlasWidth, texBounds.y/atlasHeight) +
+         uv * (vec2(texBounds.z/atlasWidth, texBounds.w/atlasHeight));
 
     layer = text[index + gl_InstanceID].layer;
-    colour = text[index + gl_InstanceID].col;
+    colour = vec4(1.0, 1.0, 1.0, 1.0);
 
-    vec2 size = rect.zw / round(vec2(screenSz.x/2.0, screenSz.y/2.0)) * scale;
+    vec2 size = rect.zw / round(vec2(screenSz.x/2.0, screenSz.y/2.0));
     vec2 pos = quad[gl_VertexID] * size + rect.xy / round(vec2(screenSz.x/2.0, screenSz.y/2.0));
     gl_Position = vec4(pos, 0.0, 1.0);
 }
@@ -87,14 +85,19 @@ flat in vec4 colour;
 flat in int layer;
 out vec4 frag;
 
-layout (binding = 0) uniform sampler2DArray font;
+float median(float r, float g, float b) {
+    return max(min(r, g), min(max(r, g), b));
+}
+
+layout (binding = 2) uniform sampler2DArray font;
 
 void main() {
-    frag = vec4(1.0, 1.0, 1.0, texture(font, vec3(uv, layer)).r);
-    frag *= colour;
+    vec3 msd = texture(font, vec3(uv, layer)).rgb;
+    float sd = median(msd.r, msd.g, msd.b);
+    float screenPxDistance = (sd - 0.5);
+    float opacity = clamp(screenPxDistance + 0.5, 0.0, 1.0);
 
-    if (frag.a < 0.1)
-        discard;
+    frag = vec4(colour.rgb, opacity);
 }
 )#";
 
@@ -154,7 +157,7 @@ void main() {
     uv = quad[gl_VertexID];
 
     uv = vec2(texBounds.x, texBounds.y) / ATLAS_SIZE +
-         uv * (vec2(texBounds.z, -texBounds.w)) / ATLAS_SIZE;
+         uv * (vec2(texBounds.z, texBounds.w)) / ATLAS_SIZE;
 
     layer = quads[index + gl_InstanceID].layer;
 

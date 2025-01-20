@@ -10,9 +10,9 @@ NAMESPACE_BEGIN(TexGui);
 struct alignas(16) Character
 {
     Math::fbox rect; //xpos, ypos, width, height
-    Math::fvec4 col;
+    Math::ibox texBounds;
     int layer;
-    float scale;
+    int padding;
 };
 
 struct alignas(16) Quad

@@ -29,11 +29,11 @@ using namespace TexGui;
 using namespace TexGui::Math;
 
 constexpr int ATLAS_SIZE = 512;
-std::unordered_map<char, TexGui::CharInfo> m_char_map;
+std::unordered_map<uint32_t, uint32_t> m_char_map;
 
 GLContext::GLContext()
 {
-    m_ta.font.bind = 0;
+    m_ta.font.bind = 2;
     m_ta.texture.bind = 1;
     glEnable(GL_MULTISAMPLE);
 
@@ -101,6 +101,8 @@ void GLContext::setScreenSize(int width, int height)
     glNamedBufferSubData(m_ub.screen_size.buf, 0, sizeof(int) * 2, &m_screen_size);
 }
 
+#include "msdf-atlas-gen/msdf-atlas-gen.h"
+extern std::vector<msdf_atlas::GlyphGeometry> glyphs;
 int RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, float scale, uint32_t flags, float width)
 {
     size_t numchars = strlen(text);
@@ -111,6 +113,7 @@ int RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& c
     if (flags & CENTER_Y)
         pos.y -= font_height / 2.0 * scale;
 
+    /*
     if (flags & CENTER_X)
     {
         for (int idx = 0; idx < numchars; idx++)
@@ -119,13 +122,15 @@ int RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& c
         }
         pos.x -= currx / 2.0;
     }
+    */
 
     currx = pos.x;
 
-    const CharInfo& hyphen = m_char_map['-'];
+    //const CharInfo& hyphen = m_char_map['-'];
     for (int idx = 0; idx < numchars; idx++)
     {
-        const CharInfo& info = m_char_map[text[idx]];
+        const auto& info = glyphs[m_char_map[text[idx]]];
+        /*
         if (flags & WRAPPED && currx + (info.advance + hyphen.advance) * scale > width)
         {
             if (text[idx] != ' ' && (idx > 0 && text[idx - 1] != ' '))
@@ -147,20 +152,28 @@ int RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& c
             currx = 0;
             pos.y += line_height;
         }
-        Character c = {
-            .rect = fbox(
-                currx + info.bearing.x * scale + m_widget_pos.x,
-                pos.y - info.bearing.y * scale + font_height * scale + m_widget_pos.y,
-                info.size.x * scale,
-                info.size.y * scale
-            ),
-            .col = col,
-            .layer = info.layer,
-            .scale = scale,
-        };
+        */
+        if (!info.isWhitespace())
+        {
+            int x, y, w, h;
+            info.getBoxRect(x, y, w, h);
 
-        objects.push_back(c);
-        currx += (info.advance) * scale;
+            Character c = {
+                .rect = fbox(
+                    currx,
+                    pos.y,
+                    w,
+                    h
+                ),
+                .texBounds = {x, y, w, h},
+                .layer = 0,
+            };
+
+            objects.push_back(c);
+        }
+        else
+            numcopy--;
+        currx += 32 * info.getAdvance();
     }
 
     commands.push_back({Command::CHARACTER, uint32_t(numcopy), flags, nullptr});
@@ -247,78 +260,93 @@ void GLContext::renderFromRD(const RenderData& data) {
     }
 }
 
-#include <ft2build.h>
-#include FT_FREETYPE_H
-void GLContext::loadFont(const char* font)
+using namespace msdf_atlas;
+std::vector<GlyphGeometry> glyphs;
+void GLContext::loadFont(const char* fontFilename)
 {
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-
-    FT_Library ft;
-    if (FT_Init_FreeType(&ft))
-    {
-        printf("ERROR::FREETYPE: Could not init FreeType Library\n");
-        assert(false);
-    }
-
-    FT_Face face;
-    if (FT_New_Face(ft, font, 0, &face))
-    {
-        printf("ERROR::FREETYPE: Failed to load font\n");
-        assert(false);
-    }
-    
-    FT_Set_Pixel_Sizes(face, 0, 48);
-
-    font_px = 48;
+    int width = 0, height = 0;
     glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, &m_ta.font.buf);
-    glTextureStorage3D(m_ta.font.buf, 1, GL_R8, font_px, font_px, 128);
+    bool success = false;
+    // Initialize instance of FreeType library
+    if (msdfgen::FreetypeHandle *ft = msdfgen::initializeFreetype()) {
+        // Load font file
+        if (msdfgen::FontHandle *font = msdfgen::loadFont(ft, fontFilename)) {
+            // Storage for glyph geometry and their coordinates in the atlas
+            // FontGeometry is a helper class that loads a set of glyphs from a single font.
+            // It can also be used to get additional font metrics, kerning information, etc.
+            FontGeometry fontGeometry(&glyphs);
+            // Load a set of character glyphs:
+            // The second argument can be ignored unless you mix different font sizes in one atlas.
+            // In the last argument, you can specify a charset other than ASCII.
+            // To load specific glyph indices, use loadGlyphs instead.
+            fontGeometry.loadCharset(font, 1.0, Charset::ASCII);
+            // Apply MSDF edge coloring. See edge-coloring.h for other coloring strategies.
+            const double maxCornerAngle = 3.0;
+            for (GlyphGeometry &glyph : glyphs)
+                glyph.edgeColoring(&msdfgen::edgeColoringInkTrap, maxCornerAngle, 0);
+            // TightAtlasPacker class computes the layout of the atlas.
+            TightAtlasPacker packer;
+            // Set atlas parameters:
+            // setDimensions or setDimensionsConstraint to find the best value
+            packer.setDimensionsConstraint(DimensionsConstraint::SQUARE);
+            // setScale for a fixed size or setMinimumScale to use the largest that fits
+            packer.setMinimumScale(32.0);
+            // setPixelRange or setUnitRange
+            packer.setPixelRange(2.0);
+            packer.setMiterLimit(1.0);
+            // Compute atlas layout - pack glyphs
+            packer.pack(glyphs.data(), glyphs.size());
+            // Get final atlas dimensions
+            packer.getDimensions(width, height);
+            // The ImmediateAtlasGenerator class facilitates the generation of the atlas bitmap.
+            ImmediateAtlasGenerator<
+                float, // pixel type of buffer for individual glyphs depends on generator function
+                3, // number of atlas color channels
+                &msdfGenerator, // function to generate bitmaps for individual glyphs
+                BitmapAtlasStorage<byte, 3> // class that stores the atlas bitmap
+                // For example, a custom atlas storage class that stores it in VRAM can be used.
+            > generator(width, height);
+            // GeneratorAttributes can be modified to change the generator's default settings.
+            GeneratorAttributes attributes;
+            generator.setAttributes(attributes);
+            generator.setThreadCount(4);
+            // Generate atlas bitmap
+            generator.generate(glyphs.data(), glyphs.size());
+            // The atlas bitmap can now be retrieved via atlasStorage as a BitmapConstRef.
+            // The glyphs array (or fontGeometry) contains positioning data for typesetting text.
+            msdfgen::BitmapConstRef<byte, 3> ref = generator.atlasStorage();
 
-    unsigned char * empty = new unsigned char[int(font_px * font_px)];
-    memset(empty, 0, font_px * font_px * sizeof(unsigned char));
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+            glTextureStorage3D(m_ta.font.buf, 1, GL_RGB8, width, height, 1);
+            glTextureSubImage3D(m_ta.font.buf, 0, 0, 0, 0, width, height, 1, GL_RGB, GL_UNSIGNED_BYTE, ref.pixels);
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 
-    int currIdx = 0;
-    font_height = face->height >> 6;
-    line_height = face->height >> 6;
-    for (unsigned char c = 0; c < 128; c++)
-    {
-        // load character glyph 
-        if (FT_Load_Char(face, c, FT_LOAD_RENDER))
-        {
-            printf("ERROR::FREETYTPE: Failed to load Glyph\n");
-            continue;
+            // Cleanup
+            msdfgen::destroyFont(font);
         }
-
-        if (c == 'a')
-        {
-            font_height = (face->glyph->metrics.height) >> 6;
-        }
-
-        m_char_map[c] = {
-            .layer = currIdx,
-            .size = {face->glyph->bitmap.width, face->glyph->bitmap.rows},
-            .bearing = {face->glyph->bitmap_left, face->glyph->bitmap_top},
-            .advance = (uint32_t)face->glyph->advance.x >> 6,
-        };
-
-        glTextureSubImage3D(m_ta.font.buf, 0, 0, 0, currIdx, font_px, font_px, 1, GL_RED, GL_UNSIGNED_BYTE, empty);
-        glTextureSubImage3D(m_ta.font.buf, 0, 0, 0, currIdx, face->glyph->bitmap.width, face->glyph->bitmap.rows, 1, GL_RED, GL_UNSIGNED_BYTE, face->glyph->bitmap.buffer);
-
-        currIdx++;
+        msdfgen::deinitializeFreetype(ft);
     }
+
+    int i = 0;
+    for (auto& glyph : glyphs)
+    {
+        m_char_map[glyph.getCodepoint()] = i;
+        i++;
+    }
+
+    int x, y, w, h;
+    glyphs[m_char_map['a']].getBoxRect(x,y,w,h);
 
     glTextureParameteri(m_ta.font.buf, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);	
     glTextureParameteri(m_ta.font.buf, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTextureParameteri(m_ta.font.buf, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTextureParameteri(m_ta.font.buf, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-    delete[] empty;
-    FT_Done_Face(face);
-    FT_Done_FreeType(ft);
-
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+    printf("%d, %d\n", width, height);
 
     m_shaders.text.use();
-    glUniform1f(m_shaders.text.getLocation("fontPx"), font_px);
+    glUniform1i(m_shaders.text.getLocation("atlasWidth"), width);
+    glUniform1i(m_shaders.text.getLocation("atlasHeight"), height);
 }
 
 struct TexData
@@ -489,6 +517,7 @@ void GLContext::loadTextures(const char* dir)
     glTextureParameteri(m_ta.texture.buf, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTextureParameteri(m_ta.texture.buf, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTextureParameteri(m_ta.texture.buf, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
 
     for (auto& e : m_tex_map)
     {

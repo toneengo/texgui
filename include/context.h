@@ -23,7 +23,7 @@ public:
     void setScreenSize(int width, int height);
     Math::ivec2 getScreenSize() { return m_screen_size; };
 
-    void loadFont(const char* font);
+    void loadFont(const char* pathToFont);
     void loadTextures(const char* dir);
 
     void renderFromRD(const RenderData& data);
