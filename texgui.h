@@ -399,6 +399,11 @@ struct box
         return {_b.x + _vec.left, _b.y + _vec.top, _b.width - (_vec.right + _vec.left), _b.height - (_vec.top + _vec.bottom)};
     }
 
+    static box margin(box _b, vec4<T> _vec)
+    {
+        return {_b.x - _vec.left, _b.y - _vec.top, _b.width + (_vec.right + _vec.left), _b.height + (_vec.top + _vec.bottom)};
+    }
+
     bool contains(const vec2<T>& _vec)
     {
         vec2<T> d = _vec - pos;
@@ -419,27 +424,30 @@ bool initGlfwOpenGL(GLFWwindow* window);
 
 class Container
 {
+    friend struct Arrangers;
+
 public:
+    using ArrangeFunc = Math::fbox(*)(Container* parent, Math::fbox in);
+        
     RenderData* rs;
     Math::fbox bounds;
-
-    inline Container withBounds(Math::fbox bounds) const
-    {
-        Container copy = *this;
-        copy.bounds = bounds;
-        return copy;
-    }
 
     Container Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags = 0);
     bool      Button(const char* text);
     Container Box(float xpos, float ypos, float width, float height, const char* texture = nullptr);
     void      TextInput(const char* name, std::string& buf);
+    void      Image(const char* text);
 
+    // Similar to radio buttons - the id of the selected one is stored in the *selected pointer.
+    Container ListItem(uint32_t* selected, uint32_t id);
+
+    Container Grid();
+        
     template <uint32_t N>
-    std::array<Container, N> Row(const float (&widths)[N], float height = 0)
+    std::array<Container, N> Row(const float (&widths)[N], float height = 0, uint32_t flags = 0)
     {
         std::array<Container, N> out;
-        Row_Internal(&out[0], widths, N, height);
+        Row_Internal(&out[0], widths, N, height, flags);
         return out;
     }
 
@@ -450,11 +458,47 @@ public:
         Column_Internal(&out[0], heights, N, width);
         return out;
     }
+
 private:
-    void Row_Internal(Container* out, const float* widths, uint32_t n, float height);
+    void Row_Internal(Container* out, const float* widths, uint32_t n, float height, uint32_t flags);
     void Column_Internal(Container* out, const float* widths, uint32_t n, float height);
     std::unordered_map<std::string, uint32_t>* buttonStates;
+
+    Container* parent;
+    ArrangeFunc arrange;
+
+    union
+    {
+        struct
+        {
+            float x, y, rowHeight;
+        } grid;
+        struct
+        {
+            uint32_t* selected;
+            uint32_t id;
+        } listItem;
+    };
+
+
+    inline Container withBounds(Math::fbox bounds, ArrangeFunc arrange = nullptr)
+    {
+        Container copy = *this;
+        copy.bounds = bounds;
+        copy.parent = this;
+        copy.arrange = arrange;
+        return copy;
+    }
 };
+
+
+struct Arrangers
+{
+    static Math::fbox Arrange(Container* o, Math::fbox child);
+    static Math::fbox ArrangeListItem(Container* listItem, Math::fbox child);
+    static Math::fbox ArrangeGrid(Container* grid, Math::fbox child);
+};
+
 
 inline Container Base;
 

@@ -129,6 +129,8 @@ void main() {
 
     //glEnable(GL_DEPTH_TEST);
     std::string str;
+
+    uint32_t selected = 0;
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
@@ -142,15 +144,14 @@ void main() {
         TexGui::Base.Window("not bob", 400, 500, 200, 200);
         auto win = TexGui::Base.Window("bob", 200, 100, 400, 600);
 
-        // Split the window into 2 columns
-        auto cells = win.Column({0, 0});
-        // Put a button in the left cell
-        if (cells[0].Button("pigeon balls"))
-        {
-            std::printf("pigeon gang\n");
-        }
+        auto grid = win.Grid();
 
-        cells[1].TextInput("enter text", str);
+        for (uint32_t i = 0; i < 10; i++)
+        {
+            grid
+                .ListItem(&selected, i)
+                .Image("lollipop");
+        }
 
         TexGui::render();
 

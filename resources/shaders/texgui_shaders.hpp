@@ -165,7 +165,7 @@ void main() {
     uv = quad[gl_VertexID];
 
     uv = vec2(texBounds.x, texBounds.y) / ATLAS_SIZE +
-         uv * (vec2(texBounds.z, texBounds.w)) / ATLAS_SIZE;
+         uv * (vec2(texBounds.z, -texBounds.w)) / ATLAS_SIZE;
 
     layer = quads[index + gl_InstanceID].layer;
 
