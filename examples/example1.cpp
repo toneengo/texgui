@@ -122,7 +122,7 @@ void main() {
     TexGui::Defaults::PixelSize = 2;
 
     TexGui::initGlfwOpenGL(window);
-    TexGui::loadFont("resources/fonts/unifont.ttf");
+    TexGui::loadFont("resources/fonts/ProggyClean.ttf");
     TexGui::loadTextures("resources/sprites");
 
     //glEnable(GL_DEPTH_TEST);

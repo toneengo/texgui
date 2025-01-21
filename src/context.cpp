@@ -103,26 +103,30 @@ void GLContext::setScreenSize(int width, int height)
 
 #include "msdf-atlas-gen/msdf-atlas-gen.h"
 extern std::vector<msdf_atlas::GlyphGeometry> glyphs;
-int RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, float scale, uint32_t flags, float width)
+int RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, float width)
 {
     size_t numchars = strlen(text);
     size_t numcopy = numchars;
 
     float currx = 0;
 
-    if (flags & CENTER_Y)
-        pos.y -= font_height / 2.0 * scale;
 
-    /*
+    const auto& a = glyphs[m_char_map['a']];
+    if (flags & CENTER_Y)
+    {
+        double l, b, r, t;
+        a.getQuadPlaneBounds(l, b, r, t);
+        pos.y += (size - (t * size)) / 2;
+    }
+
     if (flags & CENTER_X)
     {
         for (int idx = 0; idx < numchars; idx++)
         {
-            currx += (m_char_map[text[idx]].advance) * scale;
+            currx += glyphs[m_char_map[text[idx]]].getAdvance() * size;
         }
         pos.x -= currx / 2.0;
     }
-    */
 
     currx = pos.x;
 
@@ -157,23 +161,26 @@ int RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& c
         {
             int x, y, w, h;
             info.getBoxRect(x, y, w, h);
+            double l, b, r, t;
+            info.getQuadPlaneBounds(l, b, r, t);
 
             Character c = {
                 .rect = fbox(
-                    currx,
-                    pos.y,
-                    w,
-                    h
+                    currx + l * size,
+                    pos.y - b * size,
+                    w * size / font_px,
+                    h * size / font_px
                 ),
                 .texBounds = {x, y, w, h},
                 .layer = 0,
+                .size = size
             };
 
             objects.push_back(c);
         }
         else
             numcopy--;
-        currx += 32 * info.getAdvance();
+        currx += font_px * info.getAdvance() * size / font_px;
     }
 
     commands.push_back({Command::CHARACTER, uint32_t(numcopy), flags, nullptr});
@@ -217,7 +224,6 @@ void RenderData::drawQuad(const Math::fbox& rect, const Math::fvec4& col)
     commands.push_back({Command::COLQUAD, 1, 0, nullptr});
 }
 
-
 void GLContext::renderFromRD(const RenderData& data) {
     auto& objects = data.objects;
     auto& commands = data.commands;
@@ -244,17 +250,22 @@ void GLContext::renderFromRD(const RenderData& data) {
                     m_shaders.quad.use();
                     glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number);
                 }
+                break;
             }
             case Command::COLQUAD:
             {
                 m_shaders.colquad.use();
                 glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number);
+                break;
             }
             case Command::CHARACTER:
             {
                 m_shaders.text.use();
                 glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number);
+                break;
             }
+            default:
+                break;
         }
         count += c.number;
     }
@@ -267,6 +278,7 @@ void GLContext::loadFont(const char* fontFilename)
     int width = 0, height = 0;
     glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, &m_ta.font.buf);
     bool success = false;
+    font_px = 32;
     // Initialize instance of FreeType library
     if (msdfgen::FreetypeHandle *ft = msdfgen::initializeFreetype()) {
         // Load font file
@@ -290,9 +302,9 @@ void GLContext::loadFont(const char* fontFilename)
             // setDimensions or setDimensionsConstraint to find the best value
             packer.setDimensionsConstraint(DimensionsConstraint::SQUARE);
             // setScale for a fixed size or setMinimumScale to use the largest that fits
-            packer.setMinimumScale(32.0);
+            packer.setScale(32.0);
             // setPixelRange or setUnitRange
-            packer.setPixelRange(2.0);
+            packer.setPixelRange(TexGui::Defaults::Font::MsdfPxRange);
             packer.setMiterLimit(1.0);
             // Compute atlas layout - pack glyphs
             packer.pack(glyphs.data(), glyphs.size());
@@ -302,7 +314,7 @@ void GLContext::loadFont(const char* fontFilename)
             ImmediateAtlasGenerator<
                 float, // pixel type of buffer for individual glyphs depends on generator function
                 3, // number of atlas color channels
-                &msdfGenerator, // function to generate bitmaps for individual glyphs
+                msdfGenerator, // function to generate bitmaps for individual glyphs
                 BitmapAtlasStorage<byte, 3> // class that stores the atlas bitmap
                 // For example, a custom atlas storage class that stores it in VRAM can be used.
             > generator(width, height);
@@ -334,9 +346,6 @@ void GLContext::loadFont(const char* fontFilename)
         i++;
     }
 
-    int x, y, w, h;
-    glyphs[m_char_map['a']].getBoxRect(x,y,w,h);
-
     glTextureParameteri(m_ta.font.buf, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);	
     glTextureParameteri(m_ta.font.buf, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTextureParameteri(m_ta.font.buf, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -347,6 +356,7 @@ void GLContext::loadFont(const char* fontFilename)
     m_shaders.text.use();
     glUniform1i(m_shaders.text.getLocation("atlasWidth"), width);
     glUniform1i(m_shaders.text.getLocation("atlasHeight"), height);
+    glUniform1i(m_shaders.text.getLocation("pxRange"), Defaults::Font::MsdfPxRange);
 }
 
 struct TexData

@@ -14,6 +14,7 @@ struct Character {
     vec4 rect;
     ivec4 texBounds;
     int layer;
+    int size;
 };
 
 struct Quad {
@@ -47,8 +48,11 @@ out vec2 uv;
 flat out vec4 colour;
 flat out int layer;
 
+flat out float screenPxRange;
+
 uniform int atlasWidth;
 uniform int atlasHeight;
+uniform int pxRange;
 
 void main() {
     ivec2 quad[6] = ivec2[6](
@@ -60,10 +64,11 @@ void main() {
         ivec2(1, 0)
     ); 
 
+    const int FONT_PX = 32;
     vec4 rect = text[index + gl_InstanceID].rect;
     vec4 texBounds = text[index + gl_InstanceID].texBounds;
     rect.x -= screenSz.x / 2;
-    rect.y = screenSz.y / 2 - rect.y - rect.w;
+    rect.y = screenSz.y / 2 - rect.y;
 
     uv = quad[gl_VertexID];
 
@@ -72,6 +77,8 @@ void main() {
 
     layer = text[index + gl_InstanceID].layer;
     colour = vec4(1.0, 1.0, 1.0, 1.0);
+
+    screenPxRange = max(text[index + gl_InstanceID].size / FONT_PX * pxRange, 1);
 
     vec2 size = rect.zw / round(vec2(screenSz.x/2.0, screenSz.y/2.0));
     vec2 pos = quad[gl_VertexID] * size + rect.xy / round(vec2(screenSz.x/2.0, screenSz.y/2.0));
@@ -83,6 +90,7 @@ inline const std::string TEXTFRAG = R"#(
 in vec2 uv;
 flat in vec4 colour;
 flat in int layer;
+flat in float screenPxRange;
 out vec4 frag;
 
 float median(float r, float g, float b) {
@@ -94,7 +102,7 @@ layout (binding = 2) uniform sampler2DArray font;
 void main() {
     vec3 msd = texture(font, vec3(uv, layer)).rgb;
     float sd = median(msd.r, msd.g, msd.b);
-    float screenPxDistance = (sd - 0.5);
+    float screenPxDistance = screenPxRange*(sd - 0.5);
     float opacity = clamp(screenPxDistance + 0.5, 0.0, 1.0);
 
     frag = vec4(colour.rgb, opacity);

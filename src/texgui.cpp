@@ -329,7 +329,7 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
 
     renderData.drawTexture(wstate.box, wintex, wstate.state, _PX, SLICE_9);
     renderData.drawText(name, {wstate.box.x + padding.left, wstate.box.y + wintex->top * _PX / 2},
-                 Defaults::Font::Color, Defaults::Font::Scale, CENTER_Y);
+                 Defaults::Font::Color, Defaults::Font::Size, CENTER_Y);
 
     fbox internal = fbox::pad(wstate.box, padding);
 
@@ -353,7 +353,7 @@ bool Container::Button(const char* text)
     renderData.drawText(text, 
         state & STATE_PRESS ? bounds.pos + bounds.size / 2 + Defaults::Button::POffset
                             : bounds.pos + bounds.size / 2,
-        Defaults::Font::Color, Defaults::Font::Scale, CENTER_X | CENTER_Y);
+        Defaults::Font::Color, Defaults::Font::Size, CENTER_X | CENTER_Y);
 
     auto& io = inputFrame;
     return state & STATE_ACTIVE && io.lmb == KEY_Release && bounds.contains(io.cursorPos) ? true : false;
@@ -404,7 +404,7 @@ void Container::TextInput(const char* name, std::string& buf)
         ? name : buf.c_str(),
         {bounds.x + offsetx + padding.left, bounds.y + bounds.height / 2},
         Defaults::Font::Color,
-        Defaults::Font::Scale,
+        Defaults::Font::Size,
         CENTER_Y
     );
 }

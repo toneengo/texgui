@@ -10,7 +10,7 @@ Widget::Widget(float xpos, float ypos, float width, float height)
     : m_visible(true),
       m_box(xpos, ypos, width, height),
       m_text_color(Defaults::Font::Color),
-      m_text_scale(Defaults::Font::Scale), m_render_flags(Defaults::Flags),
+      m_text_scale(Defaults::Font::Size), m_render_flags(Defaults::Flags),
       m_pixel_size(Defaults::PixelSize),
       m_state(STATE_NONE), m_needs_update(true)
 {

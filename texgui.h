@@ -472,7 +472,8 @@ inline uint32_t Flags = SLICE_9;
 
 namespace Font {
     inline Math::fvec4 Color = {1, 1, 1, 1};
-    inline float Scale = 0.4;
+    inline int Size = 20;
+    inline int MsdfPxRange = 1;
 }
 
 namespace Window {

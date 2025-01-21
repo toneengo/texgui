@@ -12,6 +12,8 @@ set(CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+option(BUILD_STATIC_LIBS "Build static libraries" ON)
+
 project("texgui")
 
 if (BUILD_STATIC_LIBS)
@@ -25,14 +27,15 @@ endif()
 find_package(OpenGL REQUIRED)
 find_package(glfw3 CONFIG REQUIRED)
 find_package(Freetype REQUIRED)
-#find_package(msdfgen REQUIRED)
+
+set(MSDF_ATLAS_NO_ARTERY_FONT ON)
+set(MSDF_ATLAS_USE_SKIA OFF)
+set(MSDF_ATLAS_MSDFGEN_EXTERNAL OFF)
+if (WIN32)
+    set(MSDF_ATLAS_USE_VCPKG ON)
+endif()
 
 add_subdirectory(msdf-atlas-gen)
-
-set(MSDF_ATLAS_NO_ARTERY_FONT=ON)
-set(MSDF_ATLAS_USE_SKIA=OFF)
-set(MSDF_ATLAS_USE_VCPKG=OFF)
-set(MSDF_ATLAS_MSDFGEN_EXTERNAL=ON)
 
 foreach(TARGET texgui)
     set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${PROJECT}")
@@ -41,9 +44,18 @@ foreach(TARGET texgui)
     target_link_libraries(${TARGET} PRIVATE OpenGL::GL)
     target_link_libraries(${TARGET} PRIVATE glfw)
     target_link_libraries(${TARGET} PRIVATE Freetype::Freetype)
-    target_link_libraries(${TARGET} PRIVATE ${CMAKE_BINARY_DIR}/msdf-atlas-gen/libmsdf-atlas-gen.a)
-    target_link_libraries(${TARGET} PRIVATE ${CMAKE_BINARY_DIR}/msdf-atlas-gen/msdfgen/libmsdfgen-core.a)
-    target_link_libraries(${TARGET} PRIVATE ${CMAKE_BINARY_DIR}/msdf-atlas-gen/msdfgen/libmsdfgen-ext.a)
+
+    if (UNIX)
+        target_link_libraries(${TARGET} PRIVATE ${CMAKE_BINARY_DIR}/msdf-atlas-gen/libmsdf-atlas-gen.a)
+        target_link_libraries(${TARGET} PRIVATE ${CMAKE_BINARY_DIR}/msdf-atlas-gen/msdfgen/libmsdfgen-core.a)
+        target_link_libraries(${TARGET} PRIVATE ${CMAKE_BINARY_DIR}/msdf-atlas-gen/msdfgen/libmsdfgen-ext.a)
+    endif()
+
+    if (WIN32)
+        target_link_libraries(${TARGET} PRIVATE ${CMAKE_BINARY_DIR}/msdf-atlas-gen/msdf-atlas-gen.lib)
+        target_link_libraries(${TARGET} PRIVATE ${CMAKE_BINARY_DIR}/msdf-atlas-gen/msdfgen/msdfgen-core.lib)
+        target_link_libraries(${TARGET} PRIVATE ${CMAKE_BINARY_DIR}/msdf-atlas-gen/msdfgen/msdfgen-ext.lib)
+    endif()
 
     target_include_directories(${TARGET} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
     target_include_directories(${TARGET} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include/")

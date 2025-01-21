@@ -90,7 +90,7 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
 
     g_immediate_state.drawTexture(wstate.box, wintex, wstate.state, _PX, SLICE_9);
     g_immediate_state.drawText(name, {wstate.box.x + padding.left, wstate.box.y + wintex->top * _PX / 2},
-                 Defaults::Font::Color, Defaults::Font::Scale, CENTER_Y);
+                 Defaults::Font::Color, Defaults::Font::Size, CENTER_Y);
 
     fbox internal = fbox::pad(wstate.box, padding);
 
@@ -115,7 +115,7 @@ bool Container::Button(const char* text)
     g_immediate_state.drawText(text, 
         state & STATE_PRESS ? bounds.pos + bounds.size / 2 + Defaults::Button::POffset
                             : bounds.pos + bounds.size / 2,
-        Defaults::Font::Color, Defaults::Font::Scale, CENTER_X | CENTER_Y);
+        Defaults::Font::Color, Defaults::Font::Size, CENTER_X | CENTER_Y);
 
     return click;
 }
@@ -164,7 +164,7 @@ void Container::TextInput(const char* name, std::string& buf)
         ? name : buf.c_str(),
         {bounds.x + offsetx + padding.left, bounds.y + bounds.height / 2},
         Defaults::Font::Color,
-        Defaults::Font::Scale,
+        Defaults::Font::Size,
         CENTER_Y
     );
 }

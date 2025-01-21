@@ -12,7 +12,7 @@ struct alignas(16) Character
     Math::fbox rect; //xpos, ypos, width, height
     Math::ibox texBounds;
     int layer;
-    int padding;
+    int size;
 };
 
 struct alignas(16) Quad
@@ -71,7 +71,7 @@ struct Command
     } type;
 
     uint32_t number;
-    uint32_t flags;
+    uint32_t flags = 0;
     TexEntry * texentry;
 };
 
@@ -116,7 +116,7 @@ struct RenderData
 
     void drawQuad(const Math::fbox& rect, const Math::fvec4& col);
     void drawTexture(const Math::fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags);
-    int drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, float scale, uint32_t flags, float width = 0);
+    int drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, float width = 0);
 
     void clear() {
         objects.clear();
