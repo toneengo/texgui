@@ -8,7 +8,7 @@
 
 using namespace TexGui;
 
-std::mutex inputLock;
+std::mutex TGInputLock;
 
 // GLFW data
 enum GlfwClientApi
@@ -85,7 +85,7 @@ struct TexGuiContext
 
 TexGuiContext* GTexGui = nullptr;
 
-RenderData renderData;
+RenderData TGRenderData;
 
 GLFWscrollfun TexGui_ImplGlfw_ScrollCallback;
 GLFWmonitorfun TexGui_ImplGlfw_MonitorCallback; 
@@ -98,7 +98,7 @@ void TexGui_ImplGlfw_CursorPosCallback(GLFWwindow* window, double x, double y)
         bd.PrevUserCallbackCursorPos(window, x, y);
 
     //#TODO: window scale
-    std::lock_guard<std::mutex> lock(inputLock);
+    std::lock_guard<std::mutex> lock(TGInputLock);
     io.cursorPos = Math::fvec2(x, y);
 }
 
@@ -109,7 +109,7 @@ void TexGui_ImplGlfw_KeyCallback(GLFWwindow* window, int key, int scancode, int 
     if (bd.PrevUserCallbackKey)
         bd.PrevUserCallbackKey(window, key, scancode, action, mods);
 
-    std::lock_guard<std::mutex> lock(inputLock);
+    std::lock_guard<std::mutex> lock(TGInputLock);
 }
 
 enum KeyState : uint8_t
@@ -128,7 +128,7 @@ void TexGui_ImplGlfw_MouseButtonCallback(GLFWwindow* window, int button, int act
     if (bd.PrevUserCallbackMousebutton)
         bd.PrevUserCallbackMousebutton(window, button, action, mods);
 
-    std::lock_guard<std::mutex> lock(inputLock);
+    std::lock_guard<std::mutex> lock(TGInputLock);
     if (button == GLFW_MOUSE_BUTTON_1)
     {
         if (action == GLFW_RELEASE) io.lmb = KEY_Release;
@@ -144,7 +144,7 @@ void TexGui_ImplGlfw_CharCallback(GLFWwindow* window, unsigned int codepoint)
     if (bd.PrevUserCallbackChar)
         bd.PrevUserCallbackChar(window, codepoint);
 
-    std::lock_guard<std::mutex> lock(inputLock);
+    std::lock_guard<std::mutex> lock(TGInputLock);
     io.charQueue.push(codepoint);
 };
 
@@ -156,7 +156,7 @@ void TexGui_ImplGlfw_FramebufferSizeCallback(GLFWwindow* window, int width, int 
 
     GTexGui->renderCtx.setScreenSize(width, height);
 
-    std::lock_guard<std::mutex> lock(inputLock);
+    std::lock_guard<std::mutex> lock(TGInputLock);
     Base.bounds.size = Math::fvec2(width, height);
 };
 
@@ -188,7 +188,7 @@ bool TexGui::initGlfwOpenGL(GLFWwindow* window)
 
 void TexGui::render()
 {
-    GTexGui->renderCtx.renderFromRD(renderData);
+    GTexGui->renderCtx.renderFromRD(TGRenderData);
 }
 
 void TexGui::loadFont(const char* font)
@@ -212,9 +212,9 @@ InputFrame inputFrame;
 
 void TexGui::clear()
 {
-    renderData.clear();
+    TGRenderData.clear();
 
-    std::lock_guard<std::mutex> lock(inputLock);
+    std::lock_guard<std::mutex> lock(TGInputLock);
     auto& io = GTexGui->io;
 
     inputFrame.cursorPos = io.cursorPos;
@@ -324,8 +324,8 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
     fvec4 padding = Defaults::Window::Padding;
     padding.top = wintex->top * _PX;
 
-    renderData.drawTexture(wstate.box, wintex, wstate.state, _PX, SLICE_9);
-    renderData.drawText(name, {wstate.box.x + padding.left, wstate.box.y + wintex->top * _PX / 2},
+    TGRenderData.drawTexture(wstate.box, wintex, wstate.state, _PX, SLICE_9);
+    TGRenderData.drawText(name, {wstate.box.x + padding.left, wstate.box.y + wintex->top * _PX / 2},
                  Defaults::Font::Color, Defaults::Font::Size, CENTER_Y);
 
     fbox internal = fbox::pad(wstate.box, padding);
@@ -345,9 +345,9 @@ bool Container::Button(const char* text)
     uint32_t& state = buttonStates->at(text);
     getBoxState(state, bounds);
 
-    renderData.drawTexture(bounds, &m_tex_map[Defaults::Button::Texture], state, _PX, SLICE_9);
+    TGRenderData.drawTexture(bounds, &m_tex_map[Defaults::Button::Texture], state, _PX, SLICE_9);
 
-    renderData.drawText(text, 
+    TGRenderData.drawText(text, 
         state & STATE_PRESS ? bounds.pos + bounds.size / 2 + Defaults::Button::POffset
                             : bounds.pos + bounds.size / 2,
         Defaults::Font::Color, Defaults::Font::Size, CENTER_X | CENTER_Y);
@@ -367,7 +367,7 @@ Container Container::Box(float xpos, float ypos, float width, float height, cons
     if (texture != nullptr)
     {
         static TexEntry* boxtex = &m_tex_map[texture];
-        renderData.drawTexture(boxBounds, boxtex, 0, 2, SLICE_9);
+        TGRenderData.drawTexture(boxBounds, boxtex, 0, 2, SLICE_9);
     }
 
     fbox internal = fbox::pad(boxBounds, Defaults::Box::Padding);
@@ -392,11 +392,11 @@ void Container::TextInput(const char* name, std::string& buf)
         buf.push_back(io.character);
     }
 
-    renderData.drawTexture(bounds, inputtex, tstate.state, _PX, SLICE_9);
+    TGRenderData.drawTexture(bounds, inputtex, tstate.state, _PX, SLICE_9);
     float offsetx = 0;
     fvec4 padding = Defaults::TextInput::Padding;
     fvec4 color = Defaults::Font::Color;
-    renderData.drawText(
+    TGRenderData.drawText(
         !getBit(tstate.state, STATE_ACTIVE) && buf.size() == 0
         ? name : buf.c_str(),
         {bounds.x + offsetx + padding.left, bounds.y + bounds.height / 2},
