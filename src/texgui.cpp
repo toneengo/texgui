@@ -42,9 +42,6 @@ struct ImplGlfw_Data
     GLFWcharfun             PrevUserCallbackChar;
     GLFWmonitorfun          PrevUserCallbackMonitor;
     GLFWframebuffersizefun  PrevUserCallbackFramebufferSize;
-#ifdef _WIN32
-    WNDPROC                 PrevWndProc;
-#endif
 
     ImplGlfw_Data()   { memset((void*)this, 0, sizeof(*this)); }
 };
