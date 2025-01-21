@@ -4,6 +4,7 @@
 #include "GLFW/glfw3.h"
 #include <cassert>
 #include <cstring>
+#include <cmath>
 #include <mutex>
 
 using namespace TexGui;
