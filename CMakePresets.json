@@ -1,0 +1,121 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 1,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "windows-base",
+      "description": "Target Windows with the Visual Studio development environment.",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "installDir": "${sourceDir}/out/install/${presetName}",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "cl.exe",
+        "CMAKE_CXX_COMPILER": "cl.exe",
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}\\scripts\\buildsystems\\vcpkg.cmake"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "win64-example",
+      "displayName": "Windows (64-bit) debug, examples",
+      "inherits": "windows-base",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TEXGUI_BUILD_STATIC_LIBS": "ON",
+        "TEXGUI_BUILD_EXAMPLE": "ON"
+      }
+    },
+    {
+      "name": "win64-dbg-static",
+      "displayName": "Windows (64-bit) debug, static libs",
+      "inherits": "windows-base",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TEXGUI_BUILD_STATIC_LIBS": "ON"
+      }
+    },
+    {
+      "name": "win64-dbg-shared",
+      "displayName": "Windows (64-bit) debug, dynamic libs",
+      "inherits": "windows-base",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TEXGUI_BUILD_SHARED_LIBS": "ON"
+      }
+    },
+    {
+      "name": "win64-rel-static",
+      "displayName": "Windows (64-bit) release, static libs",
+      "inherits": "windows-base",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "TEXGUI_BUILD_STATIC_LIBS": "ON"
+      }
+    },
+    {
+      "name": "win64-rel-shared",
+      "displayName": "Windows (64-bit) release, dynamic libs",
+      "inherits": "windows-base",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "TEXGUI_BUILD_SHARED_LIBS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "win64-example",
+      "displayName": "Windows (64-bit) debug, examples",
+      "configurePreset": "win64-example"
+    },
+    {
+      "name": "win64-dbg-static",
+      "displayName": "Windows (64-bit) debug, static libs",
+      "configurePreset": "win64-dbg-static"
+    },
+    {
+      "name": "win64-dbg-shared",
+      "displayName": "Windows (64-bit) debug, dynamic libs",
+      "configurePreset": "win64-dbg-shared"
+    },
+    {
+      "name": "win64-rel-static",
+      "displayName": "Windows (64-bit) release, static libs",
+      "configurePreset": "win64-rel-static"
+    },
+    {
+      "name": "win64-rel-shared",
+      "displayName": "Windows (64-bit) release, dynamic libs",
+      "configurePreset": "win64-rel-shared"
+    }
+  ]
+}

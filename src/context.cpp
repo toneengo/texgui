@@ -168,8 +168,8 @@ int RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& c
                 .rect = fbox(
                     currx + l * size,
                     pos.y - b * size,
-                    w * size / font_px,
-                    h * size / font_px
+                    w * size,
+                    h * size
                 ),
                 .texBounds = {x, y, w, h},
                 .layer = 0,
@@ -295,7 +295,7 @@ void GLContext::loadFont(const char* fontFilename)
             // Apply MSDF edge coloring. See edge-coloring.h for other coloring strategies.
             const double maxCornerAngle = 3.0;
             for (GlyphGeometry &glyph : glyphs)
-                glyph.edgeColoring(&msdfgen::edgeColoringInkTrap, maxCornerAngle, 0);
+                glyph.edgeColoring(&msdfgen::edgeColoringSimple, maxCornerAngle, 0);
             // TightAtlasPacker class computes the layout of the atlas.
             TightAtlasPacker packer;
             // Set atlas parameters:

@@ -72,15 +72,15 @@ void main() {
 
     uv = quad[gl_VertexID];
 
-    uv = vec2(texBounds.x/atlasWidth, texBounds.y/atlasHeight) +
-         uv * (vec2(texBounds.z/atlasWidth, texBounds.w/atlasHeight));
+    uv = vec2((texBounds.x+1)/atlasWidth, (texBounds.y+1)/atlasHeight) +
+         uv * (vec2((texBounds.z-1)/atlasWidth, ((texBounds.w-1)/atlasHeight)));
 
     layer = text[index + gl_InstanceID].layer;
     colour = vec4(1.0, 1.0, 1.0, 1.0);
 
     screenPxRange = max(text[index + gl_InstanceID].size / FONT_PX * pxRange, 1);
 
-    vec2 size = rect.zw / round(vec2(screenSz.x/2.0, screenSz.y/2.0));
+    vec2 size = rect.zw / round(vec2(screenSz.x/2.0, screenSz.y/2.0)) / FONT_PX;
     vec2 pos = quad[gl_VertexID] * size + rect.xy / round(vec2(screenSz.x/2.0, screenSz.y/2.0));
     gl_Position = vec4(pos, 0.0, 1.0);
 }

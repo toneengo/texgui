@@ -12,17 +12,16 @@ set(CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-option(BUILD_STATIC_LIBS "Build static libraries" ON)
-option(BUILD_EXAMPLE "Build example applications" ON)
+option(TEXGUI_BUILD_STATIC_LIBS "Build static libraries" ON)
+option(TEXGUI_BUILD_STATIC_LIBS "Build shared libraries" OFF)
+option(TEXGUI_BUILD_EXAMPLE "Build example applications" ON)
 
 project("texgui")
 
-if (BUILD_STATIC_LIBS)
-    add_library(texgui STATIC)
-endif()
-
-if (BUILD_SHARED_LIBS)
+if (TEXGUI_BUILD_SHARED_LIBS)
     add_library(texgui SHARED)
+else()
+    add_library(texgui STATIC)
 endif()
 
 find_package(OpenGL REQUIRED)
@@ -65,7 +64,7 @@ foreach(TARGET texgui)
     target_include_directories(${TARGET} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/msdf-atlas-gen/msdfgen")
 endforeach(TARGET)
 
-if (BUILD_EXAMPLE)
+if (TEXGUI_BUILD_EXAMPLE)
     add_executable(example1)
     list(APPEND Examples example1)
 

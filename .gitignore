@@ -13,7 +13,6 @@ CMakeFiles/**
 CMakeUserPresets.json
 CMakeSettings.json
 CMakeCache.txt
-CMakePresets.json
 cmake_install.cmake
 src/Makefile
 src/CMakeFiles/**
