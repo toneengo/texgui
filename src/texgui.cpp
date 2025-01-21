@@ -379,7 +379,11 @@ void Container::Image(const char* texture)
     auto* tex = &m_tex_map[texture];
 
     ivec2 tsize = ivec2(tex->bounds.width, tex->bounds.height) * _PX;
-    TGRenderData.drawTexture(fbox(bounds.pos, fvec2(tsize)), tex, STATE_NONE, _PX, 0);
+
+    fbox sized = fbox(bounds.pos, fvec2(tsize));
+    fbox arranged = Arrangers::Arrange(this, sized);
+
+    TGRenderData.drawTexture(arranged, tex, STATE_NONE, _PX, 0);
 }
 
 fbox Arrangers::Arrange(Container* o, fbox child)
@@ -429,13 +433,12 @@ Container Container::ListItem(uint32_t* selected, uint32_t id)
 fbox Arrangers::ArrangeGrid(Container* grid, fbox child)
 {
     // Don't nest grids in other arrangers
-    assert(!grid->arrange);
+    assert(!grid->parent->arrange);
 
     auto& gs = grid->grid;
 
     gs.rowHeight = fmax(gs.rowHeight, child.height);
 
-    child = fbox(fvec2(gs.x, gs.y), child.size);
 
     float spacing = Defaults::Row::Spacing;
     if (gs.x + child.width > grid->bounds.width)
@@ -443,9 +446,13 @@ fbox Arrangers::ArrangeGrid(Container* grid, fbox child)
         gs.x = 0;
         gs.y += gs.rowHeight + spacing;
         gs.rowHeight = 0;
+        child = fbox(grid->bounds.pos + fvec2(gs.x, gs.y), child.size);
     }
-
-    gs.x += child.width + spacing;
+    else
+    {
+        child = fbox(grid->bounds.pos + fvec2(gs.x, gs.y), child.size);
+        gs.x += child.width + spacing;
+    }
     
     return child;
 }
