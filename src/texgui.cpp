@@ -374,6 +374,34 @@ Container Container::Box(float xpos, float ypos, float width, float height, cons
     return withBounds(internal);
 }
 
+void Container::Image(const char* texture)
+{
+    auto* tex = &m_tex_map[texture];
+
+    ivec2 tsize = ivec2(tex->bounds.width, tex->bounds.height) * _PX;
+    TGRenderData.drawTexture(fbox(bounds.x, bounds.y, tsize.x, tsize.y), tex, 0, _PX, 0);
+}
+
+Container Container::ListItem(uint32_t* selected, uint32_t id)
+{
+    static TexEntry* tex = &m_tex_map[Defaults::ListItem::Texture];
+
+    auto& io = inputFrame;
+
+    bool hovered = bounds.contains(io.cursorPos);
+    auto state = hovered ? STATE_HOVER : STATE_NONE;
+    if (io.lmb == KEY_Release && hovered)
+        *selected = id;
+
+    if (*selected == id)
+        state = STATE_ACTIVE;
+
+    TGRenderData.drawTexture(bounds, tex, state, _PX, SLICE_9);
+    
+    // Add padding to the contents of the list item
+    return withBounds(fbox::pad(bounds, Defaults::ListItem::Padding));
+}
+
 void Container::TextInput(const char* name, std::string& buf)
 {
     auto& io = inputFrame;
@@ -406,7 +434,7 @@ void Container::TextInput(const char* name, std::string& buf)
     );
 }
 
-void Container::Row_Internal(Container* out, const float* widths, uint32_t n, float height)
+void Container::Row_Internal(Container* out, const float* widths, uint32_t n, float height, uint32_t flags)
 {
     if (height < 1) {
         height = height == 0 ? bounds.height : bounds.height * height;
@@ -433,6 +461,12 @@ void Container::Row_Internal(Container* out, const float* widths, uint32_t n, fl
         }
         else
             width = widths[i];
+
+        if (flags & WRAPPED && x + width > bounds.width)
+        {
+            x = 0;
+            y += height + spacing;
+        }
 
         out[i] = *this;
         out[i].bounds = Math::fbox(bounds.x + x, bounds.y + y, width, height);

@@ -434,12 +434,13 @@ public:
     bool      Button(const char* text);
     Container Box(float xpos, float ypos, float width, float height, const char* texture = nullptr);
     void      TextInput(const char* name, std::string& buf);
+    void      Image(const char* text);
 
     template <uint32_t N>
-    std::array<Container, N> Row(const float (&widths)[N], float height = 0)
+    std::array<Container, N> Row(const float (&widths)[N], float height = 0, uint32_t flags = 0)
     {
         std::array<Container, N> out;
-        Row_Internal(&out[0], widths, N, height);
+        Row_Internal(&out[0], widths, N, height, flags);
         return out;
     }
 
@@ -450,8 +451,11 @@ public:
         Column_Internal(&out[0], heights, N, width);
         return out;
     }
+
+    // Similar to radio buttons - the id of the selected one is stored in the *selected pointer.
+    Container ListItem(uint32_t* selected, uint32_t id);
 private:
-    void Row_Internal(Container* out, const float* widths, uint32_t n, float height);
+    void Row_Internal(Container* out, const float* widths, uint32_t n, float height, uint32_t flags);
     void Column_Internal(Container* out, const float* widths, uint32_t n, float height);
     std::unordered_map<std::string, uint32_t>* buttonStates;
 };
