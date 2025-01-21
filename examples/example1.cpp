@@ -142,14 +142,13 @@ void main() {
         TexGui::Base.Window("not bob", 400, 500, 200, 200);
         auto win = TexGui::Base.Window("bob", 200, 100, 400, 600);
 
-        // Split the window into 2 columns
-        auto cells = win.Row({200, 150, 200, 150, 200}, 50, TexGui::WRAPPED);
+        auto grid = win.Grid();
 
-        TexGui::Container listItems[cells.size()];
-        for (uint32_t i = 0; i < cells.size(); i++)
+        for (uint32_t i = 0; i < 10; i++)
         {
-            listItems[i] = cells[i].ListItem(&selected, i);
-            listItems[i].Image(i % 2 == 0 ? "lollipop" : "tennis");
+            grid
+                .ListItem(&selected, i)
+                .Image("lollipop");
         }
 
         TexGui::render();

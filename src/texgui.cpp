@@ -379,11 +379,26 @@ void Container::Image(const char* texture)
     auto* tex = &m_tex_map[texture];
 
     ivec2 tsize = ivec2(tex->bounds.width, tex->bounds.height) * _PX;
-    TGRenderData.drawTexture(fbox(bounds.x, bounds.y, tsize.x, tsize.y), tex, 0, _PX, 0);
+    TGRenderData.drawTexture(fbox(bounds.pos, fvec2(tsize)), tex, STATE_NONE, _PX, 0);
 }
 
-Container Container::ListItem(uint32_t* selected, uint32_t id)
+fbox Arrangers::Arrange(Container* o, fbox child)
 {
+    // This container doesn't arrange anything.
+    if (!o->arrange) return child;
+
+    return o->arrange(o, child);
+}
+
+// Arranges the list item based on the thing that is put inside it.
+fbox Arrangers::ArrangeListItem(Container* listItem, fbox child)
+{
+    // A bit scuffed since we add margins then unpad them but mehh
+    fbox bounds = fbox::margin(child, Defaults::ListItem::Padding);
+    // Get the parent to arrange the list item
+    bounds = Arrange(listItem->parent, bounds);
+
+    
     static TexEntry* tex = &m_tex_map[Defaults::ListItem::Texture];
 
     auto& io = inputFrame;
@@ -391,15 +406,55 @@ Container Container::ListItem(uint32_t* selected, uint32_t id)
     bool hovered = bounds.contains(io.cursorPos);
     auto state = hovered ? STATE_HOVER : STATE_NONE;
     if (io.lmb == KEY_Release && hovered)
-        *selected = id;
+        *(listItem->listItem.selected) = listItem->listItem.id;
 
-    if (*selected == id)
+    if (*(listItem->listItem.selected) == listItem->listItem.id)
         state = STATE_ACTIVE;
 
     TGRenderData.drawTexture(bounds, tex, state, _PX, SLICE_9);
-    
+
+    // The child is positioned by the list item's parent
+    return fbox::pad(bounds, Defaults::ListItem::Padding);
+}
+
+Container Container::ListItem(uint32_t* selected, uint32_t id)
+{
     // Add padding to the contents of the list item
-    return withBounds(fbox::pad(bounds, Defaults::ListItem::Padding));
+    Container listItem = withBounds(fbox::pad(bounds, Defaults::ListItem::Padding), Arrangers::ArrangeListItem);
+    listItem.listItem = { selected, id };
+    return listItem;
+}
+
+// Arranges the cells of a grid by adding a new child box to it.
+fbox Arrangers::ArrangeGrid(Container* grid, fbox child)
+{
+    // Don't nest grids in other arrangers
+    assert(!grid->arrange);
+
+    auto& gs = grid->grid;
+
+    gs.rowHeight = fmax(gs.rowHeight, child.height);
+
+    child = fbox(fvec2(gs.x, gs.y), child.size);
+
+    float spacing = Defaults::Row::Spacing;
+    if (gs.x + child.width > grid->bounds.width)
+    {
+        gs.x = 0;
+        gs.y += gs.rowHeight + spacing;
+        gs.rowHeight = 0;
+    }
+
+    gs.x += child.width + spacing;
+    
+    return child;
+}
+
+Container Container::Grid()
+{
+    Container grid = withBounds(bounds, Arrangers::ArrangeGrid);
+    grid.grid = { 0, 0, 0 };
+    return grid;
 }
 
 void Container::TextInput(const char* name, std::string& buf)
