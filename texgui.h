@@ -433,7 +433,7 @@ public:
     Math::fbox bounds;
 
     Container Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags = 0);
-    bool      Button(const char* text);
+    bool      Button(const char* text, const char* texture = nullptr);
     Container Box(float xpos, float ypos, float width, float height, const char* texture = nullptr);
     void      TextInput(const char* name, std::string& buf);
     void      Image(const char* text);

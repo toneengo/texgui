@@ -336,7 +336,7 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
 
 }
 
-bool Container::Button(const char* text)
+bool Container::Button(const char* text, const char* texture)
 {
     if (!buttonStates->contains(text))
     {
@@ -346,7 +346,9 @@ bool Container::Button(const char* text)
     uint32_t& state = buttonStates->at(text);
     getBoxState(state, bounds);
 
-    TGRenderData.drawTexture(bounds, &m_tex_map[Defaults::Button::Texture], state, _PX, SLICE_9);
+    auto* tex = &m_tex_map[texture ? texture : Defaults::Button::Texture];
+
+    TGRenderData.drawTexture(bounds, tex, state, _PX, SLICE_9);
 
     TGRenderData.drawText(text, 
         state & STATE_PRESS ? bounds.pos + bounds.size / 2 + Defaults::Button::POffset
