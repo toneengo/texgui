@@ -215,7 +215,7 @@ TexEntry* TexGui::texByName(const char* name)
     return &m_tex_map[name];
 }
 
-TexEntry* customTexture(unsigned int glTexID, unsigned int layer, Math::ibox pixelBounds)
+TexEntry* TexGui::customTexture(unsigned int glTexID, unsigned int layer, Math::ibox pixelBounds)
 {
     return &m_custom_texs.emplace_back(glTexID, layer, pixelBounds);
 }
@@ -354,7 +354,7 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
 
 }
 
-bool Container::Button(const char* text, const char* texture)
+bool Container::Button(const char* text, TexEntry* texture)
 {
     if (!buttonStates->contains(text))
     {
@@ -364,7 +364,8 @@ bool Container::Button(const char* text, const char* texture)
     uint32_t& state = buttonStates->at(text);
     getBoxState(state, bounds);
 
-    auto* tex = &m_tex_map[texture ? texture : Defaults::Button::Texture];
+    static TexEntry* defaultTex = &m_tex_map[Defaults::Button::Texture];
+    auto* tex = texture ? texture : defaultTex;
 
     TGRenderData.drawTexture(bounds, tex, state, _PX, SLICE_9);
 
@@ -377,7 +378,7 @@ bool Container::Button(const char* text, const char* texture)
     return state & STATE_ACTIVE && io.lmb == KEY_Release && bounds.contains(io.cursorPos) ? true : false;
 }
 
-Container Container::Box(float xpos, float ypos, float width, float height, const char* texture)
+Container Container::Box(float xpos, float ypos, float width, float height, TexEntry* texture)
 {
     if (width <= 1)
         width = width == 0 ? bounds.width : bounds.width * width;
@@ -387,24 +388,21 @@ Container Container::Box(float xpos, float ypos, float width, float height, cons
     fbox boxBounds(bounds.x + xpos, bounds.y + ypos, width, height);
     if (texture != nullptr)
     {
-        static TexEntry* boxtex = &m_tex_map[texture];
-        TGRenderData.drawTexture(boxBounds, boxtex, 0, 2, SLICE_9);
+        TGRenderData.drawTexture(boxBounds, texture, 0, 2, SLICE_9);
     }
 
     fbox internal = fbox::pad(boxBounds, Defaults::Box::Padding);
     return withBounds(internal);
 }
 
-void Container::Image(const char* texture)
+void Container::Image(TexEntry* texture)
 {
-    auto* tex = &m_tex_map[texture];
-
-    ivec2 tsize = ivec2(tex->bounds.width, tex->bounds.height) * _PX;
+    ivec2 tsize = ivec2(texture->bounds.width, texture->bounds.height) * _PX;
 
     fbox sized = fbox(bounds.pos, fvec2(tsize));
     fbox arranged = Arrangers::Arrange(this, sized);
 
-    TGRenderData.drawTexture(arranged, tex, STATE_NONE, _PX, 0);
+    TGRenderData.drawTexture(arranged, texture, STATE_NONE, _PX, 0);
 }
 
 fbox Arrangers::Arrange(Container* o, fbox child)
