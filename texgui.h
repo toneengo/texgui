@@ -507,6 +507,13 @@ void loadFont(const char* font);
 void loadTextures(const char* dir);
 void clear();
 
+struct TexEntry;
+
+// Get a specific texture that was read by loadTextures
+TexEntry* texByName(const char* name);
+// Prepare a reference to a texture already present in an OpenGL array texture.
+TexEntry* customTexture(unsigned int glTexID, unsigned int layer, Math::ibox pixelBounds);
+
 NAMESPACE_BEGIN(Defaults);
 
 inline int PixelSize  = 1;

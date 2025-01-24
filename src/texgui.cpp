@@ -202,6 +202,24 @@ void TexGui::loadTextures(const char* dir)
     GTexGui->renderCtx.loadTextures(dir);
 }
 
+extern std::unordered_map<std::string, TexGui::TexEntry> m_tex_map;
+
+// We just need pointer stability, we aren't gonna be iterating it so using list :P
+// This is a heap alloc per entry which is a bit of a pain so should change since we barely use heap at all otherwise #TODO
+static std::list<TexEntry> m_custom_texs;
+
+
+TexEntry* TexGui::texByName(const char* name)
+{
+    assert(m_tex_map.contains(name));
+    return &m_tex_map[name];
+}
+
+TexEntry* customTexture(unsigned int glTexID, unsigned int layer, Math::ibox pixelBounds)
+{
+    return &m_custom_texs.emplace_back(glTexID, layer, pixelBounds);
+}
+
 struct InputFrame
 {
     Math::fvec2 cursorPos;

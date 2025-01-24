@@ -239,6 +239,8 @@ void GLContext::renderFromRD(const RenderData& data) {
         {
             case Command::QUAD:
             {
+                glBindTextureUnit(m_ta.texture.bind, c.texentry->glID);
+                
                 if (c.flags & SLICE_9)
                 {
                     m_shaders.quad9slice.use();
@@ -381,6 +383,10 @@ void GLContext::loadTextures(const char* dir)
         files.push_back(f);
     }
 
+    GLuint texID = -1;
+    glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, &texID);
+    m_ta.texture.buf = texID;
+
 
     for (auto& f : files)
     {
@@ -418,13 +424,15 @@ void GLContext::loadTextures(const char* dir)
         }
         else
         {
-            m_tex_map[fstr].bounds.w = width; 
-            m_tex_map[fstr].bounds.h = height; 
-            
-            m_tex_map[fstr].top = height/3.f;
-            m_tex_map[fstr].right = width/3.f;
-            m_tex_map[fstr].bottom = height/3.f;
-            m_tex_map[fstr].left = width/3.f;
+            TexEntry& t = m_tex_map[fstr];
+            t.bounds.w = width; 
+            t.bounds.h = height; 
+
+            t.top = height/3.f;
+            t.right = width/3.f;
+            t.bottom = height/3.f;
+            t.left = width/3.f;
+            t.glID = texID;
         }
 
         if (pstr.ends_with(".hover.png"))
@@ -510,7 +518,6 @@ void GLContext::loadTextures(const char* dir)
                 memcpy(active + 4 * tc(rect.x, rect.y + row), e._active + (4 * e.bounds.w * row), e.bounds.w * 4);
     }
 
-    glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, &m_ta.texture.buf);
     glTextureStorage3D(m_ta.texture.buf, 1, GL_RGBA8, ATLAS_SIZE, ATLAS_SIZE, 4);
 
     glTextureSubImage3D(m_ta.texture.buf, 0, 0, 0, 0, ATLAS_SIZE, ATLAS_SIZE, 1, GL_RGBA, GL_UNSIGNED_BYTE, atlas);
