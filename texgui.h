@@ -434,7 +434,7 @@ public:
     RenderData* rs;
     Math::fbox bounds;
 
-    Container Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags = 0);
+    Container Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags = 0,  TexEntry* texture = nullptr);
     bool      Button(const char* text, TexEntry* texture = nullptr);
     Container Box(float xpos, float ypos, float width, float height, TexEntry* texture = nullptr);
     void      TextInput(const char* name, std::string& buf);

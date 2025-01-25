@@ -217,7 +217,9 @@ TexEntry* TexGui::texByName(const char* name)
 
 TexEntry* TexGui::customTexture(unsigned int glTexID, unsigned int layer, Math::ibox pixelBounds)
 {
-    return &m_custom_texs.emplace_back(glTexID, layer, pixelBounds);
+    float xth = pixelBounds.w / 3.f;
+    float yth = pixelBounds.h / 3.f;
+    return &m_custom_texs.emplace_back(glTexID, layer, pixelBounds, 0, yth, xth, yth, xth);
 }
 
 struct InputFrame
@@ -292,7 +294,7 @@ uint32_t getBoxState(uint32_t& state, fbox box)
 
 #define _PX Defaults::PixelSize
 extern std::unordered_map<std::string, TexEntry> m_tex_map;
-Container Container::Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags)
+Container Container::Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags, TexEntry* texture)
 {
     auto& io = inputFrame;
     if (!GTexGui->windows.contains(name))
@@ -306,6 +308,7 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
     WindowState& wstate = GTexGui->windows[name];
 
     static TexEntry* wintex = &m_tex_map[Defaults::Window::Texture];
+    if (!texture) texture = wintex;
 
     getBoxState(wstate.state, wstate.box);
     
@@ -315,15 +318,15 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
         wstate.resizing = false;
     }
 
-    if (fbox(wstate.box.x, wstate.box.y, wstate.box.width, wintex->top * _PX).contains(io.cursorPos) && io.lmb == KEY_Press)
+    if (fbox(wstate.box.x, wstate.box.y, wstate.box.width, texture->top * _PX).contains(io.cursorPos) && io.lmb == KEY_Press)
     {
         wstate.last_cursorPos = io.cursorPos;
         wstate.moving = true;
     }
 
-    if (fbox(wstate.box.x + wstate.box.width - wintex->right * _PX,
-             wstate.box.y + wstate.box.height - wintex->bottom * _PX,
-             wintex->right * _PX, wintex->bottom * _PX).contains(io.cursorPos) && io.lmb == KEY_Press)
+    if (fbox(wstate.box.x + wstate.box.width - texture->right * _PX,
+             wstate.box.y + wstate.box.height - texture->bottom * _PX,
+             texture->right * _PX, texture->bottom * _PX).contains(io.cursorPos) && io.lmb == KEY_Press)
     {
         wstate.last_cursorPos = io.cursorPos;
         wstate.resizing = true;
@@ -341,10 +344,10 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
     }
 
     fvec4 padding = Defaults::Window::Padding;
-    padding.top = wintex->top * _PX;
+    padding.top = texture->top * _PX;
 
-    TGRenderData.drawTexture(wstate.box, wintex, wstate.state, _PX, SLICE_9);
-    TGRenderData.drawText(name, {wstate.box.x + padding.left, wstate.box.y + wintex->top * _PX / 2},
+    TGRenderData.drawTexture(wstate.box, texture, wstate.state, _PX, SLICE_9);
+    TGRenderData.drawText(name, {wstate.box.x + padding.left, wstate.box.y + texture->top * _PX / 2},
                  Defaults::Font::Color, Defaults::Font::Size, CENTER_Y);
 
     fbox internal = fbox::pad(wstate.box, padding);
