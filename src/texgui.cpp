@@ -403,12 +403,12 @@ void Container::Image(TexEntry* texture)
     ivec2 tsize = ivec2(texture->bounds.width, texture->bounds.height) * _PX;
 
     fbox sized = fbox(bounds.pos, fvec2(tsize));
-    fbox arranged = Arrangers::Arrange(this, sized);
+    fbox arranged = Arrange(this, sized);
 
     TGRenderData.drawTexture(arranged, texture, STATE_NONE, _PX, 0);
 }
 
-fbox Arrangers::Arrange(Container* o, fbox child)
+fbox Container::Arrange(Container* o, fbox child)
 {
     // This container doesn't arrange anything.
     if (!o->arrange) return child;
@@ -417,71 +417,68 @@ fbox Arrangers::Arrange(Container* o, fbox child)
 }
 
 // Arranges the list item based on the thing that is put inside it.
-fbox Arrangers::ArrangeListItem(Container* listItem, fbox child)
-{
-    // A bit scuffed since we add margins then unpad them but mehh
-    fbox bounds = fbox::margin(child, Defaults::ListItem::Padding);
-    // Get the parent to arrange the list item
-    bounds = Arrange(listItem->parent, bounds);
-
-    
-    static TexEntry* tex = &m_tex_map[Defaults::ListItem::Texture];
-
-    auto& io = inputFrame;
-
-    bool hovered = bounds.contains(io.cursorPos);
-    auto state = hovered ? STATE_HOVER : STATE_NONE;
-    if (io.lmb == KEY_Release && hovered)
-        *(listItem->listItem.selected) = listItem->listItem.id;
-
-    if (*(listItem->listItem.selected) == listItem->listItem.id)
-        state = STATE_ACTIVE;
-
-    TGRenderData.drawTexture(bounds, tex, state, _PX, SLICE_9);
-
-    // The child is positioned by the list item's parent
-    return fbox::pad(bounds, Defaults::ListItem::Padding);
-}
-
 Container Container::ListItem(uint32_t* selected, uint32_t id)
 {
+    static auto arrange = [](Container* listItem, fbox child)
+    {
+        // A bit scuffed since we add margins then unpad them but mehh
+        fbox bounds = fbox::margin(child, Defaults::ListItem::Padding);
+        // Get the parent to arrange the list item
+        bounds = Arrange(listItem->parent, bounds);
+        
+        static TexEntry* tex = &m_tex_map[Defaults::ListItem::Texture];
+
+        auto& io = inputFrame;
+
+        bool hovered = bounds.contains(io.cursorPos);
+        auto state = hovered ? STATE_HOVER : STATE_NONE;
+        if (io.lmb == KEY_Release && hovered)
+            *(listItem->listItem.selected) = listItem->listItem.id;
+
+        if (*(listItem->listItem.selected) == listItem->listItem.id)
+            state = STATE_ACTIVE;
+
+        TGRenderData.drawTexture(bounds, tex, state, _PX, SLICE_9);
+
+        // The child is positioned by the list item's parent
+        return fbox::pad(bounds, Defaults::ListItem::Padding);
+    };
     // Add padding to the contents of the list item
-    Container listItem = withBounds(fbox::pad(bounds, Defaults::ListItem::Padding), Arrangers::ArrangeListItem);
+    Container listItem = withBounds(fbox::pad(bounds, Defaults::ListItem::Padding), arrange);
     listItem.listItem = { selected, id };
     return listItem;
 }
 
 // Arranges the cells of a grid by adding a new child box to it.
-fbox Arrangers::ArrangeGrid(Container* grid, fbox child)
-{
-    // Don't nest grids in other arrangers
-    assert(!grid->parent->arrange);
-
-    auto& gs = grid->grid;
-
-    gs.rowHeight = fmax(gs.rowHeight, child.height);
-
-
-    float spacing = Defaults::Row::Spacing;
-    if (gs.x + child.width > grid->bounds.width)
-    {
-        gs.x = 0;
-        gs.y += gs.rowHeight + spacing;
-        gs.rowHeight = 0;
-        child = fbox(grid->bounds.pos + fvec2(gs.x, gs.y), child.size);
-    }
-    else
-    {
-        child = fbox(grid->bounds.pos + fvec2(gs.x, gs.y), child.size);
-        gs.x += child.width + spacing;
-    }
-    
-    return child;
-}
-
 Container Container::Grid()
 {
-    Container grid = withBounds(bounds, Arrangers::ArrangeGrid);
+    static auto arrange = [](Container* grid, fbox child)
+    {
+        // Don't nest grids in other arrangers
+        assert(!grid->parent->arrange);
+
+        auto& gs = grid->grid;
+
+        gs.rowHeight = fmax(gs.rowHeight, child.height);
+
+
+        float spacing = Defaults::Row::Spacing;
+        if (gs.x + child.width > grid->bounds.width)
+        {
+            gs.x = 0;
+            gs.y += gs.rowHeight + spacing;
+            gs.rowHeight = 0;
+            child = fbox(grid->bounds.pos + fvec2(gs.x, gs.y), child.size);
+        }
+        else
+        {
+            child = fbox(grid->bounds.pos + fvec2(gs.x, gs.y), child.size);
+            gs.x += child.width + spacing;
+        }
+        
+        return child;
+    };
+    Container grid = withBounds(bounds, arrange);
     grid.grid = { 0, 0, 0 };
     return grid;
 }

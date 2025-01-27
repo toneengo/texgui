@@ -491,16 +491,9 @@ private:
         copy.arrange = arrange;
         return copy;
     }
-};
 
-
-struct Arrangers
-{
     static Math::fbox Arrange(Container* o, Math::fbox child);
-    static Math::fbox ArrangeListItem(Container* listItem, Math::fbox child);
-    static Math::fbox ArrangeGrid(Container* grid, Math::fbox child);
 };
-
 
 inline Container Base;
 
