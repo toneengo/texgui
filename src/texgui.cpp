@@ -6,6 +6,7 @@
 #include <cstring>
 #include <cmath>
 #include <mutex>
+#include <list>
 
 using namespace TexGui;
 
@@ -207,7 +208,6 @@ extern std::unordered_map<std::string, TexGui::TexEntry> m_tex_map;
 // We just need pointer stability, we aren't gonna be iterating it so using list :P
 // This is a heap alloc per entry which is a bit of a pain so should change since we barely use heap at all otherwise #TODO
 static std::list<TexEntry> m_custom_texs;
-
 
 TexEntry* TexGui::texByName(const char* name)
 {
