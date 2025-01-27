@@ -422,6 +422,8 @@ NAMESPACE_END(Math);
 struct RenderData;
 bool initGlfwOpenGL(GLFWwindow* window);
 
+struct TexEntry;
+
 class Container
 {
     friend struct Arrangers;
@@ -432,11 +434,11 @@ public:
     RenderData* rs;
     Math::fbox bounds;
 
-    Container Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags = 0);
-    bool      Button(const char* text, const char* texture = nullptr);
-    Container Box(float xpos, float ypos, float width, float height, const char* texture = nullptr);
+    Container Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags = 0,  TexEntry* texture = nullptr);
+    bool      Button(const char* text, TexEntry* texture = nullptr);
+    Container Box(float xpos, float ypos, float width, float height, TexEntry* texture = nullptr);
     void      TextInput(const char* name, std::string& buf);
-    void      Image(const char* text);
+    void      Image(TexEntry* texture);
 
     // Similar to radio buttons - the id of the selected one is stored in the *selected pointer.
     Container ListItem(uint32_t* selected, uint32_t id);
@@ -506,6 +508,13 @@ void render();
 void loadFont(const char* font);
 void loadTextures(const char* dir);
 void clear();
+
+struct TexEntry;
+
+// Get a specific texture that was read by loadTextures
+TexEntry* texByName(const char* name);
+// Prepare a reference to a texture already present in an OpenGL array texture.
+TexEntry* customTexture(unsigned int glTexID, unsigned int layer, Math::ibox pixelBounds);
 
 NAMESPACE_BEGIN(Defaults);
 

@@ -150,7 +150,7 @@ void main() {
         {
             grid
                 .ListItem(&selected, i)
-                .Image("lollipop");
+                .Image(TexGui::texByName("lollipop"));
         }
 
         TexGui::render();

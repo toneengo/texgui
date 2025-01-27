@@ -86,17 +86,21 @@ struct CharInfo
 
 struct TexEntry
 {
+    unsigned int glID;
     int layer;
 
+    Math::ibox bounds;
+    
+    // Flags for if the texture has alternate images for states e.g. hovered/pressed etc
     unsigned int has_state = 0;
 
+    // Used for 9-slice rendering
     float top;
     float right;
     float bottom;
     float left;
 
-    Math::ibox bounds;
-
+    // #TODO: low priority - this shouldn't be in the struct, and just in a temporary map when creating our atlas
     unsigned char* data;
     unsigned char* _hover;
     unsigned char* _press;

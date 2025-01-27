@@ -202,6 +202,26 @@ void TexGui::loadTextures(const char* dir)
     GTexGui->renderCtx.loadTextures(dir);
 }
 
+extern std::unordered_map<std::string, TexGui::TexEntry> m_tex_map;
+
+// We just need pointer stability, we aren't gonna be iterating it so using list :P
+// This is a heap alloc per entry which is a bit of a pain so should change since we barely use heap at all otherwise #TODO
+static std::list<TexEntry> m_custom_texs;
+
+
+TexEntry* TexGui::texByName(const char* name)
+{
+    assert(m_tex_map.contains(name));
+    return &m_tex_map[name];
+}
+
+TexEntry* TexGui::customTexture(unsigned int glTexID, unsigned int layer, Math::ibox pixelBounds)
+{
+    float xth = pixelBounds.w / 3.f;
+    float yth = pixelBounds.h / 3.f;
+    return &m_custom_texs.emplace_back(glTexID, layer, pixelBounds, 0, yth, xth, yth, xth);
+}
+
 struct InputFrame
 {
     Math::fvec2 cursorPos;
@@ -274,7 +294,7 @@ uint32_t getBoxState(uint32_t& state, fbox box)
 
 #define _PX Defaults::PixelSize
 extern std::unordered_map<std::string, TexEntry> m_tex_map;
-Container Container::Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags)
+Container Container::Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags, TexEntry* texture)
 {
     auto& io = inputFrame;
     if (!GTexGui->windows.contains(name))
@@ -288,6 +308,7 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
     WindowState& wstate = GTexGui->windows[name];
 
     static TexEntry* wintex = &m_tex_map[Defaults::Window::Texture];
+    if (!texture) texture = wintex;
 
     getBoxState(wstate.state, wstate.box);
     
@@ -297,15 +318,15 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
         wstate.resizing = false;
     }
 
-    if (fbox(wstate.box.x, wstate.box.y, wstate.box.width, wintex->top * _PX).contains(io.cursorPos) && io.lmb == KEY_Press)
+    if (fbox(wstate.box.x, wstate.box.y, wstate.box.width, texture->top * _PX).contains(io.cursorPos) && io.lmb == KEY_Press)
     {
         wstate.last_cursorPos = io.cursorPos;
         wstate.moving = true;
     }
 
-    if (fbox(wstate.box.x + wstate.box.width - wintex->right * _PX,
-             wstate.box.y + wstate.box.height - wintex->bottom * _PX,
-             wintex->right * _PX, wintex->bottom * _PX).contains(io.cursorPos) && io.lmb == KEY_Press)
+    if (fbox(wstate.box.x + wstate.box.width - texture->right * _PX,
+             wstate.box.y + wstate.box.height - texture->bottom * _PX,
+             texture->right * _PX, texture->bottom * _PX).contains(io.cursorPos) && io.lmb == KEY_Press)
     {
         wstate.last_cursorPos = io.cursorPos;
         wstate.resizing = true;
@@ -323,10 +344,10 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
     }
 
     fvec4 padding = Defaults::Window::Padding;
-    padding.top = wintex->top * _PX;
+    padding.top = texture->top * _PX;
 
-    TGRenderData.drawTexture(wstate.box, wintex, wstate.state, _PX, SLICE_9);
-    TGRenderData.drawText(name, {wstate.box.x + padding.left, wstate.box.y + wintex->top * _PX / 2},
+    TGRenderData.drawTexture(wstate.box, texture, wstate.state, _PX, SLICE_9);
+    TGRenderData.drawText(name, {wstate.box.x + padding.left, wstate.box.y + texture->top * _PX / 2},
                  Defaults::Font::Color, Defaults::Font::Size, CENTER_Y);
 
     fbox internal = fbox::pad(wstate.box, padding);
@@ -336,7 +357,7 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
 
 }
 
-bool Container::Button(const char* text, const char* texture)
+bool Container::Button(const char* text, TexEntry* texture)
 {
     if (!buttonStates->contains(text))
     {
@@ -346,7 +367,8 @@ bool Container::Button(const char* text, const char* texture)
     uint32_t& state = buttonStates->at(text);
     getBoxState(state, bounds);
 
-    auto* tex = &m_tex_map[texture ? texture : Defaults::Button::Texture];
+    static TexEntry* defaultTex = &m_tex_map[Defaults::Button::Texture];
+    auto* tex = texture ? texture : defaultTex;
 
     TGRenderData.drawTexture(bounds, tex, state, _PX, SLICE_9);
 
@@ -359,7 +381,7 @@ bool Container::Button(const char* text, const char* texture)
     return state & STATE_ACTIVE && io.lmb == KEY_Release && bounds.contains(io.cursorPos) ? true : false;
 }
 
-Container Container::Box(float xpos, float ypos, float width, float height, const char* texture)
+Container Container::Box(float xpos, float ypos, float width, float height, TexEntry* texture)
 {
     if (width <= 1)
         width = width == 0 ? bounds.width : bounds.width * width;
@@ -369,24 +391,21 @@ Container Container::Box(float xpos, float ypos, float width, float height, cons
     fbox boxBounds(bounds.x + xpos, bounds.y + ypos, width, height);
     if (texture != nullptr)
     {
-        static TexEntry* boxtex = &m_tex_map[texture];
-        TGRenderData.drawTexture(boxBounds, boxtex, 0, 2, SLICE_9);
+        TGRenderData.drawTexture(boxBounds, texture, 0, 2, SLICE_9);
     }
 
     fbox internal = fbox::pad(boxBounds, Defaults::Box::Padding);
     return withBounds(internal);
 }
 
-void Container::Image(const char* texture)
+void Container::Image(TexEntry* texture)
 {
-    auto* tex = &m_tex_map[texture];
-
-    ivec2 tsize = ivec2(tex->bounds.width, tex->bounds.height) * _PX;
+    ivec2 tsize = ivec2(texture->bounds.width, texture->bounds.height) * _PX;
 
     fbox sized = fbox(bounds.pos, fvec2(tsize));
     fbox arranged = Arrangers::Arrange(this, sized);
 
-    TGRenderData.drawTexture(arranged, tex, STATE_NONE, _PX, 0);
+    TGRenderData.drawTexture(arranged, texture, STATE_NONE, _PX, 0);
 }
 
 fbox Arrangers::Arrange(Container* o, fbox child)
