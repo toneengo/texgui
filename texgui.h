@@ -437,9 +437,12 @@ public:
     Container Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags = 0,  TexEntry* texture = nullptr);
     bool      Button(const char* text, TexEntry* texture = nullptr);
     Container Box(float xpos, float ypos, float width, float height, TexEntry* texture = nullptr);
+    Container ScrollPanel(const char* name, TexEntry* texture = nullptr);
     void      TextInput(const char* name, std::string& buf);
     void      Image(TexEntry* texture);
 
+    void      Clip();
+    void      Unclip();
     // Similar to radio buttons - the id of the selected one is stored in the *selected pointer.
     Container ListItem(uint32_t* selected, uint32_t id);
 
@@ -474,6 +477,7 @@ private:
         struct
         {
             float x, y, rowHeight;
+            int n;
         } grid;
         struct
         {
@@ -482,6 +486,9 @@ private:
         } listItem;
     };
 
+    void* scrollPanelState = nullptr;
+
+    Math::fbox scissorBox = {-1, -1, -1, -1};
 
     inline Container withBounds(Math::fbox bounds, ArrangeFunc arrange = nullptr)
     {
@@ -545,7 +552,11 @@ namespace ListItem {
 }
 
 namespace Box {
-    inline Math::fvec4 Padding(12);
+    inline Math::fvec4 Padding(8);
+}
+
+namespace ScrollPanel {
+    inline Math::fvec4 Padding(8, 12, 8, 8);
 }
 
 namespace Row {

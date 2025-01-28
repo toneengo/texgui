@@ -67,12 +67,15 @@ struct Command
     enum {
         QUAD,
         CHARACTER,
-        COLQUAD
+        COLQUAD,
+        SCISSOR,
+        DESCISSOR,
     } type;
 
     uint32_t number;
     uint32_t flags = 0;
     TexEntry * texentry;
+    Math::fbox scissorBox;
 };
 
 // font information
@@ -121,6 +124,9 @@ struct RenderData
     void drawQuad(const Math::fbox& rect, const Math::fvec4& col);
     void drawTexture(const Math::fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags);
     int drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, float width = 0);
+    //void scissor(int x, int y, int width, int height);
+    void scissor(Math::fbox bounds);
+    void descissor();
 
     void clear() {
         objects.clear();

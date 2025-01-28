@@ -144,7 +144,9 @@ void main() {
         TexGui::Base.Window("not bob", 400, 500, 200, 200);
         auto win = TexGui::Base.Window("bob", 200, 100, 400, 600);
 
-        auto grid = win.Grid();
+        auto box = win.ScrollPanel("panel1", TexGui::texByName("box2"));
+        box.Clip();
+        auto grid = box.Grid();
 
         for (uint32_t i = 0; i < 10; i++)
         {
@@ -152,6 +154,7 @@ void main() {
                 .ListItem(&selected, i)
                 .Image(TexGui::texByName("lollipop"));
         }
+        box.Unclip();
 
         TexGui::render();
 

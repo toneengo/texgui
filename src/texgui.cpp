@@ -74,6 +74,13 @@ struct InputData
     Math::fvec2 cursorPos;
     uint8_t     lmb;
     std::queue<unsigned int> charQueue;
+    Math::fvec2 scroll;
+};
+
+struct ScrollPanelState
+{
+    Math::fvec2 contentPos;
+    Math::fbox bounds;
 };
 
 struct TexGuiContext
@@ -81,16 +88,27 @@ struct TexGuiContext
     ImplGlfw_Data backendData;
     std::unordered_map<std::string, WindowState> windows;
     std::unordered_map<std::string, TextInputState> textInputs;
+    std::unordered_map<std::string, ScrollPanelState> scrollPanels;
     GLContext renderCtx;
     InputData io;
 };
-
 TexGuiContext* GTexGui = nullptr;
 
 RenderData TGRenderData;
 
-GLFWscrollfun TexGui_ImplGlfw_ScrollCallback;
 GLFWmonitorfun TexGui_ImplGlfw_MonitorCallback; 
+
+void TexGui_ImplGlfw_ScrollCallback(GLFWwindow* window, double xoffset, double yoffset)
+{
+    auto& bd = GTexGui->backendData;
+    auto& io = GTexGui->io;
+    if (bd.PrevUserCallbackScroll)
+        bd.PrevUserCallbackScroll(window, xoffset, yoffset);
+
+    //#TODO: window scale
+    std::lock_guard<std::mutex> lock(TGInputLock);
+    io.scroll += Math::fvec2(xoffset, yoffset);
+}
 
 void TexGui_ImplGlfw_CursorPosCallback(GLFWwindow* window, double x, double y)
 {
@@ -168,7 +186,7 @@ bool initGlfwCallbacks(GLFWwindow* window)
     if (bd.InstalledCallbacks) assert(false);
     //bd.PrevUserCallbackWindowFocus = glfwSetWindowFocusCallback(window, TexGui_ImplGlfw_WindowFocusCallback);
     //bd.PrevUserCallbackCursorEnter = glfwSetCursorEnterCallback(window, TexGui_ImplGlfw_CursorEnterCallback);
-    //bd.PrevUserCallbackScroll = glfwSetScrollCallback(window, TexGui_ImplGlfw_ScrollCallback);
+    bd.PrevUserCallbackScroll = glfwSetScrollCallback(window, TexGui_ImplGlfw_ScrollCallback);
     //bd.PrevUserCallbackMonitor = glfwSetMonitorCallback(TexGui_ImplGlfw_MonitorCallback);
     bd.PrevUserCallbackCursorPos       = glfwSetCursorPosCallback(window, TexGui_ImplGlfw_CursorPosCallback);
     bd.PrevUserCallbackMousebutton     = glfwSetMouseButtonCallback(window, TexGui_ImplGlfw_MouseButtonCallback);
@@ -227,8 +245,8 @@ struct InputFrame
     Math::fvec2 cursorPos;
     uint32_t lmb = 0;
     unsigned int character = 0;
+    Math::fvec2 scroll = 0;
 };
-
 InputFrame inputFrame;
 
 void TexGui::clear()
@@ -240,6 +258,8 @@ void TexGui::clear()
 
     inputFrame.cursorPos = io.cursorPos;
     inputFrame.lmb = io.lmb;
+    inputFrame.scroll = io.scroll;
+    io.scroll = {0, 0};
 
     if (io.lmb == KEY_Press) io.lmb = KEY_Held;
     if (io.lmb == KEY_Release) io.lmb = KEY_Off;
@@ -398,6 +418,70 @@ Container Container::Box(float xpos, float ypos, float width, float height, TexE
     return withBounds(internal);
 }
 
+Container Container::ScrollPanel(const char* name, TexEntry* texture)
+{
+    auto& io = inputFrame;
+    if (!GTexGui->scrollPanels.contains(name))
+    {
+        ScrollPanelState _s = 
+        {
+            .contentPos = {0,0},
+            .bounds = bounds 
+        };
+        GTexGui->scrollPanels.insert({name, _s});
+    }
+
+    auto& spstate = GTexGui->scrollPanels[name];
+    static TexEntry* te = texByName("box2");
+
+    fvec4& padding = Defaults::ScrollPanel::Padding;
+    
+    spstate.contentPos.y += inputFrame.scroll.y * 30;
+    float height = bounds.height - padding.top - padding.bottom;
+    if (spstate.bounds.height + spstate.contentPos.y < height)
+        spstate.contentPos.y = -(spstate.bounds.height - height);
+    spstate.contentPos.y = fmin(spstate.contentPos.y, 0);
+
+    float barh = fmin(bounds.height, bounds.height * height / spstate.bounds.height);
+    fbox bar = {bounds.x + bounds.width - padding.right,
+                bounds.y + (bounds.height - barh) * -spstate.contentPos.y / (spstate.bounds.height - height),
+                padding.right,
+                barh};
+
+    TGRenderData.drawTexture(bounds, te, 0, _PX, 0);
+    TGRenderData.drawQuad(bar, {1,1,1,1});
+
+    scissorBox = Math::fbox::pad(bounds, Defaults::Box::Padding);
+    bounds.y += spstate.contentPos.y;
+
+    static auto arrange = [](Container* scroll, fbox child)
+    {
+        auto& bounds = ((ScrollPanelState*)(scroll->scrollPanelState))->bounds;
+        bounds = child;
+        return bounds;
+    };
+
+    Container sp = withBounds(Math::fbox::pad(bounds, Defaults::Box::Padding), arrange);
+    sp.scrollPanelState = &spstate;
+    return sp;
+}
+
+void Container::Clip()
+{
+    if (scissorBox.x == -1)
+        return;
+
+    TGRenderData.scissor(scissorBox);
+}
+
+void Container::Unclip()
+{
+    if (scissorBox.x == -1)
+        return;
+
+    TGRenderData.descissor();
+}
+
 void Container::Image(TexEntry* texture)
 {
     ivec2 tsize = ivec2(texture->bounds.width, texture->bounds.height) * _PX;
@@ -454,32 +538,32 @@ Container Container::Grid()
 {
     static auto arrange = [](Container* grid, fbox child)
     {
-        // Don't nest grids in other arrangers
-        assert(!grid->parent->arrange);
-
         auto& gs = grid->grid;
 
         gs.rowHeight = fmax(gs.rowHeight, child.height);
 
-
         float spacing = Defaults::Row::Spacing;
-        if (gs.x + child.width > grid->bounds.width)
+        if (gs.x + child.width > grid->bounds.width && gs.n > 0)
         {
             gs.x = 0;
             gs.y += gs.rowHeight + spacing;
-            gs.rowHeight = 0;
             child = fbox(grid->bounds.pos + fvec2(gs.x, gs.y), child.size);
         }
         else
-        {
             child = fbox(grid->bounds.pos + fvec2(gs.x, gs.y), child.size);
-            gs.x += child.width + spacing;
+
+        gs.x += child.width + spacing;
+        if (grid->parent->arrange)
+        {
+            grid->parent->arrange(grid, {grid->bounds.x, grid->bounds.y, grid->bounds.width, gs.y + gs.rowHeight + spacing});
         }
+        gs.rowHeight = 0;
+        gs.n++;
         
         return child;
     };
     Container grid = withBounds(bounds, arrange);
-    grid.grid = { 0, 0, 0 };
+    grid.grid = { 0, 0, 0, 0 };
     return grid;
 }
 

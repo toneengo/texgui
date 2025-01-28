@@ -72,6 +72,7 @@ void GLContext::initFromGlfwWindow(GLFWwindow* window)
 {
     glfwGetWindowContentScale(window, &m_window_scale, nullptr);
     glfwGetWindowSize(window, &m_screen_size.x, &m_screen_size.y);
+    glScissor(0,0,m_screen_size.x, m_screen_size.y);
     m_screen_size.x *= m_window_scale;
     m_screen_size.y *= m_window_scale; 
     Base.bounds.size = m_screen_size;
@@ -183,8 +184,20 @@ int RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& c
         currx += font_px * info.getAdvance() * size / font_px;
     }
 
-    commands.push_back({Command::CHARACTER, uint32_t(numcopy), flags, nullptr});
+    commands.push_back({Command::CHARACTER, uint32_t(numcopy), flags});
     return currx;
+}
+
+#include <stack>
+std::stack<fbox> scissorStack;
+void RenderData::scissor(Math::fbox bounds)
+{
+    commands.push_back({Command::SCISSOR, 0, 0, nullptr, bounds});
+}
+
+void RenderData::descissor()
+{
+    commands.push_back({Command::DESCISSOR, 0, 0, nullptr});
 }
 
 void RenderData::drawTexture(const fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags)
@@ -224,7 +237,7 @@ void RenderData::drawQuad(const Math::fbox& rect, const Math::fvec4& col)
     commands.push_back({Command::COLQUAD, 1, 0, nullptr});
 }
 
-void GLContext::renderFromRD(const RenderData& data) {
+void GLContext::renderFromRD(RenderData& data) {
     auto& objects = data.objects;
     auto& commands = data.commands;
 
@@ -265,6 +278,30 @@ void GLContext::renderFromRD(const RenderData& data) {
                 m_shaders.text.use();
                 glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number);
                 break;
+            }
+            case Command::SCISSOR:
+            {
+                c.scissorBox.y = m_screen_size.y - c.scissorBox.y - c.scissorBox.height;
+
+                glEnable(GL_SCISSOR_TEST);
+                Math::ibox _b;
+                glGetIntegerv(GL_SCISSOR_BOX, (GLint*)&_b);
+                scissorStack.push(_b);
+                glScissor(c.scissorBox.x,
+                          c.scissorBox.y,
+                          c.scissorBox.width,
+                          c.scissorBox.height);
+                break;
+            }
+            case Command::DESCISSOR:
+            {
+                //it shouldn't be empty, we always scissor before descissoring
+                if (!scissorStack.empty())
+                {
+                    auto& _b = scissorStack.top();
+                    glScissor(_b.x, _b.y, _b.width, _b.height);
+                    scissorStack.pop();
+                }
             }
             default:
                 break;

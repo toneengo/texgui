@@ -26,7 +26,7 @@ public:
     void loadFont(const char* pathToFont);
     void loadTextures(const char* dir);
 
-    void renderFromRD(const RenderData& data);
+    void renderFromRD(RenderData& data);
 protected:
     // Buffer name/Buffer binding pair
     struct nameIdx
