@@ -229,7 +229,7 @@ static std::list<TexEntry> m_custom_texs;
 
 TexEntry* TexGui::texByName(const char* name)
 {
-    assert(m_tex_map.contains(name));
+    if (!m_tex_map.contains(name)) return nullptr;
     return &m_tex_map[name];
 }
 
@@ -432,7 +432,6 @@ Container Container::ScrollPanel(const char* name, TexEntry* texture)
     }
 
     auto& spstate = GTexGui->scrollPanels[name];
-    static TexEntry* te = texByName("box2");
 
     fvec4& padding = Defaults::ScrollPanel::Padding;
     
@@ -448,7 +447,7 @@ Container Container::ScrollPanel(const char* name, TexEntry* texture)
                 padding.right,
                 barh};
 
-    TGRenderData.drawTexture(bounds, te, 0, _PX, 0);
+    TGRenderData.drawTexture(bounds, texture, 0, _PX, 0);
     TGRenderData.drawQuad(bar, {1,1,1,1});
 
     scissorBox = Math::fbox::pad(bounds, Defaults::Box::Padding);
