@@ -251,6 +251,8 @@ InputFrame inputFrame;
 
 void TexGui::clear()
 {
+    TGRenderData.prevObjCount = TGRenderData.objects.size();
+    TGRenderData.prevComCount = TGRenderData.commands.size();
     TGRenderData.clear();
 
     std::lock_guard<std::mutex> lock(TGInputLock);

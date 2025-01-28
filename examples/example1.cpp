@@ -141,7 +141,7 @@ void main() {
         glBindTextureUnit(0, bg);
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
-        TexGui::Base.Window("not bob", 400, 500, 200, 200);
+        TexGui::Base.Window("not bob", 400, 500, 200, 200, TexGui::CENTER_X | TexGui::CENTER_Y);
         auto win = TexGui::Base.Window("bob", 200, 100, 400, 600);
 
         auto box = win.ScrollPanel("panel1", TexGui::texByName("box2"));

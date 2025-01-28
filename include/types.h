@@ -119,6 +119,9 @@ struct RenderData
     std::vector<Object> objects;
     std::vector<Command> commands;
 
+    int prevObjCount = 0;
+    int prevComCount = 0;
+
     Math::fvec2 m_widget_pos = Math::fvec2(0);
 
     void drawQuad(const Math::fbox& rect, const Math::fvec4& col);
