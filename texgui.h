@@ -602,8 +602,18 @@ public:
     }
 
     void swap(RenderData& other) {
-        commands.swap(other.commands);
         objects.swap(other.objects);
+        commands.swap(other.commands);
+    }
+
+    void copy(const RenderData& other)
+    {
+        int n = other.objects.size();
+        objects.resize(n);
+        memcpy(objects.data(), other.objects.data(), sizeof(Object) * n);
+        n = other.commands.size();
+        commands.resize(n);
+        memcpy(commands.data(), other.commands.data(), sizeof(Command) * n);
     }
 
 private:

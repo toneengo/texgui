@@ -133,6 +133,7 @@ void main() {
     uint32_t selected = 0;
 
     TexGui::RenderData data; 
+    TexGui::RenderData copy; 
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
@@ -158,7 +159,8 @@ void main() {
         }
         box.Unclip();
 
-        TexGui::render(data);
+        copy.copy(data);
+        TexGui::render(copy);
         data.clear();
 
         TexGui::clear();
