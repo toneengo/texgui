@@ -286,7 +286,11 @@ void GLContext::renderFromRD(RenderData& data) {
 
                 glEnable(GL_SCISSOR_TEST);
                 Math::ibox _b;
-                glGetIntegerv(GL_SCISSOR_BOX, (GLint*)&_b);
+                if (scissorStack.empty())
+                    _b = {0, 0, m_screen_size.x, m_screen_size.y};
+                else
+                    glGetIntegerv(GL_SCISSOR_BOX, (GLint*)&_b);
+
                 scissorStack.push(_b);
                 glScissor(c.scissorBox.x,
                           c.scissorBox.y,
