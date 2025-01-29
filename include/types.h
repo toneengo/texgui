@@ -6,77 +6,6 @@
 #include <vector>
 
 NAMESPACE_BEGIN(TexGui);
-// Renderable objects
-struct alignas(16) Character
-{
-    Math::fbox rect; //xpos, ypos, width, height
-    Math::ibox texBounds;
-    int layer;
-    int size;
-};
-
-struct alignas(16) Quad
-{
-    Math::fbox rect; //xpos, ypos, width, height
-    Math::ibox texBounds; //xpos, ypos, width, height
-    int layer;
-    int pixelSize;
-};
-
-struct alignas(16) ColQuad
-{
-    Math::fbox rect; //xpos, ypos, width, height
-    Math::fvec4 col;
-    int padding;
-};
-
-struct alignas(16) Object
-{
-    Object()
-    {
-    }
-
-    Object(const Object& o)
-    {
-        *this = o;
-    }
-
-    Object(Character c)
-    {
-        ch = c;
-    }
-    Object(Quad q)
-    {
-        quad = q;
-    }
-
-    Object(ColQuad q)
-    {
-        cq = q;
-    }
-    union {
-        Character ch;
-        Quad quad;
-        ColQuad cq;
-    };
-};
-
-struct TexEntry;
-struct Command
-{
-    enum {
-        QUAD,
-        CHARACTER,
-        COLQUAD,
-        SCISSOR,
-        DESCISSOR,
-    } type;
-
-    uint32_t number;
-    uint32_t flags = 0;
-    TexEntry * texentry;
-    Math::fbox scissorBox;
-};
 
 // font information
 struct CharInfo
@@ -113,28 +42,4 @@ struct TexEntry
 inline int line_height = 0;
 inline int font_height = 0;
 inline float font_px = 0;
-
-struct RenderData
-{
-    std::vector<Object> objects;
-    std::vector<Command> commands;
-
-    int prevObjCount = 0;
-    int prevComCount = 0;
-
-    Math::fvec2 m_widget_pos = Math::fvec2(0);
-
-    void drawQuad(const Math::fbox& rect, const Math::fvec4& col);
-    void drawTexture(const Math::fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags);
-    int drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, float width = 0);
-    //void scissor(int x, int y, int width, int height);
-    void scissor(Math::fbox bounds);
-    void descissor();
-
-    void clear() {
-        objects.clear();
-        commands.clear();
-    }
-};
-
 NAMESPACE_END(TexGui);

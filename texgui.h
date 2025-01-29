@@ -13,6 +13,7 @@
 #include <string>
 #include <cstdint>
 #include <unordered_map>
+#include <vector>
 
 struct GLFWwindow;
 NAMESPACE_BEGIN(TexGui);
@@ -505,9 +506,12 @@ private:
 inline Container Base;
 
 void render();
+void render(RenderData& rs);
+RenderData* newRenderData();
 void loadFont(const char* font);
 void loadTextures(const char* dir);
 void clear();
+void clear(RenderData& rs);
 
 struct TexEntry;
 
@@ -573,4 +577,112 @@ namespace Column {
 }
 
 NAMESPACE_END(Defaults);
+
+class RenderData
+{
+    friend class GLContext;
+public:
+    RenderData()
+    {
+        Base = TexGui::Base;
+        Base.rs = this;
+    }
+    Container Base;
+
+    void drawQuad(const Math::fbox& rect, const Math::fvec4& col);
+    void drawTexture(const Math::fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags);
+    int drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, float width = 0);
+    //void scissor(int x, int y, int width, int height);
+    void scissor(Math::fbox bounds);
+    void descissor();
+
+    void clear() {
+        objects.clear();
+        commands.clear();
+    }
+
+    void swap(RenderData& other) {
+        commands.swap(other.commands);
+        objects.swap(other.objects);
+    }
+
+private:
+
+    int prevObjCount = 0;
+    int prevComCount = 0;
+    // Renderable objects
+    struct alignas(16) Character
+    {
+        Math::fbox rect; //xpos, ypos, width, height
+        Math::ibox texBounds;
+        int layer;
+        int size;
+    };
+
+    struct alignas(16) Quad
+    {
+        Math::fbox rect; //xpos, ypos, width, height
+        Math::ibox texBounds; //xpos, ypos, width, height
+        int layer;
+        int pixelSize;
+    };
+
+    struct alignas(16) ColQuad
+    {
+        Math::fbox rect; //xpos, ypos, width, height
+        Math::fvec4 col;
+        int padding;
+    };
+
+    struct alignas(16) Object
+    {
+        Object()
+        {
+        }
+
+        Object(const Object& o)
+        {
+            *this = o;
+        }
+
+        Object(Character c)
+        {
+            ch = c;
+        }
+        Object(Quad q)
+        {
+            quad = q;
+        }
+
+        Object(ColQuad q)
+        {
+            cq = q;
+        }
+        union {
+            Character ch;
+            Quad quad;
+            ColQuad cq;
+        };
+    };
+
+    struct Command
+    {
+        enum {
+            QUAD,
+            CHARACTER,
+            COLQUAD,
+            SCISSOR,
+            DESCISSOR,
+        } type;
+
+        uint32_t number;
+        uint32_t flags = 0;
+        TexEntry * texentry;
+        Math::fbox scissorBox;
+    };
+
+    std::vector<Object> objects;
+    std::vector<Command> commands;
+};
+
 NAMESPACE_END(TexGui);

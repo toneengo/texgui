@@ -204,6 +204,7 @@ bool TexGui::initGlfwOpenGL(GLFWwindow* window)
     GTexGui = new TexGuiContext();
     GTexGui->renderCtx.initFromGlfwWindow(window);
     initGlfwCallbacks(window);
+    Base.rs = &TGRenderData;
     return true;
 } 
 
@@ -216,6 +217,16 @@ void TexGui::render()
     }
 
     GTexGui->renderCtx.renderFromRD(TGSyncedRenderData);
+}
+
+void TexGui::render(RenderData& data)
+{
+    GTexGui->renderCtx.renderFromRD(data);
+}
+
+RenderData* TexGui::newRenderData()
+{
+    return new RenderData();
 }
 
 void TexGui::loadFont(const char* font)
@@ -256,16 +267,8 @@ struct InputFrame
 };
 InputFrame inputFrame;
 
-void TexGui::clear()
+inline static void clearInput()
 {
-    if (!Defaults::Settings::Async)
-    {
-        TGSyncedRenderData.clear();
-        TGSyncedRenderData.commands.swap(TGRenderData.commands);
-        TGSyncedRenderData.objects.swap(TGRenderData.objects);
-    }
-
-    TGRenderData.clear();
     std::lock_guard<std::mutex> lock(TGInputLock);
     auto& io = GTexGui->io;
 
@@ -285,6 +288,30 @@ void TexGui::clear()
     {
         inputFrame.character = 0;
     }
+}
+
+void TexGui::clear()
+{
+    if (!Defaults::Settings::Async)
+    {
+        TGSyncedRenderData.clear();
+        TGSyncedRenderData.swap(TGRenderData);
+    }
+
+    TGRenderData.clear();
+    clearInput();
+}
+
+void TexGui::clear(RenderData& rs)
+{
+    if (!Defaults::Settings::Async)
+    {
+        TGSyncedRenderData.clear();
+        TGSyncedRenderData.swap(TGRenderData);
+    }
+
+    TGRenderData.clear();
+    clearInput();
 }
 
 inline void setBit(unsigned int& dest, const unsigned int flag, bool on)
@@ -379,8 +406,8 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
     fvec4 padding = Defaults::Window::Padding;
     padding.top = texture->top * _PX;
 
-    TGRenderData.drawTexture(wstate.box, texture, wstate.state, _PX, SLICE_9);
-    TGRenderData.drawText(name, {wstate.box.x + padding.left, wstate.box.y + texture->top * _PX / 2},
+    rs->drawTexture(wstate.box, texture, wstate.state, _PX, SLICE_9);
+    rs->drawText(name, {wstate.box.x + padding.left, wstate.box.y + texture->top * _PX / 2},
                  Defaults::Font::Color, Defaults::Font::Size, CENTER_Y);
 
     fbox internal = fbox::pad(wstate.box, padding);
@@ -403,9 +430,9 @@ bool Container::Button(const char* text, TexEntry* texture)
     static TexEntry* defaultTex = &m_tex_map[Defaults::Button::Texture];
     auto* tex = texture ? texture : defaultTex;
 
-    TGRenderData.drawTexture(bounds, tex, state, _PX, SLICE_9);
+    rs->drawTexture(bounds, tex, state, _PX, SLICE_9);
 
-    TGRenderData.drawText(text, 
+    rs->drawText(text, 
         state & STATE_PRESS ? bounds.pos + bounds.size / 2 + Defaults::Button::POffset
                             : bounds.pos + bounds.size / 2,
         Defaults::Font::Color, Defaults::Font::Size, CENTER_X | CENTER_Y);
@@ -424,7 +451,7 @@ Container Container::Box(float xpos, float ypos, float width, float height, TexE
     fbox boxBounds(bounds.x + xpos, bounds.y + ypos, width, height);
     if (texture != nullptr)
     {
-        TGRenderData.drawTexture(boxBounds, texture, 0, 2, SLICE_9);
+        rs->drawTexture(boxBounds, texture, 0, 2, SLICE_9);
     }
 
     fbox internal = fbox::pad(boxBounds, Defaults::Box::Padding);
@@ -460,8 +487,8 @@ Container Container::ScrollPanel(const char* name, TexEntry* texture)
                 padding.right,
                 barh};
 
-    TGRenderData.drawTexture(bounds, texture, 0, _PX, 0);
-    TGRenderData.drawQuad(bar, {1,1,1,1});
+    rs->drawTexture(bounds, texture, 0, _PX, 0);
+    rs->drawQuad(bar, {1,1,1,1});
 
     scissorBox = Math::fbox::pad(bounds, Defaults::Box::Padding);
     bounds.y += spstate.contentPos.y;
@@ -483,7 +510,7 @@ void Container::Clip()
     if (scissorBox.x == -1)
         return;
 
-    TGRenderData.scissor(scissorBox);
+    rs->scissor(scissorBox);
 }
 
 void Container::Unclip()
@@ -491,7 +518,7 @@ void Container::Unclip()
     if (scissorBox.x == -1)
         return;
 
-    TGRenderData.descissor();
+    rs->descissor();
 }
 
 void Container::Image(TexEntry* texture)
@@ -501,7 +528,7 @@ void Container::Image(TexEntry* texture)
     fbox sized = fbox(bounds.pos, fvec2(tsize));
     fbox arranged = Arrange(this, sized);
 
-    TGRenderData.drawTexture(arranged, texture, STATE_NONE, _PX, 0);
+    rs->drawTexture(arranged, texture, STATE_NONE, _PX, 0);
 }
 
 fbox Container::Arrange(Container* o, fbox child)
@@ -534,7 +561,7 @@ Container Container::ListItem(uint32_t* selected, uint32_t id)
         if (*(listItem->listItem.selected) == listItem->listItem.id)
             state = STATE_ACTIVE;
 
-        TGRenderData.drawTexture(bounds, tex, state, _PX, SLICE_9);
+        listItem->rs->drawTexture(bounds, tex, state, _PX, SLICE_9);
 
         // The child is positioned by the list item's parent
         return fbox::pad(bounds, Defaults::ListItem::Padding);
@@ -597,11 +624,11 @@ void Container::TextInput(const char* name, std::string& buf)
         buf.push_back(io.character);
     }
 
-    TGRenderData.drawTexture(bounds, inputtex, tstate.state, _PX, SLICE_9);
+    rs->drawTexture(bounds, inputtex, tstate.state, _PX, SLICE_9);
     float offsetx = 0;
     fvec4 padding = Defaults::TextInput::Padding;
     fvec4 color = Defaults::Font::Color;
-    TGRenderData.drawText(
+    rs->drawText(
         !getBit(tstate.state, STATE_ACTIVE) && buf.size() == 0
         ? name : buf.c_str(),
         {bounds.x + offsetx + padding.left, bounds.y + bounds.height / 2},

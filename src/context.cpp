@@ -38,7 +38,7 @@ GLContext::GLContext()
     glEnable(GL_MULTISAMPLE);
 
     glCreateBuffers(1, &m_ssb.objects.buf);
-    glNamedBufferStorage(m_ssb.objects.buf, (1 << 16) / 16 * sizeof(Object), nullptr, GL_DYNAMIC_STORAGE_BIT);
+    glNamedBufferStorage(m_ssb.objects.buf, (1 << 16) / 16 * sizeof(RenderData::Object), nullptr, GL_DYNAMIC_STORAGE_BIT);
     m_ssb.objects.bind = 0;
 
     glCreateBuffers(1, &m_ub.objIndex.buf);
@@ -216,7 +216,7 @@ void RenderData::drawTexture(const fbox& rect, TexEntry* e, int state, int pixel
     }
 
     Quad q = {
-        .rect = fbox(rect.pos + m_widget_pos, rect.size),
+        .rect = fbox(rect.pos, rect.size),
         .texBounds = e->bounds,
         .layer = layer,
         .pixelSize = pixel_size
@@ -229,7 +229,7 @@ void RenderData::drawTexture(const fbox& rect, TexEntry* e, int state, int pixel
 void RenderData::drawQuad(const Math::fbox& rect, const Math::fvec4& col)
 {
     ColQuad q = {
-        .rect = fbox(rect.pos + m_widget_pos, rect.size),
+        .rect = fbox(rect.pos, rect.size),
         .col = col,
     };
 
@@ -242,7 +242,7 @@ void GLContext::renderFromRD(RenderData& data) {
     auto& commands = data.commands;
 
     bindBuffers();
-    glNamedBufferSubData(m_ssb.objects.buf, 0, sizeof(Object) * data.objects.size(), objects.data());
+    glNamedBufferSubData(m_ssb.objects.buf, 0, sizeof(RenderData::Object) * data.objects.size(), objects.data());
 
     int count = 0;
     for (auto& c : data.commands)
@@ -250,7 +250,7 @@ void GLContext::renderFromRD(RenderData& data) {
         glNamedBufferSubData(m_ub.objIndex.buf, 0, sizeof(int), &count);
         switch (c.type)
         {
-            case Command::QUAD:
+            case RenderData::Command::QUAD:
             {
                 glBindTextureUnit(m_ta.texture.bind, c.texentry->glID);
                 
@@ -267,19 +267,19 @@ void GLContext::renderFromRD(RenderData& data) {
                 }
                 break;
             }
-            case Command::COLQUAD:
+            case RenderData::Command::COLQUAD:
             {
                 m_shaders.colquad.use();
                 glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number);
                 break;
             }
-            case Command::CHARACTER:
+            case RenderData::Command::CHARACTER:
             {
                 m_shaders.text.use();
                 glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number);
                 break;
             }
-            case Command::SCISSOR:
+            case RenderData::Command::SCISSOR:
             {
                 c.scissorBox.y = m_screen_size.y - c.scissorBox.y - c.scissorBox.height;
 
@@ -297,7 +297,7 @@ void GLContext::renderFromRD(RenderData& data) {
                           c.scissorBox.height);
                 break;
             }
-            case Command::DESCISSOR:
+            case RenderData::Command::DESCISSOR:
             {
                 //it shouldn't be empty, we always scissor before descissoring
                 if (!scissorStack.empty())

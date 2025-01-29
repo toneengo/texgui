@@ -131,6 +131,8 @@ void main() {
     std::string str;
 
     uint32_t selected = 0;
+
+    TexGui::RenderData data; 
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
@@ -141,8 +143,8 @@ void main() {
         glBindTextureUnit(0, bg);
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
-        TexGui::Base.Window("not bob", 400, 500, 200, 200, TexGui::CENTER_X | TexGui::CENTER_Y);
-        auto win = TexGui::Base.Window("bob", 200, 100, 400, 600);
+        data.Base.Window("not bob", 400, 500, 200, 200, TexGui::CENTER_X | TexGui::CENTER_Y);
+        auto win = data.Base.Window("bob", 200, 100, 400, 600);
 
         auto box = win.ScrollPanel("panel1", TexGui::texByName("box2"));
         box.Clip();
@@ -156,7 +158,8 @@ void main() {
         }
         box.Unclip();
 
-        TexGui::render();
+        TexGui::render(data);
+        data.clear();
 
         TexGui::clear();
 
