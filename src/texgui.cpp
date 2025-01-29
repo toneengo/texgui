@@ -95,6 +95,7 @@ struct TexGuiContext
 TexGuiContext* GTexGui = nullptr;
 
 RenderData TGRenderData;
+RenderData TGSyncedRenderData;
 
 GLFWmonitorfun TexGui_ImplGlfw_MonitorCallback; 
 
@@ -208,7 +209,13 @@ bool TexGui::initGlfwOpenGL(GLFWwindow* window)
 
 void TexGui::render()
 {
-    GTexGui->renderCtx.renderFromRD(TGRenderData);
+    if (Defaults::Settings::Async)
+    {
+        GTexGui->renderCtx.renderFromRD(TGRenderData);
+        return;
+    }
+
+    GTexGui->renderCtx.renderFromRD(TGSyncedRenderData);
 }
 
 void TexGui::loadFont(const char* font)
@@ -253,8 +260,12 @@ void TexGui::clear()
 {
     TGRenderData.prevObjCount = TGRenderData.objects.size();
     TGRenderData.prevComCount = TGRenderData.commands.size();
-    TGRenderData.clear();
+    if (Defaults::Settings::Async)
+    {
+        TGSyncedRenderData = TGRenderData;
+    }
 
+    TGRenderData.clear();
     std::lock_guard<std::mutex> lock(TGInputLock);
     auto& io = GTexGui->io;
 

@@ -523,6 +523,9 @@ inline uint32_t Flags = SLICE_9;
 
 //#TODO: use font px instead of sacle, uising msdf
 
+namespace Settings {
+    inline bool Async = true;
+}
 namespace Font {
     inline Math::fvec4 Color = {1, 1, 1, 1};
     inline int Size = 20;
