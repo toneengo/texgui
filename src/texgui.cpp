@@ -258,11 +258,10 @@ InputFrame inputFrame;
 
 void TexGui::clear()
 {
-    TGRenderData.prevObjCount = TGRenderData.objects.size();
-    TGRenderData.prevComCount = TGRenderData.commands.size();
-    if (Defaults::Settings::Async)
+    if (!Defaults::Settings::Async)
     {
-        TGSyncedRenderData = TGRenderData;
+        TGSyncedRenderData.commands.swap(TGRenderData.commands);
+        TGSyncedRenderData.objects.swap(TGRenderData.objects);
     }
 
     TGRenderData.clear();

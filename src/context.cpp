@@ -242,12 +242,11 @@ void GLContext::renderFromRD(RenderData& data) {
     auto& commands = data.commands;
 
     bindBuffers();
-    glNamedBufferSubData(m_ssb.objects.buf, 0, sizeof(Object) * data.prevObjCount, objects.data());
+    glNamedBufferSubData(m_ssb.objects.buf, 0, sizeof(Object) * data.objects.size(), objects.data());
 
     int count = 0;
-    for (int i = 0; i < data.prevComCount; i++)
+    for (auto& c : data.commands)
     {
-        auto& c = data.commands[i];
         glNamedBufferSubData(m_ub.objIndex.buf, 0, sizeof(int), &count);
         switch (c.type)
         {
@@ -394,8 +393,6 @@ void GLContext::loadFont(const char* fontFilename)
     glTextureParameteri(m_ta.font.buf, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTextureParameteri(m_ta.font.buf, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTextureParameteri(m_ta.font.buf, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    printf("%d, %d\n", width, height);
 
     m_shaders.text.use();
     glUniform1i(m_shaders.text.getLocation("atlasWidth"), width);
