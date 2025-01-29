@@ -260,6 +260,7 @@ void TexGui::clear()
 {
     if (!Defaults::Settings::Async)
     {
+        TGSyncedRenderData.clear();
         TGSyncedRenderData.commands.swap(TGRenderData.commands);
         TGSyncedRenderData.objects.swap(TGRenderData.objects);
     }
