@@ -458,7 +458,7 @@ Container Container::Box(float xpos, float ypos, float width, float height, TexE
     return withBounds(internal);
 }
 
-Container Container::ScrollPanel(const char* name, TexEntry* texture)
+Container Container::ScrollPanel(const char* name, TexEntry* texture, TexEntry* bartex)
 {
     auto& io = inputFrame;
     if (!GTexGui->scrollPanels.contains(name))
@@ -474,9 +474,22 @@ Container Container::ScrollPanel(const char* name, TexEntry* texture)
     auto& spstate = GTexGui->scrollPanels[name];
 
     fvec4& padding = Defaults::ScrollPanel::Padding;
-    
-    spstate.contentPos.y += inputFrame.scroll.y * 30;
-    float height = bounds.height - padding.top - padding.bottom;
+
+    static auto arrange = [](Container* scroll, fbox child)
+    {
+        auto& bounds = ((ScrollPanelState*)(scroll->scrollPanelState))->bounds;
+        bounds = child;
+        return bounds;
+    };
+
+    Container sp = withBounds(Math::fbox::pad(bounds, Defaults::Box::Padding), arrange);
+    sp.scrollPanelState = &spstate;
+    sp.scissorBox = sp.bounds;
+
+    if (sp.scissorBox.contains(io.cursorPos))
+        spstate.contentPos.y += inputFrame.scroll.y * 30;
+
+    float height = sp.bounds.height - padding.top - padding.bottom;
     if (spstate.bounds.height + spstate.contentPos.y < height)
         spstate.contentPos.y = -(spstate.bounds.height - height);
     spstate.contentPos.y = fmin(spstate.contentPos.y, 0);
@@ -488,20 +501,13 @@ Container Container::ScrollPanel(const char* name, TexEntry* texture)
                 barh};
 
     rs->drawTexture(bounds, texture, 0, _PX, 0);
-    rs->drawQuad(bar, {1,1,1,1});
+    if (bartex)
+        rs->drawTexture(bar, bartex, 0, 2, SLICE_9);
+    else
+        rs->drawQuad(bar, {1,1,1,1});
 
-    scissorBox = Math::fbox::pad(bounds, Defaults::Box::Padding);
-    bounds.y += spstate.contentPos.y;
+    sp.bounds.y += spstate.contentPos.y;
 
-    static auto arrange = [](Container* scroll, fbox child)
-    {
-        auto& bounds = ((ScrollPanelState*)(scroll->scrollPanelState))->bounds;
-        bounds = child;
-        return bounds;
-    };
-
-    Container sp = withBounds(Math::fbox::pad(bounds, Defaults::Box::Padding), arrange);
-    sp.scrollPanelState = &spstate;
     return sp;
 }
 
@@ -553,7 +559,8 @@ Container Container::ListItem(uint32_t* selected, uint32_t id)
 
         auto& io = inputFrame;
 
-        bool hovered = bounds.contains(io.cursorPos);
+        bool hovered = listItem->parent->scissorBox.contains(io.cursorPos) 
+                    && bounds.contains(io.cursorPos);
         auto state = hovered ? STATE_HOVER : STATE_NONE;
         if (io.lmb == KEY_Release && hovered)
             *(listItem->listItem.selected) = listItem->listItem.id;
