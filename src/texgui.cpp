@@ -579,6 +579,28 @@ Container Container::ListItem(uint32_t* selected, uint32_t id)
     return listItem;
 }
 
+Container Container::Align(uint32_t flags, Math::fvec4 padding)
+{
+    static auto arrange = [](Container* align, fbox child)
+    {
+        auto f = align->align.flags;
+        if (f & ALIGN_LEFT) child.x = align->bounds.x;
+        if (f & ALIGN_RIGHT) child.x = align->bounds.x + align->bounds.width - child.width;
+
+        if (f & ALIGN_TOP) child.y = align->bounds.y;
+        if (f & ALIGN_BOTTOM) child.y = align->bounds.y + align->bounds.height - child.height;
+
+        if (f & ALIGN_CENTER_X) child.x = align->bounds.x + (align->bounds.width - child.width) / 2;
+        if (f & ALIGN_CENTER_Y) child.y = align->bounds.y + (align->bounds.height - child.height) / 2;
+
+        return child;
+    };
+    // Add padding to the contents
+    Container aligner = withBounds(fbox::pad(bounds, padding), arrange);
+    aligner.align.flags = flags;
+    return aligner;
+}
+
 // Arranges the cells of a grid by adding a new child box to it.
 Container Container::Grid()
 {

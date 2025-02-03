@@ -442,6 +442,8 @@ public:
     void      TextInput(const char* name, std::string& buf);
     void      Image(TexEntry* texture);
 
+    Container Align(uint32_t flags = 0, Math::fvec4 padding = Math::fvec4(0,0,0,0));
+
     void      Clip();
     void      Unclip();
     // Similar to radio buttons - the id of the selected one is stored in the *selected pointer.
@@ -485,6 +487,11 @@ private:
             uint32_t* selected;
             uint32_t id;
         } listItem;
+
+        struct 
+        {
+            uint32_t flags;
+        } align;
     };
 
     void* scrollPanelState = nullptr;
