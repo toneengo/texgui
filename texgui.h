@@ -425,6 +425,64 @@ bool initGlfwOpenGL(GLFWwindow* window);
 
 struct TexEntry;
 
+struct TextSegment
+{
+    union
+    {
+        struct {
+            const char* data;
+            int32_t tw; // Width of the text in pixels (not including whitespace)
+            int16_t len;
+        } word;
+
+        TexEntry* icon;
+    };
+
+    int32_t width; // Width of the segment in pixels including whitespace
+
+    enum Type : uint8_t {
+        WORD,        // Denotes text followed by whitespace
+        ICON,        // An icon to render inline with the text
+        NEWLINE,     // Line break
+        // TOOLTIP,     // Marks the beginning/end of a tooltip's boundary
+    } type;
+};
+
+struct TextChunk;
+using TextDecl = std::initializer_list<TextChunk>;
+
+struct TextChunk
+{
+    enum Type : uint8_t {
+        TEXT,
+        ICON,        // An icon to render inline with the text
+       // TOOLTIP,     // Marks the beginning/end of a tooltip's boundary
+    } type;
+
+    union
+    {
+        const char* text;
+        TexEntry* icon;
+        /*
+        struct {
+            TextDecl base;
+            TextDecl tooltip;
+        } tooltip;
+        */
+    };
+
+    constexpr TextChunk(const char* text) :
+        type(TEXT), text(text) {}
+
+    constexpr TextChunk(TexEntry* icon) :
+        type(ICON), icon(icon) {}
+
+    // constexpr TextChunk(TextDecl baseText, TextDecl tooltip);
+
+};
+
+
+
 class Container
 {
     friend struct Arrangers;
@@ -441,6 +499,7 @@ public:
     Container ScrollPanel(const char* name, TexEntry* texture = nullptr, TexEntry* bartex = nullptr);
     void      TextInput(const char* name, std::string& buf);
     void      Image(TexEntry* texture);
+    void      Text(TextSegment* segments, int32_t count, int32_t scale);
 
     Container Align(uint32_t flags = 0, Math::fvec4 padding = Math::fvec4(0,0,0,0));
 
@@ -585,6 +644,12 @@ namespace Column {
 
 NAMESPACE_END(Defaults);
 
+std::vector<TextSegment> cacheText(TextDecl text);
+// Caches text into a buffer. Asserts on failure
+void cacheText(TextDecl text, TextSegment* buffer, uint32_t capacity);
+
+int32_t computeTextWidth(const char* text, size_t numchars);
+
 class RenderData
 {
     friend class GLContext;
@@ -598,7 +663,7 @@ public:
 
     void drawQuad(const Math::fbox& rect, const Math::fvec4& col);
     void drawTexture(const Math::fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags);
-    int drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, float width = 0);
+    int drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len = -1);
     //void scissor(int x, int y, int width, int height);
     void scissor(Math::fbox bounds);
     void descissor();

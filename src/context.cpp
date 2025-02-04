@@ -104,13 +104,21 @@ void GLContext::setScreenSize(int width, int height)
 
 #include "msdf-atlas-gen/msdf-atlas-gen.h"
 extern std::vector<msdf_atlas::GlyphGeometry> glyphs;
-int RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, float width)
+
+int32_t TexGui::computeTextWidth(const char* text, size_t numchars)
 {
-    size_t numchars = strlen(text);
+    uint32_t total = 0;
+    for (size_t i = 0; i < numchars; i++)
+    {
+        total += glyphs[m_char_map[text[i]]].getAdvance();
+    }
+    return total;
+}
+
+int RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len)
+{
+    size_t numchars = len == -1 ? strlen(text) : len;
     size_t numcopy = numchars;
-
-    float currx = 0;
-
 
     const auto& a = glyphs[m_char_map['a']];
     if (flags & CENTER_Y)
@@ -122,14 +130,10 @@ int RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& c
 
     if (flags & CENTER_X)
     {
-        for (int idx = 0; idx < numchars; idx++)
-        {
-            currx += glyphs[m_char_map[text[idx]]].getAdvance() * size;
-        }
-        pos.x -= currx / 2.0;
+        pos.x -= computeTextWidth(text, numchars) * size / 2.0;
     }
 
-    currx = pos.x;
+    float currx = pos.x;
 
     //const CharInfo& hyphen = m_char_map['-'];
     for (int idx = 0; idx < numchars; idx++)

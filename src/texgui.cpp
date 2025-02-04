@@ -667,6 +667,30 @@ void Container::TextInput(const char* name, std::string& buf)
     );
 }
 
+void Container::Text(TextSegment* segments, int32_t count, int32_t scale)
+{
+    float x = bounds.x;
+    float y = bounds.y;
+    for (int32_t i = 0; i < count; i++) 
+    {
+        auto& s = segments[i];
+        switch (s.type)
+        {
+        case TextSegment::WORD:
+            rs->drawText(s.word.data, {x, y}, {1,1,1,1}, scale, 0, s.word.len);
+            x += segments[i].width * scale;
+            break;
+
+        case TextSegment::ICON:
+            // rs->drawTexture();
+            break;
+
+        case TextSegment::NEWLINE:
+            break;
+        }
+    }
+}
+
 void Container::Row_Internal(Container* out, const float* widths, uint32_t n, float height, uint32_t flags)
 {
     if (height < 1) {
@@ -741,4 +765,87 @@ void Container::Column_Internal(Container* out, const float* heights, uint32_t n
 
         y += height + spacing;
     }
+}
+
+
+
+
+// Text processing
+
+int32_t parseText(const char* text, TextSegment* out)
+{
+    switch (text[0])
+    {
+    case '\n': 
+        *out = { .type = TextSegment::NEWLINE };
+        return 1;
+    case '\0':
+        return -1;
+    }
+
+    int32_t i = 0;
+    int16_t len = 0;
+    int16_t ws = 0;
+    // Loop through a single word
+    for (;; i++)
+    {
+        // terminal characters. This will be handled the next time we parse text.
+        if (text[i] == '\n' || text[i] == '\0') break;
+
+        else if (text[i] == ' ')
+        {
+            // Trailing whitespace continues
+            ws++;
+            continue;
+        }
+
+        // End of trailing whitespace. word complete
+        if (ws) break;
+        
+        len++;
+    }
+
+    *out = {
+        .word = { text, computeTextWidth(text, len), len },
+        .width = computeTextWidth(text, i),
+        .type = TextSegment::WORD,
+    };
+    return i;
+}
+
+std::vector<TextSegment> TexGui::cacheText(TextDecl text)
+{
+    std::vector<TextSegment> out;
+    for (auto& chunk : text)
+    {
+        if (chunk.type == TextChunk::TEXT) 
+        {
+            const char* t = chunk.text;
+            while (true)
+            {
+                // Break the chunk into words and whitespace
+                TextSegment s;
+                int32_t len = parseText(t, &s);
+                if (len == -1) break;
+
+                out.push_back(s);
+                t += len;
+            }
+        }
+        else if (chunk.type == TextChunk::ICON) 
+        {
+            out.push_back({
+                .icon = chunk.icon,
+                .width = chunk.icon->bounds.width,
+                .type = TextSegment::ICON,
+            });
+        }
+    }
+
+    return out;
+}
+
+void cacheText(TextDecl text, TextSegment* buffer, uint32_t capacity)
+{
+
 }
