@@ -105,9 +105,9 @@ void GLContext::setScreenSize(int width, int height)
 #include "msdf-atlas-gen/msdf-atlas-gen.h"
 extern std::vector<msdf_atlas::GlyphGeometry> glyphs;
 
-int32_t TexGui::computeTextWidth(const char* text, size_t numchars)
+float TexGui::computeTextWidth(const char* text, size_t numchars)
 {
-    uint32_t total = 0;
+    float total = 0;
     for (size_t i = 0; i < numchars; i++)
     {
         total += glyphs[m_char_map[text[i]]].getAdvance();
@@ -339,6 +339,7 @@ void GLContext::loadFont(const char* fontFilename)
             // In the last argument, you can specify a charset other than ASCII.
             // To load specific glyph indices, use loadGlyphs instead.
             fontGeometry.loadCharset(font, 1.0, Charset::ASCII);
+
             // Apply MSDF edge coloring. See edge-coloring.h for other coloring strategies.
             const double maxCornerAngle = 3.0;
             for (GlyphGeometry &glyph : glyphs)

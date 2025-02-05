@@ -670,22 +670,45 @@ void Container::TextInput(const char* name, std::string& buf)
 void Container::Text(TextSegment* segments, int32_t count, int32_t scale)
 {
     float x = bounds.x;
-    float y = bounds.y;
+    float y = bounds.y + scale;
+
+    static auto bumpline = [](float& x, float& y, float w, Math::fbox& bounds, int32_t scale)
+    {
+        if (x + w > bounds.x + bounds.width)
+        {
+            y += scale;
+            x = bounds.x;
+        }
+    };
+
     for (int32_t i = 0; i < count; i++) 
     {
         auto& s = segments[i];
         switch (s.type)
         {
         case TextSegment::WORD:
-            rs->drawText(s.word.data, {x, y}, {1,1,1,1}, scale, 0, s.word.len);
-            x += segments[i].width * scale;
+            {
+                float segwidth = segments[i].width * scale;
+                bumpline(x, y, segwidth, bounds, scale);
+
+                rs->drawText(s.word.data, {x, y}, {1,1,1,1}, scale, CENTER_Y, s.word.len);
+                x += segwidth;
+            }
             break;
 
-        case TextSegment::ICON:
-            // rs->drawTexture();
+        case TextSegment::ICON: 
+            {
+                fvec2 tsize = fvec2(s.icon->bounds.width, s.icon->bounds.height) * _PX;
+                bumpline(x, y, tsize.x, bounds, scale);
+
+                rs->drawTexture({ x, y - tsize.y / 2, tsize.x, tsize.y }, s.icon, 0, _PX, 0);
+                x += tsize.x;
+            }
             break;
 
         case TextSegment::NEWLINE:
+            y += scale;
+            x = bounds.x;
             break;
         }
     }
@@ -836,7 +859,7 @@ std::vector<TextSegment> TexGui::cacheText(TextDecl text)
         {
             out.push_back({
                 .icon = chunk.icon,
-                .width = chunk.icon->bounds.width,
+                .width = float(chunk.icon->bounds.width),
                 .type = TextSegment::ICON,
             });
         }

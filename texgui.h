@@ -431,14 +431,15 @@ struct TextSegment
     {
         struct {
             const char* data;
-            int32_t tw; // Width of the text in pixels (not including whitespace)
+            float tw; // Width of the text (not including whitespace)
             int16_t len;
         } word;
 
         TexEntry* icon;
     };
 
-    int32_t width; // Width of the segment in pixels including whitespace
+    float width; // Width of the segment pre-scaling
+        // Pt for text, pixels for icons. Includes whitespace for text
 
     enum Type : uint8_t {
         WORD,        // Denotes text followed by whitespace
@@ -648,7 +649,7 @@ std::vector<TextSegment> cacheText(TextDecl text);
 // Caches text into a buffer. Asserts on failure
 void cacheText(TextDecl text, TextSegment* buffer, uint32_t capacity);
 
-int32_t computeTextWidth(const char* text, size_t numchars);
+float computeTextWidth(const char* text, size_t numchars);
 
 class RenderData
 {
