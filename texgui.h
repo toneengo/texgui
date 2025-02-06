@@ -424,6 +424,19 @@ struct RenderData;
 bool initGlfwOpenGL(GLFWwindow* window);
 
 struct TexEntry;
+struct TextSegment;
+struct Paragraph
+{
+    TextSegment* data;
+    uint32_t count;
+
+    Paragraph() = default;
+
+    Paragraph(std::vector<TextSegment>& s);
+
+    Paragraph(TextSegment* ptr, uint32_t n);
+};
+
 
 struct TextSegment
 {
@@ -436,6 +449,11 @@ struct TextSegment
         } word;
 
         TexEntry* icon;
+
+        struct {
+            Paragraph base;
+            Paragraph tooltip;
+        } tooltip;
     };
 
     float width; // Width of the segment pre-scaling
@@ -445,31 +463,30 @@ struct TextSegment
         WORD,        // Denotes text followed by whitespace
         ICON,        // An icon to render inline with the text
         NEWLINE,     // Line break
-        // TOOLTIP,     // Marks the beginning/end of a tooltip's boundary
+        TOOLTIP,     // Marks the beginning/end of a tooltip's boundary
     } type;
 };
 
+// Text chunks are used to describe the layout of a text block. They get cached into 
 struct TextChunk;
 using TextDecl = std::initializer_list<TextChunk>;
-
 struct TextChunk
 {
     enum Type : uint8_t {
         TEXT,
         ICON,        // An icon to render inline with the text
-       // TOOLTIP,     // Marks the beginning/end of a tooltip's boundary
+       TOOLTIP,      // Marks the beginning/end of a tooltip's boundary
     } type;
 
     union
     {
         const char* text;
         TexEntry* icon;
-        /*
+
         struct {
-            TextDecl base;
-            TextDecl tooltip;
+            Paragraph base;
+            Paragraph tooltip;
         } tooltip;
-        */
     };
 
     constexpr TextChunk(const char* text) :
@@ -478,8 +495,8 @@ struct TextChunk
     constexpr TextChunk(TexEntry* icon) :
         type(ICON), icon(icon) {}
 
-    // constexpr TextChunk(TextDecl baseText, TextDecl tooltip);
-
+    constexpr TextChunk(Paragraph baseText, Paragraph tooltip) :
+        type(TOOLTIP), tooltip({ baseText, tooltip }) {}
 };
 
 
@@ -500,7 +517,7 @@ public:
     Container ScrollPanel(const char* name, TexEntry* texture = nullptr, TexEntry* bartex = nullptr);
     void      TextInput(const char* name, std::string& buf);
     void      Image(TexEntry* texture);
-    void      Text(TextSegment* segments, int32_t count, int32_t scale);
+    void      Text(Paragraph text, int32_t scale);
 
     Container Align(uint32_t flags = 0, Math::fvec4 padding = Math::fvec4(0,0,0,0));
 
@@ -593,6 +610,14 @@ inline int PixelSize  = 1;
 inline uint32_t Flags = SLICE_9;
 
 //#TODO: use font px instead of sacle, uising msdf
+namespace Tooltip {
+    inline Math::fvec4 HoverPadding(6, 12, 6, 12);
+    inline int TextScale = 20;
+    inline Math::fvec2 MouseOffset(16, 16);
+    inline std::string Texture = "tooltip";
+    inline Math::fvec4 Padding(18, 12, 18, 12);
+    inline float MaxWidth = 400;
+}
 
 namespace Settings {
     inline bool Async = false;
@@ -646,8 +671,8 @@ namespace Column {
 NAMESPACE_END(Defaults);
 
 std::vector<TextSegment> cacheText(TextDecl text);
-// Caches text into a buffer. Asserts on failure
-void cacheText(TextDecl text, TextSegment* buffer, uint32_t capacity);
+// Caches text into a buffer. Returns -1 on failure (if there's not enough buffer space), or the amount otherwise
+int32_t cacheText(TextDecl text, TextSegment* buffer, uint32_t capacity);
 
 float computeTextWidth(const char* text, size_t numchars);
 

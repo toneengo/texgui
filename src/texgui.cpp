@@ -667,31 +667,83 @@ void Container::TextInput(const char* name, std::string& buf)
     );
 }
 
-void Container::Text(TextSegment* segments, int32_t count, int32_t scale)
+static void renderTooltip(Paragraph text, RenderData* rs);
+
+// Bump the line of text
+static void bumpline(float& x, float& y, float w, Math::fbox& bounds, int32_t scale)
 {
-    float x = bounds.x;
-    float y = bounds.y + scale;
-
-    static auto bumpline = [](float& x, float& y, float w, Math::fbox& bounds, int32_t scale)
+    if (x + w > bounds.x + bounds.width)
     {
-        if (x + w > bounds.x + bounds.width)
-        {
-            y += scale;
-            x = bounds.x;
-        }
-    };
+        y += scale;
+        x = bounds.x;
+    }
+}
 
-    for (int32_t i = 0; i < count; i++) 
+static fvec2 calculateTextBounds(Paragraph text, int32_t scale, float maxWidth)
+{
+    float x = 0, y = 0;
+
+    fbox bounds = {x, y, maxWidth, 2000};
+
+    for (int32_t i = 0; i < text.count; i++) 
     {
-        auto& s = segments[i];
+        auto& s = text.data[i];
         switch (s.type)
         {
         case TextSegment::WORD:
             {
-                float segwidth = segments[i].width * scale;
+                float segwidth = s.width * scale;
+                bumpline(x, y, segwidth, bounds, scale);
+                x += segwidth;
+            }
+            break;
+
+        case TextSegment::ICON: 
+            {
+                fvec2 tsize = fvec2(s.icon->bounds.width, s.icon->bounds.height) * _PX;
+                bumpline(x, y, tsize.x, bounds, scale);
+                x += tsize.x;
+            }
+            break;
+
+        case TextSegment::NEWLINE:
+            y += scale;
+            x = bounds.x;
+            break;
+
+        case TextSegment::TOOLTIP:
+            {
+                // #TODO
+            }
+            break;
+        }
+    }
+
+    return y > 0
+        ? fvec2(maxWidth, y)
+        : fvec2(x, scale);
+}
+
+static bool writeText(Paragraph text, int32_t scale, Math::fbox bounds, float& x, float& y, RenderData* rs, bool checkHover = false)
+{
+    auto& io = inputFrame;
+
+    bool hovered = false;
+    for (int32_t i = 0; i < text.count; i++) 
+    {
+        auto& s = text.data[i];
+        switch (s.type)
+        {
+        case TextSegment::WORD:
+            {
+                float segwidth = s.width * scale;
                 bumpline(x, y, segwidth, bounds, scale);
 
+                fbox bounds = fbox(x, y - scale / 2.0, segwidth, scale);
                 rs->drawText(s.word.data, {x, y}, {1,1,1,1}, scale, CENTER_Y, s.word.len);
+
+                // if (checkHover) rs->drawQuad(bounds, fvec4(1, 0, 0, 1));
+                hovered |= checkHover && !hovered && bounds.contains(io.cursorPos);
                 x += segwidth;
             }
             break;
@@ -701,7 +753,11 @@ void Container::Text(TextSegment* segments, int32_t count, int32_t scale)
                 fvec2 tsize = fvec2(s.icon->bounds.width, s.icon->bounds.height) * _PX;
                 bumpline(x, y, tsize.x, bounds, scale);
 
-                rs->drawTexture({ x, y - tsize.y / 2, tsize.x, tsize.y }, s.icon, 0, _PX, 0);
+                fbox bounds = { x, y - tsize.y / 2, tsize.x, tsize.y };
+                rs->drawTexture(bounds, s.icon, 0, _PX, 0);
+
+                // if (checkHover) rs->drawQuad(bounds, fvec4(1, 0, 0, 1));
+                hovered |= checkHover && !hovered && fbox::margin(bounds, Defaults::Tooltip::HoverPadding).contains(io.cursorPos);
                 x += tsize.x;
             }
             break;
@@ -710,8 +766,47 @@ void Container::Text(TextSegment* segments, int32_t count, int32_t scale)
             y += scale;
             x = bounds.x;
             break;
+
+        case TextSegment::TOOLTIP:
+            {
+                // Render the base text of the tooltip. Do a coarse bounds check
+                // so we don't check if each word is hovered if we don't need to
+                bool check = bounds.contains(io.cursorPos);
+                bool hoverTT = writeText(s.tooltip.base, scale, bounds, x, y, rs, check);
+                if (hoverTT) renderTooltip(s.tooltip.tooltip, rs);
+            }
+            break;
         }
     }
+    return hovered;
+}
+
+static void renderTooltip(Paragraph text, RenderData* rs)
+{
+    auto& io = inputFrame;
+
+    static TexEntry* tex = &m_tex_map[Defaults::Tooltip::Texture];
+    int scale = Defaults::Tooltip::TextScale;
+
+    fbox textBounds = {
+        io.cursorPos + Defaults::Tooltip::MouseOffset, 
+        calculateTextBounds(text, scale, Defaults::Tooltip::MaxWidth)
+    };
+
+    fbox bounds = fbox::margin(textBounds, Defaults::Tooltip::Padding);
+
+    rs->drawTexture(bounds, tex, 0, _PX, SLICE_9);
+
+    float x = textBounds.x, y = textBounds.y;
+    writeText(text, Defaults::Tooltip::TextScale, textBounds, x, y, rs, false);
+}
+
+void Container::Text(Paragraph text, int32_t scale)
+{
+    float x = bounds.x;
+    float y = bounds.y + scale;
+
+    writeText(text, scale, bounds, x, y, rs);
 }
 
 void Container::Row_Internal(Container* out, const float* widths, uint32_t n, float height, uint32_t flags)
@@ -795,7 +890,7 @@ void Container::Column_Internal(Container* out, const float* heights, uint32_t n
 
 // Text processing
 
-int32_t parseText(const char* text, TextSegment* out)
+static int32_t parseText(const char* text, TextSegment* out)
 {
     switch (text[0])
     {
@@ -863,12 +958,67 @@ std::vector<TextSegment> TexGui::cacheText(TextDecl text)
                 .type = TextSegment::ICON,
             });
         }
+        else if (chunk.type == TextChunk::TOOLTIP)
+        {
+            out.push_back({
+                .tooltip = { chunk.tooltip.base, chunk.tooltip.tooltip },
+                .width = 0,
+                .type = TextSegment::TOOLTIP,
+            });
+        }
     }
 
     return out;
 }
 
-void cacheText(TextDecl text, TextSegment* buffer, uint32_t capacity)
+int32_t TexGui::cacheText(TextDecl text, TextSegment* buffer, uint32_t capacity)
 {
+    uint32_t i = 0;
+    for (auto& chunk : text)
+    {
+        if (chunk.type == TextChunk::TEXT) 
+        {
+            const char* t = chunk.text;
+            while (true)
+            {
+                // Break the chunk into words and whitespace
+                TextSegment s;
+                int32_t len = parseText(t, &s);
+                if (len == -1) break;
 
+                if (i >= capacity) return -1;
+                buffer[i] = s;
+                i++;
+                t += len;
+            }
+        }
+        else if (chunk.type == TextChunk::ICON) 
+        {
+            if (i >= capacity) return -1;
+            buffer[i] = {
+                .icon = chunk.icon,
+                .width = float(chunk.icon->bounds.width),
+                .type = TextSegment::ICON,
+            };
+            i++;
+        }
+        else if (chunk.type == TextChunk::TOOLTIP)
+        {
+            if (i >= capacity) return -1;
+            buffer[i] = {
+                .tooltip = { chunk.tooltip.base, chunk.tooltip.tooltip },
+                .width = 0,
+                .type = TextSegment::TOOLTIP,
+            };
+            i++;
+        }
+    }
+    return i;
 }
+
+
+TexGui::Paragraph::Paragraph(std::vector<TextSegment>& s) :
+    data(s.data()), count(s.size()) {}
+
+TexGui::Paragraph::Paragraph(TextSegment* ptr, uint32_t n) :
+    data(ptr), count(n) {}
