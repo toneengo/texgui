@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <unordered_map>
 #include <vector>
+#include <span>
 
 struct GLFWwindow;
 NAMESPACE_BEGIN(TexGui);
@@ -38,6 +39,8 @@ enum TexGui_flags : uint32_t
     ALIGN_RIGHT = 0x1000,
     ALIGN_TOP = 0x2000,
     ALIGN_BOTTOM = 0x4000,
+
+    UNDERLINE = 0x8000,
 };
 
 enum TexGui_state : uint8_t 
@@ -467,15 +470,14 @@ struct TextSegment
     } type;
 };
 
-// Text chunks are used to describe the layout of a text block. They get cached into 
-struct TextChunk;
-using TextDecl = std::initializer_list<TextChunk>;
+// Text chunks are used to describe the layout of a text block. They get cached into Paragraphs.
 struct TextChunk
 {
     enum Type : uint8_t {
         TEXT,
         ICON,        // An icon to render inline with the text
        TOOLTIP,      // Marks the beginning/end of a tooltip's boundary
+        INDIRECT,    // include a dynamic part while still processing the rest at compile time
     } type;
 
     union
@@ -487,7 +489,11 @@ struct TextChunk
             Paragraph base;
             Paragraph tooltip;
         } tooltip;
+
+        TextChunk* indirect;
     };
+
+    TextChunk() = default;
 
     constexpr TextChunk(const char* text) :
         type(TEXT), text(text) {}
@@ -497,9 +503,33 @@ struct TextChunk
 
     constexpr TextChunk(Paragraph baseText, Paragraph tooltip) :
         type(TOOLTIP), tooltip({ baseText, tooltip }) {}
+
+    constexpr TextChunk(TextChunk* chunk) :
+        type(INDIRECT), indirect(chunk) {}
 };
 
 
+
+// initialiser lists can't be implicitly converted to spans until c++26 so just make our own span type.
+struct TextDecl
+{
+    const TextChunk* data;
+    uint32_t count;
+
+    TextDecl() = default;
+
+    TextDecl(TextChunk* d, uint32_t n) :
+        data(d),
+        count(n) {}
+
+    TextDecl(std::initializer_list<TextChunk> s) :
+        data(s.begin()),
+        count(s.size()) {}
+
+    const TextChunk* begin() const { return data; }
+    const TextChunk* end() const { return data + count; }
+};
+    
 
 class Container
 {
@@ -617,6 +647,8 @@ namespace Tooltip {
     inline std::string Texture = "tooltip";
     inline Math::fvec4 Padding(18, 12, 18, 12);
     inline float MaxWidth = 400;
+
+    inline Math::fvec2 UnderlineSize(2, 2);
 }
 
 namespace Settings {
@@ -687,9 +719,9 @@ public:
     }
     Container Base;
 
-    void drawQuad(const Math::fbox& rect, const Math::fvec4& col);
-    void drawTexture(const Math::fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags);
-    int drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len = -1);
+    void drawQuad(const Math::fbox& rect, const Math::fvec4& col, int32_t zLayer = 0);
+    void drawTexture(const Math::fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags, int32_t zLayer = 0);
+    int drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len = -1, int32_t zLayer = 0);
     //void scissor(int x, int y, int width, int height);
     void scissor(Math::fbox bounds);
     void descissor();
@@ -697,21 +729,32 @@ public:
     void clear() {
         objects.clear();
         commands.clear();
+
+        objects2.clear();
+        commands2.clear();
     }
 
     void swap(RenderData& other) {
         objects.swap(other.objects);
         commands.swap(other.commands);
+
+        objects2.swap(other.objects2);
+        commands2.swap(other.commands2);
     }
 
     void copy(const RenderData& other)
     {
-        int n = other.objects.size();
-        objects.resize(n);
-        memcpy(objects.data(), other.objects.data(), sizeof(Object) * n);
-        n = other.commands.size();
-        commands.resize(n);
-        memcpy(commands.data(), other.commands.data(), sizeof(Command) * n);
+        static auto copy = [](auto& a, auto& other, size_t sz)
+        {
+            size_t n = other.size();
+            a.resize(n);
+            memcpy(a.data(), other.data(), sz * n);
+        };
+
+        copy(objects, other.objects, sizeof(Object));
+        copy(objects2, other.objects2, sizeof(Object));
+        copy(commands, other.commands, sizeof(Command));
+        copy(commands2, other.commands2, sizeof(Command));
     }
 
 private:
@@ -791,6 +834,10 @@ private:
 
     std::vector<Object> objects;
     std::vector<Command> commands;
+
+    // This is a lazy approach until we have some proper draw ordering/z filtering etc
+    std::vector<Object> objects2;
+    std::vector<Command> commands2;
 };
 
 NAMESPACE_END(TexGui);

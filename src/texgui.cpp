@@ -674,7 +674,7 @@ static void bumpline(float& x, float& y, float w, Math::fbox& bounds, int32_t sc
 {
     if (x + w > bounds.x + bounds.width)
     {
-        y += scale;
+        y += scale * 1.1f;
         x = bounds.x;
     }
 }
@@ -724,9 +724,20 @@ static fvec2 calculateTextBounds(Paragraph text, int32_t scale, float maxWidth)
         : fvec2(x, scale);
 }
 
-static bool writeText(Paragraph text, int32_t scale, Math::fbox bounds, float& x, float& y, RenderData* rs, bool checkHover = false)
+#define TTUL Defaults::Tooltip::UnderlineSize
+
+static bool writeText(Paragraph text, int32_t scale, Math::fbox bounds, float& x, float& y, RenderData* rs, bool checkHover = false, int32_t zLayer = 0, uint32_t flags = 0)
 {
     auto& io = inputFrame;
+
+    static const auto underline = [](auto* rs, float x, float y, float w, int32_t scale, uint32_t flags, int32_t zLayer)
+    {
+        if (flags & UNDERLINE)
+        {
+            fbox ul = fbox(fvec2(x - TTUL.x, y + scale / 2.0 - 2), fvec2(w + TTUL.x * 2, TTUL.y));
+            rs->drawQuad(ul, fvec4(1,1,1,0.3), zLayer);
+        }
+    };
 
     bool hovered = false;
     for (int32_t i = 0; i < text.count; i++) 
@@ -740,7 +751,10 @@ static bool writeText(Paragraph text, int32_t scale, Math::fbox bounds, float& x
                 bumpline(x, y, segwidth, bounds, scale);
 
                 fbox bounds = fbox(x, y - scale / 2.0, segwidth, scale);
-                rs->drawText(s.word.data, {x, y}, {1,1,1,1}, scale, CENTER_Y, s.word.len);
+
+                underline(rs, x, y, segwidth, scale, flags, zLayer);
+
+                rs->drawText(s.word.data, {x, y}, {1,1,1,1}, scale, CENTER_Y, s.word.len, zLayer);
 
                 // if (checkHover) rs->drawQuad(bounds, fvec4(1, 0, 0, 1));
                 hovered |= checkHover && !hovered && bounds.contains(io.cursorPos);
@@ -754,7 +768,10 @@ static bool writeText(Paragraph text, int32_t scale, Math::fbox bounds, float& x
                 bumpline(x, y, tsize.x, bounds, scale);
 
                 fbox bounds = { x, y - tsize.y / 2, tsize.x, tsize.y };
-                rs->drawTexture(bounds, s.icon, 0, _PX, 0);
+
+                underline(rs, x, y, tsize.x, scale, flags, zLayer);
+
+                rs->drawTexture(bounds, s.icon, 0, _PX, 0, zLayer);
 
                 // if (checkHover) rs->drawQuad(bounds, fvec4(1, 0, 0, 1));
                 hovered |= checkHover && !hovered && fbox::margin(bounds, Defaults::Tooltip::HoverPadding).contains(io.cursorPos);
@@ -772,7 +789,7 @@ static bool writeText(Paragraph text, int32_t scale, Math::fbox bounds, float& x
                 // Render the base text of the tooltip. Do a coarse bounds check
                 // so we don't check if each word is hovered if we don't need to
                 bool check = bounds.contains(io.cursorPos);
-                bool hoverTT = writeText(s.tooltip.base, scale, bounds, x, y, rs, check);
+                bool hoverTT = writeText(s.tooltip.base, scale, bounds, x, y, rs, check, zLayer, UNDERLINE);
                 if (hoverTT) renderTooltip(s.tooltip.tooltip, rs);
             }
             break;
@@ -795,10 +812,10 @@ static void renderTooltip(Paragraph text, RenderData* rs)
 
     fbox bounds = fbox::margin(textBounds, Defaults::Tooltip::Padding);
 
-    rs->drawTexture(bounds, tex, 0, _PX, SLICE_9);
+    rs->drawTexture(bounds, tex, 0, _PX, SLICE_9, 1);
 
     float x = textBounds.x, y = textBounds.y;
-    writeText(text, Defaults::Tooltip::TextScale, textBounds, x, y, rs, false);
+    writeText(text, Defaults::Tooltip::TextScale, textBounds, x, y, rs, false, 1);
 }
 
 void Container::Text(Paragraph text, int32_t scale)
@@ -931,44 +948,97 @@ static int32_t parseText(const char* text, TextSegment* out)
     return i;
 }
 
+void cacheChunk(const TextChunk& chunk, std::vector<TextSegment>& out)
+{
+    if (chunk.type == TextChunk::TEXT) 
+    {
+        const char* t = chunk.text;
+        while (true)
+        {
+            // Break the chunk into words and whitespace
+            TextSegment s;
+            int32_t len = parseText(t, &s);
+            if (len == -1) break;
+
+            out.push_back(s);
+            t += len;
+        }
+    }
+    else if (chunk.type == TextChunk::ICON) 
+    {
+        out.push_back({
+            .icon = chunk.icon,
+            .width = float(chunk.icon->bounds.width),
+            .type = TextSegment::ICON,
+        });
+    }
+    else if (chunk.type == TextChunk::TOOLTIP)
+    {
+        out.push_back({
+            .tooltip = { chunk.tooltip.base, chunk.tooltip.tooltip },
+            .width = 0,
+            .type = TextSegment::TOOLTIP,
+        });
+    }
+    else if (chunk.type == TextChunk::INDIRECT)
+    {
+        cacheChunk(*chunk.indirect, out);
+    }
+}
 std::vector<TextSegment> TexGui::cacheText(TextDecl text)
 {
     std::vector<TextSegment> out;
     for (auto& chunk : text)
     {
-        if (chunk.type == TextChunk::TEXT) 
-        {
-            const char* t = chunk.text;
-            while (true)
-            {
-                // Break the chunk into words and whitespace
-                TextSegment s;
-                int32_t len = parseText(t, &s);
-                if (len == -1) break;
-
-                out.push_back(s);
-                t += len;
-            }
-        }
-        else if (chunk.type == TextChunk::ICON) 
-        {
-            out.push_back({
-                .icon = chunk.icon,
-                .width = float(chunk.icon->bounds.width),
-                .type = TextSegment::ICON,
-            });
-        }
-        else if (chunk.type == TextChunk::TOOLTIP)
-        {
-            out.push_back({
-                .tooltip = { chunk.tooltip.base, chunk.tooltip.tooltip },
-                .width = 0,
-                .type = TextSegment::TOOLTIP,
-            });
-        }
+        cacheChunk(chunk, out);
     }
 
     return out;
+}
+
+bool cacheChunk(uint32_t& i, const TextChunk& chunk, TextSegment* buffer, uint32_t capacity)
+{
+    if (chunk.type == TextChunk::TEXT) 
+    {
+        const char* t = chunk.text;
+        while (true)
+        {
+            // Break the chunk into words and whitespace
+            TextSegment s;
+            int32_t len = parseText(t, &s);
+            if (len == -1) break;
+
+            if (i >= capacity) return false;
+            buffer[i] = s;
+            i++;
+            t += len;
+        }
+    }
+    else if (chunk.type == TextChunk::ICON) 
+    {
+        if (i >= capacity) return false;
+        buffer[i] = {
+            .icon = chunk.icon,
+            .width = float(chunk.icon->bounds.width),
+            .type = TextSegment::ICON,
+        };
+        i++;
+    }
+    else if (chunk.type == TextChunk::TOOLTIP)
+    {
+        if (i >= capacity) return false;
+        buffer[i] = {
+            .tooltip = { chunk.tooltip.base, chunk.tooltip.tooltip },
+            .width = 0,
+            .type = TextSegment::TOOLTIP,
+        };
+        i++;
+    }
+    else if (chunk.type == TextChunk::INDIRECT)
+    {
+        cacheChunk(i, *chunk.indirect, buffer, capacity);
+    }
+    return true;
 }
 
 int32_t TexGui::cacheText(TextDecl text, TextSegment* buffer, uint32_t capacity)
@@ -976,42 +1046,7 @@ int32_t TexGui::cacheText(TextDecl text, TextSegment* buffer, uint32_t capacity)
     uint32_t i = 0;
     for (auto& chunk : text)
     {
-        if (chunk.type == TextChunk::TEXT) 
-        {
-            const char* t = chunk.text;
-            while (true)
-            {
-                // Break the chunk into words and whitespace
-                TextSegment s;
-                int32_t len = parseText(t, &s);
-                if (len == -1) break;
-
-                if (i >= capacity) return -1;
-                buffer[i] = s;
-                i++;
-                t += len;
-            }
-        }
-        else if (chunk.type == TextChunk::ICON) 
-        {
-            if (i >= capacity) return -1;
-            buffer[i] = {
-                .icon = chunk.icon,
-                .width = float(chunk.icon->bounds.width),
-                .type = TextSegment::ICON,
-            };
-            i++;
-        }
-        else if (chunk.type == TextChunk::TOOLTIP)
-        {
-            if (i >= capacity) return -1;
-            buffer[i] = {
-                .tooltip = { chunk.tooltip.base, chunk.tooltip.tooltip },
-                .width = 0,
-                .type = TextSegment::TOOLTIP,
-            };
-            i++;
-        }
+        if (!cacheChunk(i, chunk, buffer, capacity)) return -1; 
     }
     return i;
 }
