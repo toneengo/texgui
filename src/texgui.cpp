@@ -557,16 +557,24 @@ Container Container::ListItem(uint32_t* selected, uint32_t id)
         
         static TexEntry* tex = &m_tex_map[Defaults::ListItem::Texture];
 
-        auto& io = inputFrame;
+        auto state = STATE_NONE;
+        if (listItem->listItem.selected != nullptr)
+        {
+            auto& io = inputFrame;
 
-        bool hovered = listItem->parent->scissorBox.contains(io.cursorPos) 
-                    && bounds.contains(io.cursorPos);
-        auto state = hovered ? STATE_HOVER : STATE_NONE;
-        if (io.lmb == KEY_Release && hovered)
-            *(listItem->listItem.selected) = listItem->listItem.id;
+            bool hovered = listItem->parent->scissorBox.contains(io.cursorPos) 
+                        && bounds.contains(io.cursorPos);
+            state = hovered ? STATE_HOVER : STATE_NONE;
+            if (io.lmb == KEY_Release && hovered)
+                *(listItem->listItem.selected) = listItem->listItem.id;
 
-        if (*(listItem->listItem.selected) == listItem->listItem.id)
-            state = STATE_ACTIVE;
+            if (*(listItem->listItem.selected) == listItem->listItem.id)
+                state = STATE_ACTIVE;
+        }
+        else
+        {
+            state = listItem->listItem.id ? STATE_ACTIVE : STATE_NONE;
+        }
 
         listItem->rs->drawTexture(bounds, tex, state, _PX, SLICE_9);
 

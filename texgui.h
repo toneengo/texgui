@@ -554,6 +554,7 @@ public:
     void      Clip();
     void      Unclip();
     // Similar to radio buttons - the id of the selected one is stored in the *selected pointer.
+    // If you don't want them to be clickable - set selected to nullptr, and 0 or 1 for whether it is active in id
     Container ListItem(uint32_t* selected, uint32_t id);
 
     Container Grid();
@@ -648,7 +649,7 @@ namespace Tooltip {
     inline Math::fvec4 Padding(18, 12, 18, 12);
     inline float MaxWidth = 400;
 
-    inline Math::fvec2 UnderlineSize(2, 2);
+    inline Math::fvec2 UnderlineSize(0, 2);
 }
 
 namespace Settings {
