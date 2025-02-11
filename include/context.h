@@ -39,8 +39,8 @@ protected:
     struct
     {
         nameIdx screen_size;
-        nameIdx widget_pos;
         nameIdx objIndex;
+        nameIdx bounds;
     } m_ub;
 
     // Shader storage buffers

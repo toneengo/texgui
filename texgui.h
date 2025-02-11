@@ -128,6 +128,13 @@ struct vec2
         y += vec.y;
     }
 
+    template <typename v>
+    void operator/=(const v& vec)
+    {
+        x /= vec.x;
+        y /= vec.y;
+    }
+
     //multiplication
     template <typename v>
     vec2<T> operator*(const v& num) const
@@ -143,6 +150,14 @@ struct vec2
         vec2<T> val(x / static_cast<T>(num), y / static_cast<T>(num));
         return val;
     }
+
+    template <typename v>
+    vec2<T> operator/(const vec2<v>& num) const
+    {
+        vec2<T> val(x / static_cast<T>(num.x), y / static_cast<T>(num.y));
+        return val;
+    }
+
 
     /*
     template <typename v>
@@ -412,6 +427,16 @@ struct box
                d.y <= height && d.y >= 0;
     }
 
+    bool contains(const box& _box)
+    {
+        if (((_box.x >= x && _box.x <= x + width) ||
+            (_box.x + _box.width >= x && _box.x + _box.width <= x + width))
+            &&
+            ((_box.y >= y && _box.y <= y + height) ||
+            (_box.y + _box.height >= y && _box.y + _box.height <= y + height))) return true;
+        else return false;
+    }
+
 };
 
 typedef box<float> fbox;
@@ -590,13 +615,14 @@ public:
     Container Base;
 
     void drawQuad(const Math::fbox& rect, const Math::fvec4& col);
-    void drawTexture(const Math::fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags);
+    void drawTexture(const Math::fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags, const Math::fbox& bounds);
     int drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, float width = 0);
     //void scissor(int x, int y, int width, int height);
     void scissor(Math::fbox bounds);
     void descissor();
 
     void clear() {
+        Base.bounds.size = TexGui::Base.bounds.size;
         objects.clear();
         commands.clear();
     }

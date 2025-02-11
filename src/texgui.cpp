@@ -406,7 +406,7 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
     fvec4 padding = Defaults::Window::Padding;
     padding.top = texture->top * _PX;
 
-    rs->drawTexture(wstate.box, texture, wstate.state, _PX, SLICE_9);
+    rs->drawTexture(wstate.box, texture, wstate.state, _PX, SLICE_9, bounds);
     rs->drawText(name, {wstate.box.x + padding.left, wstate.box.y + texture->top * _PX / 2},
                  Defaults::Font::Color, Defaults::Font::Size, CENTER_Y);
 
@@ -430,7 +430,7 @@ bool Container::Button(const char* text, TexEntry* texture)
     static TexEntry* defaultTex = &m_tex_map[Defaults::Button::Texture];
     auto* tex = texture ? texture : defaultTex;
 
-    rs->drawTexture(bounds, tex, state, _PX, SLICE_9);
+    rs->drawTexture(bounds, tex, state, _PX, SLICE_9, bounds);
 
     rs->drawText(text, 
         state & STATE_PRESS ? bounds.pos + bounds.size / 2 + Defaults::Button::POffset
@@ -451,7 +451,7 @@ Container Container::Box(float xpos, float ypos, float width, float height, TexE
     fbox boxBounds(bounds.x + xpos, bounds.y + ypos, width, height);
     if (texture != nullptr)
     {
-        rs->drawTexture(boxBounds, texture, 0, 2, SLICE_9);
+        rs->drawTexture(boxBounds, texture, 0, 2, SLICE_9, bounds);
     }
 
     fbox internal = fbox::pad(boxBounds, Defaults::Box::Padding);
@@ -500,9 +500,9 @@ Container Container::ScrollPanel(const char* name, TexEntry* texture, TexEntry* 
                 padding.right,
                 barh};
 
-    rs->drawTexture(bounds, texture, 0, _PX, 0);
+    rs->drawTexture(bounds, texture, 0, _PX, 0, bounds);
     if (bartex)
-        rs->drawTexture(bar, bartex, 0, 2, SLICE_9);
+        rs->drawTexture(bar, bartex, 0, 2, SLICE_9, bounds);
     else
         rs->drawQuad(bar, {1,1,1,1});
 
@@ -534,7 +534,7 @@ void Container::Image(TexEntry* texture)
     fbox sized = fbox(bounds.pos, fvec2(tsize));
     fbox arranged = Arrange(this, sized);
 
-    rs->drawTexture(arranged, texture, STATE_NONE, _PX, 0);
+    rs->drawTexture(arranged, texture, STATE_NONE, _PX, 0, bounds);
 }
 
 fbox Container::Arrange(Container* o, fbox child)
@@ -557,8 +557,11 @@ Container Container::ListItem(uint32_t* selected, uint32_t id)
         
         static TexEntry* tex = &m_tex_map[Defaults::ListItem::Texture];
 
+        if (!listItem->parent->scissorBox.contains(bounds))
+        {
+            return fbox(0,0,0,0);
+        }
         auto& io = inputFrame;
-
         bool hovered = listItem->parent->scissorBox.contains(io.cursorPos) 
                     && bounds.contains(io.cursorPos);
         auto state = hovered ? STATE_HOVER : STATE_NONE;
@@ -568,7 +571,7 @@ Container Container::ListItem(uint32_t* selected, uint32_t id)
         if (*(listItem->listItem.selected) == listItem->listItem.id)
             state = STATE_ACTIVE;
 
-        listItem->rs->drawTexture(bounds, tex, state, _PX, SLICE_9);
+        listItem->rs->drawTexture(bounds, tex, state, _PX, SLICE_9, listItem->parent->scissorBox);
 
         // The child is positioned by the list item's parent
         return fbox::pad(bounds, Defaults::ListItem::Padding);
@@ -631,7 +634,7 @@ void Container::TextInput(const char* name, std::string& buf)
         buf.push_back(io.character);
     }
 
-    rs->drawTexture(bounds, inputtex, tstate.state, _PX, SLICE_9);
+    rs->drawTexture(bounds, inputtex, tstate.state, _PX, SLICE_9, bounds);
     float offsetx = 0;
     fvec4 padding = Defaults::TextInput::Padding;
     fvec4 color = Defaults::Font::Color;

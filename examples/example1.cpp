@@ -148,7 +148,6 @@ void main() {
         auto win = data.Base.Window("bob", 200, 100, 400, 600);
 
         auto box = win.ScrollPanel("panel1", TexGui::texByName("box2"));
-        box.Clip();
         auto grid = box.Grid();
 
         for (uint32_t i = 0; i < 10; i++)
@@ -157,7 +156,6 @@ void main() {
                 .ListItem(&selected, i)
                 .Image(TexGui::texByName("lollipop"));
         }
-        box.Unclip();
 
         copy.copy(data);
         TexGui::render(copy);

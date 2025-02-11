@@ -146,7 +146,7 @@ layout (std430, binding = 0) buffer objectBuf {
     Quad quads[];
 };
 
-out vec2 pos;
+out vec2 pxPos;
 out vec2 uv;
 flat out int layer;
 
@@ -162,6 +162,7 @@ void main() {
 
     int ATLAS_SIZE = 512;
     vec4 rect = quads[index + gl_InstanceID].rect;
+    pxPos = rect.xy;
 
     rect.x -= screenSz.x / 2;
     rect.y = screenSz.y / 2 - rect.y - rect.w;
@@ -176,8 +177,7 @@ void main() {
     layer = quads[index + gl_InstanceID].layer;
 
     vec2 size = rect.zw / vec2(screenSz.x/2.0, screenSz.y/2.0);
-    pos = quad[gl_VertexID] * size + rect.xy / vec2(screenSz.x/2.0, screenSz.y/2.0);
-
+    vec2 pos = quad[gl_VertexID] * size + rect.xy / vec2(screenSz.x/2.0, screenSz.y/2.0);
     gl_Position = vec4(pos, 0.0, 1.0);
 }
 )#";
@@ -187,7 +187,6 @@ layout (std430, binding = 0) buffer objectBuf {
     Quad quads[];
 };
 
-out vec2 pos;
 out vec2 pxPos;
 out vec2 uv;
 flat out int layer;
@@ -215,6 +214,7 @@ void main() {
     int ATLAS_SIZE = 512;
     int px = quads[index + gl_InstanceID / 9].pixelSize;
     vec4 rect = quads[index + gl_InstanceID / 9].rect;
+    pxPos = rect.xy;
     rect.x -= screenSz.x / 2;
     rect.y = screenSz.y / 2 - rect.y - rect.w;
 
@@ -273,37 +273,32 @@ void main() {
     layer = quads[index + gl_InstanceID / 9].layer;
 
     vec2 size = rect.zw / round(vec2(screenSz.x/2.0, screenSz.y/2.0));
-    pos = quad[gl_VertexID] * size + rect.xy / round(vec2(screenSz.x/2.0, screenSz.y/2.0));
+    vec2 pos = quad[gl_VertexID] * size + rect.xy / round(vec2(screenSz.x/2.0, screenSz.y/2.0));
     gl_Position = vec4(pos, 0.0, 1.0);
 }
 )#";
 
 inline const std::string QUADFRAG = R"#(
 in vec2 uv;
-in vec4 actualBounds;
+in vec2 pxPos;
 flat in int layer;
 out vec4 frag;
-in vec2 pos;
 
 layout (binding = 1) uniform sampler2DArray texarray;
-
 layout (std140, binding = 2) uniform boundsBuf {
     vec4 bounds;
 };
 
 bool contains(vec4 box, vec2 p)
 {
-    return p.x <= box.x + box.z && p.x >= box.x &&
-           p.y <= box.y + box.w && p.y >= box.y;
+    p - box.xy;
+    return d.x <= width && d.x >= 0 &&
+           d.y <= height && d.y >= 0;
 }
 
 void main() {
-
-    if (!contains(bounds, pos))
-        discard;
-
+    if (px
     frag = texture(texarray, vec3(uv, layer));
-
     if (frag.a < 0.1)
         discard;
 }

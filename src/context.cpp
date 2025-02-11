@@ -49,6 +49,10 @@ GLContext::GLContext()
     glNamedBufferStorage(m_ub.screen_size.buf, sizeof(int) * 2, &m_screen_size, GL_DYNAMIC_STORAGE_BIT);
     m_ub.screen_size.bind = 0;
 
+    glCreateBuffers(1, &m_ub.bounds.buf);
+    glNamedBufferStorage(m_ub.bounds.buf, sizeof(Math::fbox), nullptr, GL_DYNAMIC_STORAGE_BIT);
+    m_ub.bounds.bind = 2;
+
     createShader(&m_shaders.text,
                  VERSION_HEADER + BUFFERS + TEXTVERT,
                  VERSION_HEADER + TEXTFRAG);
@@ -90,6 +94,7 @@ void GLContext::bindBuffers()
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, m_ssb.objects.bind, m_ssb.objects.buf);
     glBindBufferBase(GL_UNIFORM_BUFFER, m_ub.screen_size.bind, m_ub.screen_size.buf);
     glBindBufferBase(GL_UNIFORM_BUFFER, m_ub.objIndex.bind, m_ub.objIndex.buf);
+    glBindBufferBase(GL_UNIFORM_BUFFER, m_ub.bounds.bind, m_ub.bounds.buf);
     glBindTextureUnit(m_ta.font.bind, m_ta.font.buf);
     glBindTextureUnit(m_ta.texture.bind, m_ta.texture.buf);
 }
@@ -200,7 +205,7 @@ void RenderData::descissor()
     commands.push_back({Command::DESCISSOR, 0, 0, nullptr});
 }
 
-void RenderData::drawTexture(const fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags)
+void RenderData::drawTexture(const fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags, const fbox& bounds)
 {
     if (!e) return;
     int layer = 0;
@@ -223,7 +228,7 @@ void RenderData::drawTexture(const fbox& rect, TexEntry* e, int state, int pixel
     };
 
     objects.push_back(q);
-    commands.push_back({Command::QUAD, 1, flags, e});
+    commands.push_back({Command::QUAD, 1, flags, e, bounds});
 }
 
 void RenderData::drawQuad(const Math::fbox& rect, const Math::fvec4& col)
@@ -244,6 +249,8 @@ void GLContext::renderFromRD(RenderData& data) {
     bindBuffers();
     glNamedBufferSubData(m_ssb.objects.buf, 0, sizeof(RenderData::Object) * data.objects.size(), objects.data());
 
+    Math::fbox scrBounds = fbox(0, 0, m_screen_size.x, m_screen_size.y);
+    glNamedBufferSubData(m_ub.bounds.buf, 0, sizeof(Math::fbox), &scrBounds);
     int count = 0;
     for (auto& c : data.commands)
     {
@@ -252,6 +259,12 @@ void GLContext::renderFromRD(RenderData& data) {
         {
             case RenderData::Command::QUAD:
             {
+                c.scissorBox.x -= m_screen_size.x / 2.f;
+                c.scissorBox.y = m_screen_size.y / 2.f - c.scissorBox.y - c.scissorBox.height;
+                c.scissorBox.pos /= vec2(m_screen_size.x/2.f, m_screen_size.y/2.f);
+                c.scissorBox.size = c.scissorBox.size / vec2(m_screen_size.x/2.f, m_screen_size.y/2.f);
+
+                glNamedBufferSubData(m_ub.bounds.buf, 0, sizeof(Math::fbox), &c.scissorBox);
                 glBindTextureUnit(m_ta.texture.bind, c.texentry->glID);
                 
                 if (c.flags & SLICE_9)
