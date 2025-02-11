@@ -556,7 +556,9 @@ void Container::Image(TexEntry* texture)
     fbox sized = fbox(bounds.pos, fvec2(tsize));
     fbox arranged = Arrange(this, sized);
 
-    rs->drawTexture(arranged, texture, STATE_NONE, _PX, 0, bounds);
+    //#TODO: need scissorbox to be assigned to each container, like bounds
+    // and then we replace bounds with scissor box in every drawtexture call but im too lazy rn
+    rs->drawTexture(arranged, texture, STATE_NONE, _PX, 0, scissorBox);
 }
 
 fbox Container::Arrange(Container* o, fbox child)

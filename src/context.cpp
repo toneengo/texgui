@@ -255,8 +255,6 @@ void RenderData::drawQuad(const Math::fbox& rect, const Math::fvec4& col, int32_
     commands.push_back({Command::COLQUAD, 1, 0, nullptr});
 }
 
-
-
 void GLContext::renderFromRD(RenderData& data) {
     bindBuffers();
 

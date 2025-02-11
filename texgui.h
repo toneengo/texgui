@@ -744,6 +744,7 @@ public:
     {
         Base = TexGui::Base;
         Base.rs = this;
+        Base.bounds = Math::fbox(0, 0, 8192, 8192);
     }
     Container Base;
 
@@ -755,7 +756,6 @@ public:
     void descissor();
 
     void clear() {
-        Base.bounds.size = TexGui::Base.bounds.size;
         objects.clear();
         commands.clear();
 
