@@ -352,6 +352,20 @@ uint32_t getBoxState(uint32_t& state, fbox box)
     return state;
 }
 
+fbox AlignBox(fbox bounds, fbox child, uint32_t f)
+{
+    if (f & ALIGN_LEFT) child.x = bounds.x;
+    if (f & ALIGN_RIGHT) child.x = bounds.x + bounds.width - child.width;
+
+    if (f & ALIGN_TOP) child.y = bounds.y;
+    if (f & ALIGN_BOTTOM) child.y = bounds.y + bounds.height - child.height;
+
+    if (f & ALIGN_CENTER_X) child.x = bounds.x + (bounds.width - child.width) / 2;
+    if (f & ALIGN_CENTER_Y) child.y = bounds.y + (bounds.height - child.height) / 2;
+    return child;
+}
+
+
 #define _PX Defaults::PixelSize
 extern std::unordered_map<std::string, TexEntry> m_tex_map;
 Container Container::Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags, TexEntry* texture)
@@ -365,49 +379,57 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
         }});
     }
 
-    WindowState& wstate = GTexGui->windows[name];
-
     static TexEntry* wintex = &m_tex_map[Defaults::Window::Texture];
     if (!texture) texture = wintex;
+    WindowState& wstate = GTexGui->windows[name];
 
-    getBoxState(wstate.state, wstate.box);
-    
-    if (io.lmb != KEY_Held)
+    if (flags & LOCKED)
     {
-        wstate.moving = false;
-        wstate.resizing = false;
+        wstate.box = AlignBox(Base.bounds, wstate.initial_box, flags);
     }
+    else
+    {
+        getBoxState(wstate.state, wstate.box);
+        
+        if (io.lmb != KEY_Held)
+        {
+            wstate.moving = false;
+            wstate.resizing = false;
+        }
 
-    if (fbox(wstate.box.x, wstate.box.y, wstate.box.width, texture->top * _PX).contains(io.cursorPos) && io.lmb == KEY_Press)
-    {
-        wstate.last_cursorPos = io.cursorPos;
-        wstate.moving = true;
-    }
+        if (fbox(wstate.box.x, wstate.box.y, wstate.box.width, texture->top * _PX).contains(io.cursorPos) && io.lmb == KEY_Press)
+        {
+            wstate.last_cursorPos = io.cursorPos;
+            wstate.moving = true;
+        }
 
-    if (fbox(wstate.box.x + wstate.box.width - texture->right * _PX,
-             wstate.box.y + wstate.box.height - texture->bottom * _PX,
-             texture->right * _PX, texture->bottom * _PX).contains(io.cursorPos) && io.lmb == KEY_Press)
-    {
-        wstate.last_cursorPos = io.cursorPos;
-        wstate.resizing = true;
-    }
+        if (fbox(wstate.box.x + wstate.box.width - texture->right * _PX,
+                 wstate.box.y + wstate.box.height - texture->bottom * _PX,
+                 texture->right * _PX, texture->bottom * _PX).contains(io.cursorPos) && io.lmb == KEY_Press)
+        {
+            wstate.last_cursorPos = io.cursorPos;
+            wstate.resizing = true;
+        }
 
-    if (wstate.moving)
-    {
-        wstate.box.pos += io.cursorPos - wstate.last_cursorPos;
-        wstate.last_cursorPos = io.cursorPos;
-    }
-    else if (wstate.resizing)
-    {
-        wstate.box.size += io.cursorPos - wstate.last_cursorPos;
-        wstate.last_cursorPos = io.cursorPos;
+        if (wstate.moving)
+        {
+            wstate.box.pos += io.cursorPos - wstate.last_cursorPos;
+            wstate.last_cursorPos = io.cursorPos;
+        }
+        else if (wstate.resizing)
+        {
+            wstate.box.size += io.cursorPos - wstate.last_cursorPos;
+            wstate.last_cursorPos = io.cursorPos;
+        }
     }
 
     fvec4 padding = Defaults::Window::Padding;
     padding.top = texture->top * _PX;
 
     rs->drawTexture(wstate.box, texture, wstate.state, _PX, SLICE_9);
-    rs->drawText(name, {wstate.box.x + padding.left, wstate.box.y + texture->top * _PX / 2},
+
+    if (!(flags & HIDE_TITLE)) 
+        rs->drawText(name, {wstate.box.x + padding.left, wstate.box.y + texture->top * _PX / 2},
                  Defaults::Font::Color, Defaults::Font::Size, CENTER_Y);
 
     fbox internal = fbox::pad(wstate.box, padding);
@@ -591,17 +613,7 @@ Container Container::Align(uint32_t flags, Math::fvec4 padding)
 {
     static auto arrange = [](Container* align, fbox child)
     {
-        auto f = align->align.flags;
-        if (f & ALIGN_LEFT) child.x = align->bounds.x;
-        if (f & ALIGN_RIGHT) child.x = align->bounds.x + align->bounds.width - child.width;
-
-        if (f & ALIGN_TOP) child.y = align->bounds.y;
-        if (f & ALIGN_BOTTOM) child.y = align->bounds.y + align->bounds.height - child.height;
-
-        if (f & ALIGN_CENTER_X) child.x = align->bounds.x + (align->bounds.width - child.width) / 2;
-        if (f & ALIGN_CENTER_Y) child.y = align->bounds.y + (align->bounds.height - child.height) / 2;
-
-        return child;
+        return AlignBox(align->bounds, child, align->align.flags);
     };
     // Add padding to the contents
     Container aligner = withBounds(fbox::pad(bounds, padding), arrange);
@@ -834,7 +846,7 @@ void Container::Text(Paragraph text, int32_t scale)
     writeText(text, scale, bounds, x, y, rs);
 }
 
-void Container::Row_Internal(Container* out, const float* widths, uint32_t n, float height, uint32_t flags)
+void Container::Row(Container* out, const float* widths, uint32_t n, float height, uint32_t flags)
 {
     if (height < 1) {
         height = height == 0 ? bounds.height : bounds.height * height;
@@ -853,6 +865,8 @@ void Container::Row_Internal(Container* out, const float* widths, uint32_t n, fl
     float spacing = Defaults::Row::Spacing;
     for (uint32_t i = 0; i < n; i++)
     {
+        if (i != 0) x += spacing;
+
         float width;
         if (widths[i] <= 1)
         {
@@ -869,13 +883,20 @@ void Container::Row_Internal(Container* out, const float* widths, uint32_t n, fl
         }
 
         out[i] = *this;
-        out[i].bounds = Math::fbox(bounds.x + x, bounds.y + y, width, height);
+        out[i].bounds = Math::fbox(x, y, width, height);
 
-        x += width + spacing;
+        x += width;
+    }
+
+    fbox arranged = Arrange(this, {bounds.x, bounds.y, x, y + height});
+
+    for (uint32_t i = 0; i < n; i++)
+    {
+        out[i].bounds.pos = out[i].bounds.pos + arranged.pos;
     }
 }
 
-void Container::Column_Internal(Container* out, const float* heights, uint32_t n, float width)
+void Container::Column(Container* out, const float* heights, uint32_t n, float width)
 {
     if (width < 1) {
         width = width == 0 ? bounds.width : bounds.width * width;

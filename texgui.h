@@ -41,6 +41,8 @@ enum TexGui_flags : uint32_t
     ALIGN_BOTTOM = 0x4000,
 
     UNDERLINE = 0x8000,
+    LOCKED = 0x10000, // Window is immovable
+    HIDE_TITLE = 0x40000,
 };
 
 enum TexGui_state : uint8_t 
@@ -559,25 +561,25 @@ public:
 
     Container Grid();
         
+    void Row(Container* out, const float* widths, uint32_t n, float height, uint32_t flags = 0);
     template <uint32_t N>
     std::array<Container, N> Row(const float (&widths)[N], float height = 0, uint32_t flags = 0)
     {
         std::array<Container, N> out;
-        Row_Internal(&out[0], widths, N, height, flags);
+        Row(&out[0], widths, N, height, flags);
         return out;
     }
 
+    void Column(Container* out, const float* widths, uint32_t n, float height);
     template <uint32_t N>
     std::array<Container, N> Column(const float (&heights)[N], float width = 0)
     {
         std::array<Container, N> out;
-        Column_Internal(&out[0], heights, N, width);
+        Column(&out[0], heights, N, width);
         return out;
     }
 
 private:
-    void Row_Internal(Container* out, const float* widths, uint32_t n, float height, uint32_t flags);
-    void Column_Internal(Container* out, const float* widths, uint32_t n, float height);
     std::unordered_map<std::string, uint32_t>* buttonStates;
 
     Container* parent;
