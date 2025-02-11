@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <unordered_map>
 #include <vector>
+#include <span>
 
 struct GLFWwindow;
 NAMESPACE_BEGIN(TexGui);
@@ -38,6 +39,10 @@ enum TexGui_flags : uint32_t
     ALIGN_RIGHT = 0x1000,
     ALIGN_TOP = 0x2000,
     ALIGN_BOTTOM = 0x4000,
+
+    UNDERLINE = 0x8000,
+    LOCKED = 0x10000, // Window is immovable
+    HIDE_TITLE = 0x40000,
 };
 
 enum TexGui_state : uint8_t 
@@ -449,6 +454,109 @@ struct RenderData;
 bool initGlfwOpenGL(GLFWwindow* window);
 
 struct TexEntry;
+struct TextSegment;
+struct Paragraph
+{
+    TextSegment* data;
+    uint32_t count;
+
+    Paragraph() = default;
+
+    Paragraph(std::vector<TextSegment>& s);
+
+    Paragraph(TextSegment* ptr, uint32_t n);
+};
+
+
+struct TextSegment
+{
+    union
+    {
+        struct {
+            const char* data;
+            float tw; // Width of the text (not including whitespace)
+            int16_t len;
+        } word;
+
+        TexEntry* icon;
+
+        struct {
+            Paragraph base;
+            Paragraph tooltip;
+        } tooltip;
+    };
+
+    float width; // Width of the segment pre-scaling
+        // Pt for text, pixels for icons. Includes whitespace for text
+
+    enum Type : uint8_t {
+        WORD,        // Denotes text followed by whitespace
+        ICON,        // An icon to render inline with the text
+        NEWLINE,     // Line break
+        TOOLTIP,     // Marks the beginning/end of a tooltip's boundary
+    } type;
+};
+
+// Text chunks are used to describe the layout of a text block. They get cached into Paragraphs.
+struct TextChunk
+{
+    enum Type : uint8_t {
+        TEXT,
+        ICON,        // An icon to render inline with the text
+       TOOLTIP,      // Marks the beginning/end of a tooltip's boundary
+        INDIRECT,    // include a dynamic part while still processing the rest at compile time
+    } type;
+
+    union
+    {
+        const char* text;
+        TexEntry* icon;
+
+        struct {
+            Paragraph base;
+            Paragraph tooltip;
+        } tooltip;
+
+        TextChunk* indirect;
+    };
+
+    TextChunk() = default;
+
+    constexpr TextChunk(const char* text) :
+        type(TEXT), text(text) {}
+
+    constexpr TextChunk(TexEntry* icon) :
+        type(ICON), icon(icon) {}
+
+    constexpr TextChunk(Paragraph baseText, Paragraph tooltip) :
+        type(TOOLTIP), tooltip({ baseText, tooltip }) {}
+
+    constexpr TextChunk(TextChunk* chunk) :
+        type(INDIRECT), indirect(chunk) {}
+};
+
+
+
+// initialiser lists can't be implicitly converted to spans until c++26 so just make our own span type.
+struct TextDecl
+{
+    const TextChunk* data;
+    uint32_t count;
+
+    TextDecl() = default;
+
+    TextDecl(TextChunk* d, uint32_t n) :
+        data(d),
+        count(n) {}
+
+    TextDecl(std::initializer_list<TextChunk> s) :
+        data(s.begin()),
+        count(s.size()) {}
+
+    const TextChunk* begin() const { return data; }
+    const TextChunk* end() const { return data + count; }
+};
+    
 
 class Container
 {
@@ -466,33 +574,37 @@ public:
     Container ScrollPanel(const char* name, TexEntry* texture = nullptr, TexEntry* bartex = nullptr);
     void      TextInput(const char* name, std::string& buf);
     void      Image(TexEntry* texture);
+    void      Text(Paragraph text, int32_t scale);
+
+    Container Align(uint32_t flags = 0, Math::fvec4 padding = Math::fvec4(0,0,0,0));
 
     void      Clip();
     void      Unclip();
     // Similar to radio buttons - the id of the selected one is stored in the *selected pointer.
+    // If you don't want them to be clickable - set selected to nullptr, and 0 or 1 for whether it is active in id
     Container ListItem(uint32_t* selected, uint32_t id);
 
     Container Grid();
         
+    void Row(Container* out, const float* widths, uint32_t n, float height, uint32_t flags = 0);
     template <uint32_t N>
     std::array<Container, N> Row(const float (&widths)[N], float height = 0, uint32_t flags = 0)
     {
         std::array<Container, N> out;
-        Row_Internal(&out[0], widths, N, height, flags);
+        Row(&out[0], widths, N, height, flags);
         return out;
     }
 
+    void Column(Container* out, const float* widths, uint32_t n, float height);
     template <uint32_t N>
     std::array<Container, N> Column(const float (&heights)[N], float width = 0)
     {
         std::array<Container, N> out;
-        Column_Internal(&out[0], heights, N, width);
+        Column(&out[0], heights, N, width);
         return out;
     }
 
 private:
-    void Row_Internal(Container* out, const float* widths, uint32_t n, float height, uint32_t flags);
-    void Column_Internal(Container* out, const float* widths, uint32_t n, float height);
     std::unordered_map<std::string, uint32_t>* buttonStates;
 
     Container* parent;
@@ -510,6 +622,11 @@ private:
             uint32_t* selected;
             uint32_t id;
         } listItem;
+
+        struct 
+        {
+            uint32_t flags;
+        } align;
     };
 
     void* scrollPanelState = nullptr;
@@ -551,6 +668,16 @@ inline int PixelSize  = 1;
 inline uint32_t Flags = SLICE_9;
 
 //#TODO: use font px instead of sacle, uising msdf
+namespace Tooltip {
+    inline Math::fvec4 HoverPadding(6, 12, 6, 12);
+    inline int TextScale = 20;
+    inline Math::fvec2 MouseOffset(16, 16);
+    inline std::string Texture = "tooltip";
+    inline Math::fvec4 Padding(18, 12, 18, 12);
+    inline float MaxWidth = 400;
+
+    inline Math::fvec2 UnderlineSize(0, 2);
+}
 
 namespace Settings {
     inline bool Async = false;
@@ -603,6 +730,12 @@ namespace Column {
 
 NAMESPACE_END(Defaults);
 
+std::vector<TextSegment> cacheText(TextDecl text);
+// Caches text into a buffer. Returns -1 on failure (if there's not enough buffer space), or the amount otherwise
+int32_t cacheText(TextDecl text, TextSegment* buffer, uint32_t capacity);
+
+float computeTextWidth(const char* text, size_t numchars);
+
 class RenderData
 {
     friend class GLContext;
@@ -614,9 +747,9 @@ public:
     }
     Container Base;
 
-    void drawQuad(const Math::fbox& rect, const Math::fvec4& col);
-    void drawTexture(const Math::fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags, const Math::fbox& bounds);
-    int drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, float width = 0);
+    void drawQuad(const Math::fbox& rect, const Math::fvec4& col, int32_t zLayer = 0);
+    void drawTexture(const Math::fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags, const Math::fbox& bounds, int32_t zLayer = 0);
+    int drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len = -1, int32_t zLayer = 0);
     //void scissor(int x, int y, int width, int height);
     void scissor(Math::fbox bounds);
     void descissor();
@@ -625,21 +758,32 @@ public:
         Base.bounds.size = TexGui::Base.bounds.size;
         objects.clear();
         commands.clear();
+
+        objects2.clear();
+        commands2.clear();
     }
 
     void swap(RenderData& other) {
         objects.swap(other.objects);
         commands.swap(other.commands);
+
+        objects2.swap(other.objects2);
+        commands2.swap(other.commands2);
     }
 
     void copy(const RenderData& other)
     {
-        int n = other.objects.size();
-        objects.resize(n);
-        memcpy(objects.data(), other.objects.data(), sizeof(Object) * n);
-        n = other.commands.size();
-        commands.resize(n);
-        memcpy(commands.data(), other.commands.data(), sizeof(Command) * n);
+        static auto copy = [](auto& a, auto& other, size_t sz)
+        {
+            size_t n = other.size();
+            a.resize(n);
+            memcpy(a.data(), other.data(), sz * n);
+        };
+
+        copy(objects, other.objects, sizeof(Object));
+        copy(objects2, other.objects2, sizeof(Object));
+        copy(commands, other.commands, sizeof(Command));
+        copy(commands2, other.commands2, sizeof(Command));
     }
 
 private:
@@ -719,6 +863,10 @@ private:
 
     std::vector<Object> objects;
     std::vector<Command> commands;
+
+    // This is a lazy approach until we have some proper draw ordering/z filtering etc
+    std::vector<Object> objects2;
+    std::vector<Command> commands2;
 };
 
 NAMESPACE_END(TexGui);

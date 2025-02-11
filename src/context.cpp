@@ -109,13 +109,24 @@ void GLContext::setScreenSize(int width, int height)
 
 #include "msdf-atlas-gen/msdf-atlas-gen.h"
 extern std::vector<msdf_atlas::GlyphGeometry> glyphs;
-int RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, float width)
+
+float TexGui::computeTextWidth(const char* text, size_t numchars)
 {
-    size_t numchars = strlen(text);
+    float total = 0;
+    for (size_t i = 0; i < numchars; i++)
+    {
+        total += glyphs[m_char_map[text[i]]].getAdvance();
+    }
+    return total;
+}
+
+int RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len, int32_t zLayer)
+{
+    auto& objects = zLayer > 0 ? this->objects2 : this->objects;
+    auto& commands = zLayer > 0 ? this->commands2 : this->commands;
+
+    size_t numchars = len == -1 ? strlen(text) : len;
     size_t numcopy = numchars;
-
-    float currx = 0;
-
 
     const auto& a = glyphs[m_char_map['a']];
     if (flags & CENTER_Y)
@@ -127,14 +138,10 @@ int RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& c
 
     if (flags & CENTER_X)
     {
-        for (int idx = 0; idx < numchars; idx++)
-        {
-            currx += glyphs[m_char_map[text[idx]]].getAdvance() * size;
-        }
-        pos.x -= currx / 2.0;
+        pos.x -= computeTextWidth(text, numchars) * size / 2.0;
     }
 
-    currx = pos.x;
+    float currx = pos.x;
 
     //const CharInfo& hyphen = m_char_map['-'];
     for (int idx = 0; idx < numchars; idx++)
@@ -205,8 +212,11 @@ void RenderData::descissor()
     commands.push_back({Command::DESCISSOR, 0, 0, nullptr});
 }
 
-void RenderData::drawTexture(const fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags, const fbox& bounds)
+void RenderData::drawTexture(const fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags, const fbox& bounds, int32_t zLayer )
 {
+    auto& objects = zLayer > 0 ? this->objects2 : this->objects;
+    auto& commands = zLayer > 0 ? this->commands2 : this->commands;
+
     if (!e) return;
     int layer = 0;
     //#TODO: don't hard code numebrs
@@ -231,8 +241,11 @@ void RenderData::drawTexture(const fbox& rect, TexEntry* e, int state, int pixel
     commands.push_back({Command::QUAD, 1, flags, e, bounds});
 }
 
-void RenderData::drawQuad(const Math::fbox& rect, const Math::fvec4& col)
+void RenderData::drawQuad(const Math::fbox& rect, const Math::fvec4& col, int32_t zLayer)
 {
+    auto& objects = zLayer > 0 ? this->objects2 : this->objects;
+    auto& commands = zLayer > 0 ? this->commands2 : this->commands;
+
     ColQuad q = {
         .rect = fbox(rect.pos, rect.size),
         .col = col,
@@ -242,89 +255,97 @@ void RenderData::drawQuad(const Math::fbox& rect, const Math::fvec4& col)
     commands.push_back({Command::COLQUAD, 1, 0, nullptr});
 }
 
+
+
 void GLContext::renderFromRD(RenderData& data) {
-    auto& objects = data.objects;
-    auto& commands = data.commands;
-
     bindBuffers();
-    glNamedBufferSubData(m_ssb.objects.buf, 0, sizeof(RenderData::Object) * data.objects.size(), objects.data());
 
-    Math::fbox scrBounds = fbox(0, 0, m_screen_size.x, m_screen_size.y);
-    glNamedBufferSubData(m_ub.bounds.buf, 0, sizeof(Math::fbox), &scrBounds);
-    int count = 0;
-    for (auto& c : data.commands)
-    {
-        glNamedBufferSubData(m_ub.objIndex.buf, 0, sizeof(int), &count);
-        switch (c.type)
+    static auto renderBatch = [](GLContext& ctx, auto& objects, auto& commands) {
+        Math::fbox scrBounds = fbox(0, 0, ctx.m_screen_size.x, ctx.m_screen_size.y);
+        glNamedBufferSubData(ctx.m_ub.bounds.buf, 0, sizeof(Math::fbox), &scrBounds);
+        glNamedBufferSubData(ctx.m_ssb.objects.buf, 0, sizeof(RenderData::Object) * objects.size(), objects.data());
+
+        int count = 0;
+        for (auto& c : commands)
         {
-            case RenderData::Command::QUAD:
+            glNamedBufferSubData(ctx.m_ub.objIndex.buf, 0, sizeof(int), &count);
+            switch (c.type)
             {
-                c.scissorBox.x -= m_screen_size.x / 2.f;
-                c.scissorBox.y = m_screen_size.y / 2.f - c.scissorBox.y - c.scissorBox.height;
-                c.scissorBox.pos /= vec2(m_screen_size.x/2.f, m_screen_size.y/2.f);
-                c.scissorBox.size = c.scissorBox.size / vec2(m_screen_size.x/2.f, m_screen_size.y/2.f);
-
-                glNamedBufferSubData(m_ub.bounds.buf, 0, sizeof(Math::fbox), &c.scissorBox);
-                glBindTextureUnit(m_ta.texture.bind, c.texentry->glID);
                 
-                if (c.flags & SLICE_9)
+                case RenderData::Command::QUAD:
                 {
-                    m_shaders.quad9slice.use();
-                    glUniform4f(m_shaders.quad9slice.slices,
-                                c.texentry->top, c.texentry->right, c.texentry->bottom, c.texentry->left);
-                    glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number * 9);
+                    c.scissorBox.x -= ctx.m_screen_size.x / 2.f;
+                    c.scissorBox.y = ctx.m_screen_size.y / 2.f - c.scissorBox.y - c.scissorBox.height;
+                    c.scissorBox.pos /= vec2(ctx.m_screen_size.x/2.f, ctx.m_screen_size.y/2.f);
+                    c.scissorBox.size = c.scissorBox.size / vec2(ctx.m_screen_size.x/2.f, ctx.m_screen_size.y/2.f);
+
+                    glNamedBufferSubData(ctx.m_ub.bounds.buf, 0, sizeof(Math::fbox), &c.scissorBox);
+
+                    glBindTextureUnit(ctx.m_ta.texture.bind, c.texentry->glID);
+                    
+                    if (c.flags & SLICE_9)
+                    {
+                        ctx.m_shaders.quad9slice.use();
+                        glUniform4f(ctx.m_shaders.quad9slice.slices,
+                                    c.texentry->top, c.texentry->right, c.texentry->bottom, c.texentry->left);
+                        glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number * 9);
+                    }
+                    else {
+                        ctx.m_shaders.quad.use();
+                        glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number);
+                    }
+                    break;
                 }
-                else {
-                    m_shaders.quad.use();
+                case RenderData::Command::COLQUAD:
+                {
+                    ctx.m_shaders.colquad.use();
                     glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number);
+                    break;
                 }
-                break;
-            }
-            case RenderData::Command::COLQUAD:
-            {
-                m_shaders.colquad.use();
-                glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number);
-                break;
-            }
-            case RenderData::Command::CHARACTER:
-            {
-                m_shaders.text.use();
-                glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number);
-                break;
-            }
-            case RenderData::Command::SCISSOR:
-            {
-                c.scissorBox.y = m_screen_size.y - c.scissorBox.y - c.scissorBox.height;
-
-                glEnable(GL_SCISSOR_TEST);
-                Math::ibox _b;
-                if (scissorStack.empty())
-                    _b = {0, 0, m_screen_size.x, m_screen_size.y};
-                else
-                    glGetIntegerv(GL_SCISSOR_BOX, (GLint*)&_b);
-
-                scissorStack.push(_b);
-                glScissor(c.scissorBox.x,
-                          c.scissorBox.y,
-                          c.scissorBox.width,
-                          c.scissorBox.height);
-                break;
-            }
-            case RenderData::Command::DESCISSOR:
-            {
-                //it shouldn't be empty, we always scissor before descissoring
-                if (!scissorStack.empty())
+                case RenderData::Command::CHARACTER:
                 {
-                    auto& _b = scissorStack.top();
-                    glScissor(_b.x, _b.y, _b.width, _b.height);
-                    scissorStack.pop();
+                    ctx.m_shaders.text.use();
+                    glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number);
+                    break;
                 }
+                case RenderData::Command::SCISSOR:
+                {
+                    c.scissorBox.y = ctx.m_screen_size.y - c.scissorBox.y - c.scissorBox.height;
+
+                    glEnable(GL_SCISSOR_TEST);
+                    Math::ibox _b;
+                    if (scissorStack.empty())
+                        _b = {0, 0, ctx.m_screen_size.x, ctx.m_screen_size.y};
+                    else
+                        glGetIntegerv(GL_SCISSOR_BOX, (GLint*)&_b);
+
+                    scissorStack.push(_b);
+                    glScissor(c.scissorBox.x,
+                              c.scissorBox.y,
+                              c.scissorBox.width,
+                              c.scissorBox.height);
+                    break;
+                }
+                case RenderData::Command::DESCISSOR:
+                {
+                    //it shouldn't be empty, we always scissor before descissoring
+                    if (!scissorStack.empty())
+                    {
+                        auto& _b = scissorStack.top();
+                        glScissor(_b.x, _b.y, _b.width, _b.height);
+                        scissorStack.pop();
+                    }
+                }
+                default:
+                    break;
             }
-            default:
-                break;
+            count += c.number;
         }
-        count += c.number;
-    }
+    };
+
+    // Later we can do better Z ordering or something. Idk what the best approach will be without having to sort everything :thinking:
+    renderBatch(*this, data.objects, data.commands);
+    renderBatch(*this, data.objects2, data.commands2);
 }
 
 using namespace msdf_atlas;
@@ -348,6 +369,7 @@ void GLContext::loadFont(const char* fontFilename)
             // In the last argument, you can specify a charset other than ASCII.
             // To load specific glyph indices, use loadGlyphs instead.
             fontGeometry.loadCharset(font, 1.0, Charset::ASCII);
+
             // Apply MSDF edge coloring. See edge-coloring.h for other coloring strategies.
             const double maxCornerAngle = 3.0;
             for (GlyphGeometry &glyph : glyphs)

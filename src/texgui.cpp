@@ -352,6 +352,20 @@ uint32_t getBoxState(uint32_t& state, fbox box)
     return state;
 }
 
+fbox AlignBox(fbox bounds, fbox child, uint32_t f)
+{
+    if (f & ALIGN_LEFT) child.x = bounds.x;
+    if (f & ALIGN_RIGHT) child.x = bounds.x + bounds.width - child.width;
+
+    if (f & ALIGN_TOP) child.y = bounds.y;
+    if (f & ALIGN_BOTTOM) child.y = bounds.y + bounds.height - child.height;
+
+    if (f & ALIGN_CENTER_X) child.x = bounds.x + (bounds.width - child.width) / 2;
+    if (f & ALIGN_CENTER_Y) child.y = bounds.y + (bounds.height - child.height) / 2;
+    return child;
+}
+
+
 #define _PX Defaults::PixelSize
 extern std::unordered_map<std::string, TexEntry> m_tex_map;
 Container Container::Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags, TexEntry* texture)
@@ -365,49 +379,57 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
         }});
     }
 
-    WindowState& wstate = GTexGui->windows[name];
-
     static TexEntry* wintex = &m_tex_map[Defaults::Window::Texture];
     if (!texture) texture = wintex;
+    WindowState& wstate = GTexGui->windows[name];
 
-    getBoxState(wstate.state, wstate.box);
-    
-    if (io.lmb != KEY_Held)
+    if (flags & LOCKED)
     {
-        wstate.moving = false;
-        wstate.resizing = false;
+        wstate.box = AlignBox(Base.bounds, wstate.initial_box, flags);
     }
+    else
+    {
+        getBoxState(wstate.state, wstate.box);
+        
+        if (io.lmb != KEY_Held)
+        {
+            wstate.moving = false;
+            wstate.resizing = false;
+        }
 
-    if (fbox(wstate.box.x, wstate.box.y, wstate.box.width, texture->top * _PX).contains(io.cursorPos) && io.lmb == KEY_Press)
-    {
-        wstate.last_cursorPos = io.cursorPos;
-        wstate.moving = true;
-    }
+        if (fbox(wstate.box.x, wstate.box.y, wstate.box.width, texture->top * _PX).contains(io.cursorPos) && io.lmb == KEY_Press)
+        {
+            wstate.last_cursorPos = io.cursorPos;
+            wstate.moving = true;
+        }
 
-    if (fbox(wstate.box.x + wstate.box.width - texture->right * _PX,
-             wstate.box.y + wstate.box.height - texture->bottom * _PX,
-             texture->right * _PX, texture->bottom * _PX).contains(io.cursorPos) && io.lmb == KEY_Press)
-    {
-        wstate.last_cursorPos = io.cursorPos;
-        wstate.resizing = true;
-    }
+        if (fbox(wstate.box.x + wstate.box.width - texture->right * _PX,
+                 wstate.box.y + wstate.box.height - texture->bottom * _PX,
+                 texture->right * _PX, texture->bottom * _PX).contains(io.cursorPos) && io.lmb == KEY_Press)
+        {
+            wstate.last_cursorPos = io.cursorPos;
+            wstate.resizing = true;
+        }
 
-    if (wstate.moving)
-    {
-        wstate.box.pos += io.cursorPos - wstate.last_cursorPos;
-        wstate.last_cursorPos = io.cursorPos;
-    }
-    else if (wstate.resizing)
-    {
-        wstate.box.size += io.cursorPos - wstate.last_cursorPos;
-        wstate.last_cursorPos = io.cursorPos;
+        if (wstate.moving)
+        {
+            wstate.box.pos += io.cursorPos - wstate.last_cursorPos;
+            wstate.last_cursorPos = io.cursorPos;
+        }
+        else if (wstate.resizing)
+        {
+            wstate.box.size += io.cursorPos - wstate.last_cursorPos;
+            wstate.last_cursorPos = io.cursorPos;
+        }
     }
 
     fvec4 padding = Defaults::Window::Padding;
     padding.top = texture->top * _PX;
 
     rs->drawTexture(wstate.box, texture, wstate.state, _PX, SLICE_9, bounds);
-    rs->drawText(name, {wstate.box.x + padding.left, wstate.box.y + texture->top * _PX / 2},
+
+    if (!(flags & HIDE_TITLE)) 
+        rs->drawText(name, {wstate.box.x + padding.left, wstate.box.y + texture->top * _PX / 2},
                  Defaults::Font::Color, Defaults::Font::Size, CENTER_Y);
 
     fbox internal = fbox::pad(wstate.box, padding);
@@ -561,15 +583,24 @@ Container Container::ListItem(uint32_t* selected, uint32_t id)
         {
             return fbox(0,0,0,0);
         }
-        auto& io = inputFrame;
-        bool hovered = listItem->parent->scissorBox.contains(io.cursorPos) 
-                    && bounds.contains(io.cursorPos);
-        auto state = hovered ? STATE_HOVER : STATE_NONE;
-        if (io.lmb == KEY_Release && hovered)
-            *(listItem->listItem.selected) = listItem->listItem.id;
+        auto state = STATE_NONE;
+        if (listItem->listItem.selected != nullptr)
+        {
+            auto& io = inputFrame;
 
-        if (*(listItem->listItem.selected) == listItem->listItem.id)
-            state = STATE_ACTIVE;
+            bool hovered = listItem->parent->scissorBox.contains(io.cursorPos) 
+                        && bounds.contains(io.cursorPos);
+            state = hovered ? STATE_HOVER : STATE_NONE;
+            if (io.lmb == KEY_Release && hovered)
+                *(listItem->listItem.selected) = listItem->listItem.id;
+
+            if (*(listItem->listItem.selected) == listItem->listItem.id)
+                state = STATE_ACTIVE;
+        }
+        else
+        {
+            state = listItem->listItem.id ? STATE_ACTIVE : STATE_NONE;
+        }
 
         listItem->rs->drawTexture(bounds, tex, state, _PX, SLICE_9, listItem->parent->scissorBox);
 
@@ -580,6 +611,18 @@ Container Container::ListItem(uint32_t* selected, uint32_t id)
     Container listItem = withBounds(fbox::pad(bounds, Defaults::ListItem::Padding), arrange);
     listItem.listItem = { selected, id };
     return listItem;
+}
+
+Container Container::Align(uint32_t flags, Math::fvec4 padding)
+{
+    static auto arrange = [](Container* align, fbox child)
+    {
+        return AlignBox(align->bounds, child, align->align.flags);
+    };
+    // Add padding to the contents
+    Container aligner = withBounds(fbox::pad(bounds, padding), arrange);
+    aligner.align.flags = flags;
+    return aligner;
 }
 
 // Arranges the cells of a grid by adding a new child box to it.
@@ -648,7 +691,166 @@ void Container::TextInput(const char* name, std::string& buf)
     );
 }
 
-void Container::Row_Internal(Container* out, const float* widths, uint32_t n, float height, uint32_t flags)
+static void renderTooltip(Paragraph text, RenderData* rs);
+
+// Bump the line of text
+static void bumpline(float& x, float& y, float w, Math::fbox& bounds, int32_t scale)
+{
+    if (x + w > bounds.x + bounds.width)
+    {
+        y += scale * 1.1f;
+        x = bounds.x;
+    }
+}
+
+static fvec2 calculateTextBounds(Paragraph text, int32_t scale, float maxWidth)
+{
+    float x = 0, y = 0;
+
+    fbox bounds = {x, y, maxWidth, 2000};
+
+    for (int32_t i = 0; i < text.count; i++) 
+    {
+        auto& s = text.data[i];
+        switch (s.type)
+        {
+        case TextSegment::WORD:
+            {
+                float segwidth = s.width * scale;
+                bumpline(x, y, segwidth, bounds, scale);
+                x += segwidth;
+            }
+            break;
+
+        case TextSegment::ICON: 
+            {
+                fvec2 tsize = fvec2(s.icon->bounds.width, s.icon->bounds.height) * _PX;
+                bumpline(x, y, tsize.x, bounds, scale);
+                x += tsize.x;
+            }
+            break;
+
+        case TextSegment::NEWLINE:
+            y += scale;
+            x = bounds.x;
+            break;
+
+        case TextSegment::TOOLTIP:
+            {
+                // #TODO
+            }
+            break;
+        }
+    }
+
+    return y > 0
+        ? fvec2(maxWidth, y)
+        : fvec2(x, scale);
+}
+
+#define TTUL Defaults::Tooltip::UnderlineSize
+
+static bool writeText(Paragraph text, int32_t scale, Math::fbox bounds, float& x, float& y, RenderData* rs, bool checkHover = false, int32_t zLayer = 0, uint32_t flags = 0)
+{
+    auto& io = inputFrame;
+
+    static const auto underline = [](auto* rs, float x, float y, float w, int32_t scale, uint32_t flags, int32_t zLayer)
+    {
+        if (flags & UNDERLINE)
+        {
+            fbox ul = fbox(fvec2(x - TTUL.x, y + scale / 2.0 - 2), fvec2(w + TTUL.x * 2, TTUL.y));
+            rs->drawQuad(ul, fvec4(1,1,1,0.3), zLayer);
+        }
+    };
+
+    bool hovered = false;
+    for (int32_t i = 0; i < text.count; i++) 
+    {
+        auto& s = text.data[i];
+        switch (s.type)
+        {
+        case TextSegment::WORD:
+            {
+                float segwidth = s.width * scale;
+                bumpline(x, y, segwidth, bounds, scale);
+
+                fbox bounds = fbox(x, y - scale / 2.0, segwidth, scale);
+
+                underline(rs, x, y, segwidth, scale, flags, zLayer);
+
+                rs->drawText(s.word.data, {x, y}, {1,1,1,1}, scale, CENTER_Y, s.word.len, zLayer);
+
+                // if (checkHover) rs->drawQuad(bounds, fvec4(1, 0, 0, 1));
+                hovered |= checkHover && !hovered && bounds.contains(io.cursorPos);
+                x += segwidth;
+            }
+            break;
+
+        case TextSegment::ICON: 
+            {
+                fvec2 tsize = fvec2(s.icon->bounds.width, s.icon->bounds.height) * _PX;
+                bumpline(x, y, tsize.x, bounds, scale);
+
+                fbox bounds = { x, y - tsize.y / 2, tsize.x, tsize.y };
+
+                underline(rs, x, y, tsize.x, scale, flags, zLayer);
+
+                rs->drawTexture(bounds, s.icon, 0, _PX, 0, zLayer);
+
+                // if (checkHover) rs->drawQuad(bounds, fvec4(1, 0, 0, 1));
+                hovered |= checkHover && !hovered && fbox::margin(bounds, Defaults::Tooltip::HoverPadding).contains(io.cursorPos);
+                x += tsize.x;
+            }
+            break;
+
+        case TextSegment::NEWLINE:
+            y += scale;
+            x = bounds.x;
+            break;
+
+        case TextSegment::TOOLTIP:
+            {
+                // Render the base text of the tooltip. Do a coarse bounds check
+                // so we don't check if each word is hovered if we don't need to
+                bool check = bounds.contains(io.cursorPos);
+                bool hoverTT = writeText(s.tooltip.base, scale, bounds, x, y, rs, check, zLayer, UNDERLINE);
+                if (hoverTT) renderTooltip(s.tooltip.tooltip, rs);
+            }
+            break;
+        }
+    }
+    return hovered;
+}
+
+static void renderTooltip(Paragraph text, RenderData* rs)
+{
+    auto& io = inputFrame;
+
+    static TexEntry* tex = &m_tex_map[Defaults::Tooltip::Texture];
+    int scale = Defaults::Tooltip::TextScale;
+
+    fbox textBounds = {
+        io.cursorPos + Defaults::Tooltip::MouseOffset, 
+        calculateTextBounds(text, scale, Defaults::Tooltip::MaxWidth)
+    };
+
+    fbox bounds = fbox::margin(textBounds, Defaults::Tooltip::Padding);
+
+    rs->drawTexture(bounds, tex, 0, _PX, SLICE_9, 1);
+
+    float x = textBounds.x, y = textBounds.y;
+    writeText(text, Defaults::Tooltip::TextScale, textBounds, x, y, rs, false, 1);
+}
+
+void Container::Text(Paragraph text, int32_t scale)
+{
+    float x = bounds.x;
+    float y = bounds.y + scale;
+
+    writeText(text, scale, bounds, x, y, rs);
+}
+
+void Container::Row(Container* out, const float* widths, uint32_t n, float height, uint32_t flags)
 {
     if (height < 1) {
         height = height == 0 ? bounds.height : bounds.height * height;
@@ -667,6 +869,8 @@ void Container::Row_Internal(Container* out, const float* widths, uint32_t n, fl
     float spacing = Defaults::Row::Spacing;
     for (uint32_t i = 0; i < n; i++)
     {
+        if (i != 0) x += spacing;
+
         float width;
         if (widths[i] <= 1)
         {
@@ -683,13 +887,20 @@ void Container::Row_Internal(Container* out, const float* widths, uint32_t n, fl
         }
 
         out[i] = *this;
-        out[i].bounds = Math::fbox(bounds.x + x, bounds.y + y, width, height);
+        out[i].bounds = Math::fbox(x, y, width, height);
 
-        x += width + spacing;
+        x += width;
+    }
+
+    fbox arranged = Arrange(this, {bounds.x, bounds.y, x, y + height});
+
+    for (uint32_t i = 0; i < n; i++)
+    {
+        out[i].bounds.pos = out[i].bounds.pos + arranged.pos;
     }
 }
 
-void Container::Column_Internal(Container* out, const float* heights, uint32_t n, float width)
+void Container::Column(Container* out, const float* heights, uint32_t n, float width)
 {
     if (width < 1) {
         width = width == 0 ? bounds.width : bounds.width * width;
@@ -723,3 +934,159 @@ void Container::Column_Internal(Container* out, const float* heights, uint32_t n
         y += height + spacing;
     }
 }
+
+
+
+
+// Text processing
+
+static int32_t parseText(const char* text, TextSegment* out)
+{
+    switch (text[0])
+    {
+    case '\n': 
+        *out = { .type = TextSegment::NEWLINE };
+        return 1;
+    case '\0':
+        return -1;
+    }
+
+    int32_t i = 0;
+    int16_t len = 0;
+    int16_t ws = 0;
+    // Loop through a single word
+    for (;; i++)
+    {
+        // terminal characters. This will be handled the next time we parse text.
+        if (text[i] == '\n' || text[i] == '\0') break;
+
+        else if (text[i] == ' ')
+        {
+            // Trailing whitespace continues
+            ws++;
+            continue;
+        }
+
+        // End of trailing whitespace. word complete
+        if (ws) break;
+        
+        len++;
+    }
+
+    *out = {
+        .word = { text, computeTextWidth(text, len), len },
+        .width = computeTextWidth(text, i),
+        .type = TextSegment::WORD,
+    };
+    return i;
+}
+
+void cacheChunk(const TextChunk& chunk, std::vector<TextSegment>& out)
+{
+    if (chunk.type == TextChunk::TEXT) 
+    {
+        const char* t = chunk.text;
+        while (true)
+        {
+            // Break the chunk into words and whitespace
+            TextSegment s;
+            int32_t len = parseText(t, &s);
+            if (len == -1) break;
+
+            out.push_back(s);
+            t += len;
+        }
+    }
+    else if (chunk.type == TextChunk::ICON) 
+    {
+        out.push_back({
+            .icon = chunk.icon,
+            .width = float(chunk.icon->bounds.width),
+            .type = TextSegment::ICON,
+        });
+    }
+    else if (chunk.type == TextChunk::TOOLTIP)
+    {
+        out.push_back({
+            .tooltip = { chunk.tooltip.base, chunk.tooltip.tooltip },
+            .width = 0,
+            .type = TextSegment::TOOLTIP,
+        });
+    }
+    else if (chunk.type == TextChunk::INDIRECT)
+    {
+        cacheChunk(*chunk.indirect, out);
+    }
+}
+std::vector<TextSegment> TexGui::cacheText(TextDecl text)
+{
+    std::vector<TextSegment> out;
+    for (auto& chunk : text)
+    {
+        cacheChunk(chunk, out);
+    }
+
+    return out;
+}
+
+bool cacheChunk(uint32_t& i, const TextChunk& chunk, TextSegment* buffer, uint32_t capacity)
+{
+    if (chunk.type == TextChunk::TEXT) 
+    {
+        const char* t = chunk.text;
+        while (true)
+        {
+            // Break the chunk into words and whitespace
+            TextSegment s;
+            int32_t len = parseText(t, &s);
+            if (len == -1) break;
+
+            if (i >= capacity) return false;
+            buffer[i] = s;
+            i++;
+            t += len;
+        }
+    }
+    else if (chunk.type == TextChunk::ICON) 
+    {
+        if (i >= capacity) return false;
+        buffer[i] = {
+            .icon = chunk.icon,
+            .width = float(chunk.icon->bounds.width),
+            .type = TextSegment::ICON,
+        };
+        i++;
+    }
+    else if (chunk.type == TextChunk::TOOLTIP)
+    {
+        if (i >= capacity) return false;
+        buffer[i] = {
+            .tooltip = { chunk.tooltip.base, chunk.tooltip.tooltip },
+            .width = 0,
+            .type = TextSegment::TOOLTIP,
+        };
+        i++;
+    }
+    else if (chunk.type == TextChunk::INDIRECT)
+    {
+        cacheChunk(i, *chunk.indirect, buffer, capacity);
+    }
+    return true;
+}
+
+int32_t TexGui::cacheText(TextDecl text, TextSegment* buffer, uint32_t capacity)
+{
+    uint32_t i = 0;
+    for (auto& chunk : text)
+    {
+        if (!cacheChunk(i, chunk, buffer, capacity)) return -1; 
+    }
+    return i;
+}
+
+
+TexGui::Paragraph::Paragraph(std::vector<TextSegment>& s) :
+    data(s.data()), count(s.size()) {}
+
+TexGui::Paragraph::Paragraph(TextSegment* ptr, uint32_t n) :
+    data(ptr), count(n) {}
