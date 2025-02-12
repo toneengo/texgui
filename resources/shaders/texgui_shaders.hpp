@@ -298,14 +298,9 @@ bool contains(vec4 box, vec2 p)
 }
 
 void main() {
-
-    if (!contains(bounds, pos))
-        discard;
-
     frag = texture(texarray, vec3(uv, layer));
-
-    if (frag.a < 0.1)
-        discard;
+    if (!contains(bounds, pos))
+        frag.a = 0;
 }
 )#";
 
@@ -315,8 +310,6 @@ out vec4 frag;
 
 void main() {
     frag = col;
-    if (frag.a < 0.1)
-        discard;
 }
 )#";
 

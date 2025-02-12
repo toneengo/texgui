@@ -567,6 +567,7 @@ public:
         
     RenderData* rs;
     Math::fbox bounds;
+    Math::fbox scissorBox = {-1, -1, -1, -1};
 
     Container Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags = 0,  TexEntry* texture = nullptr);
     bool      Button(const char* text, TexEntry* texture = nullptr);
@@ -631,7 +632,6 @@ private:
 
     void* scrollPanelState = nullptr;
 
-    Math::fbox scissorBox = {-1, -1, -1, -1};
 
     inline Container withBounds(Math::fbox bounds, ArrangeFunc arrange = nullptr)
     {
@@ -745,6 +745,7 @@ public:
         Base = TexGui::Base;
         Base.rs = this;
         Base.bounds = Math::fbox(0, 0, 8192, 8192);
+        Base.scissorBox = Math::fbox(0, 0, 8192, 8192);
     }
     Container Base;
 

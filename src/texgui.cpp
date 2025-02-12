@@ -426,7 +426,7 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
     fvec4 padding = Defaults::Window::Padding;
     padding.top = texture->top * _PX;
 
-    rs->drawTexture(wstate.box, texture, wstate.state, _PX, SLICE_9, bounds);
+    rs->drawTexture(wstate.box, texture, wstate.state, _PX, SLICE_9, scissorBox);
 
     if (!(flags & HIDE_TITLE)) 
         rs->drawText(name, {wstate.box.x + padding.left, wstate.box.y + texture->top * _PX / 2},
@@ -452,7 +452,7 @@ bool Container::Button(const char* text, TexEntry* texture)
     static TexEntry* defaultTex = &m_tex_map[Defaults::Button::Texture];
     auto* tex = texture ? texture : defaultTex;
 
-    rs->drawTexture(bounds, tex, state, _PX, SLICE_9, bounds);
+    rs->drawTexture(bounds, tex, state, _PX, SLICE_9, scissorBox);
 
     rs->drawText(text, 
         state & STATE_PRESS ? bounds.pos + bounds.size / 2 + Defaults::Button::POffset
@@ -473,7 +473,7 @@ Container Container::Box(float xpos, float ypos, float width, float height, TexE
     fbox boxBounds(bounds.x + xpos, bounds.y + ypos, width, height);
     if (texture != nullptr)
     {
-        rs->drawTexture(boxBounds, texture, 0, 2, SLICE_9, bounds);
+        rs->drawTexture(boxBounds, texture, 0, 2, SLICE_9, scissorBox);
     }
 
     fbox internal = fbox::pad(boxBounds, Defaults::Box::Padding);
@@ -558,8 +558,6 @@ void Container::Image(TexEntry* texture)
     fbox sized = fbox(bounds.pos, fvec2(tsize));
     fbox arranged = Arrange(this, sized);
 
-    //#TODO: need scissorbox to be assigned to each container, like bounds
-    // and then we replace bounds with scissor box in every drawtexture call but im too lazy rn
     rs->drawTexture(arranged, texture, STATE_NONE, _PX, 0, scissorBox);
 }
 
@@ -583,16 +581,17 @@ Container Container::ListItem(uint32_t* selected, uint32_t id)
         
         static TexEntry* tex = &m_tex_map[Defaults::ListItem::Texture];
 
-        if (!listItem->parent->scissorBox.contains(bounds))
+        if (!listItem->scissorBox.contains(bounds))
         {
             return fbox(0,0,0,0);
         }
+
         auto state = STATE_NONE;
         if (listItem->listItem.selected != nullptr)
         {
             auto& io = inputFrame;
 
-            bool hovered = listItem->parent->scissorBox.contains(io.cursorPos) 
+            bool hovered = listItem->scissorBox.contains(io.cursorPos) 
                         && bounds.contains(io.cursorPos);
             state = hovered ? STATE_HOVER : STATE_NONE;
             if (io.lmb == KEY_Release && hovered)
@@ -606,7 +605,7 @@ Container Container::ListItem(uint32_t* selected, uint32_t id)
             state = listItem->listItem.id ? STATE_ACTIVE : STATE_NONE;
         }
 
-        listItem->rs->drawTexture(bounds, tex, state, _PX, SLICE_9, listItem->parent->scissorBox);
+        listItem->rs->drawTexture(bounds, tex, state, _PX, SLICE_9, listItem->scissorBox);
 
         // The child is positioned by the list item's parent
         return fbox::pad(bounds, Defaults::ListItem::Padding);
@@ -681,7 +680,7 @@ void Container::TextInput(const char* name, std::string& buf)
         buf.push_back(io.character);
     }
 
-    rs->drawTexture(bounds, inputtex, tstate.state, _PX, SLICE_9, bounds);
+    rs->drawTexture(bounds, inputtex, tstate.state, _PX, SLICE_9, scissorBox);
     float offsetx = 0;
     fvec4 padding = Defaults::TextInput::Padding;
     fvec4 color = Defaults::Font::Color;
@@ -799,7 +798,8 @@ static bool writeText(Paragraph text, int32_t scale, Math::fbox bounds, float& x
 
                 underline(rs, x, y, tsize.x, scale, flags, zLayer);
 
-                rs->drawTexture(bounds, s.icon, 0, _PX, 0, zLayer);
+                //#TODO: pass in container here
+                rs->drawTexture(bounds, s.icon, 0, _PX, 0, {0,0,8192,8192}, zLayer);
 
                 // if (checkHover) rs->drawQuad(bounds, fvec4(1, 0, 0, 1));
                 hovered |= checkHover && !hovered && fbox::margin(bounds, Defaults::Tooltip::HoverPadding).contains(io.cursorPos);
