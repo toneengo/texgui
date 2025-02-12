@@ -214,6 +214,8 @@ void RenderData::descissor()
 
 void RenderData::drawTexture(const fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags, const fbox& bounds, int32_t zLayer )
 {
+    if (bounds.width < 1 || bounds.height < 1) return;
+
     auto& objects = zLayer > 0 ? this->objects2 : this->objects;
     auto& commands = zLayer > 0 ? this->commands2 : this->commands;
 

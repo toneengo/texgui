@@ -715,7 +715,7 @@ namespace Box {
 }
 
 namespace ScrollPanel {
-    inline Math::fvec4 Padding(8, 12, 8, 8);
+    inline Math::fvec4 Padding(8);
 }
 
 namespace Row {

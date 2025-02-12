@@ -495,7 +495,9 @@ Container Container::ScrollPanel(const char* name, TexEntry* texture, TexEntry* 
 
     auto& spstate = GTexGui->scrollPanels[name];
 
-    fvec4& padding = Defaults::ScrollPanel::Padding;
+    fvec4 padding = Defaults::ScrollPanel::Padding;
+    if (bartex)
+        padding.right += bartex->bounds.width;
 
     static auto arrange = [](Container* scroll, fbox child)
     {
@@ -504,7 +506,7 @@ Container Container::ScrollPanel(const char* name, TexEntry* texture, TexEntry* 
         return bounds;
     };
 
-    Container sp = withBounds(Math::fbox::pad(bounds, Defaults::Box::Padding), arrange);
+    Container sp = withBounds(Math::fbox::pad(bounds, padding), arrange);
     sp.scrollPanelState = &spstate;
     sp.scissorBox = sp.bounds;
 
