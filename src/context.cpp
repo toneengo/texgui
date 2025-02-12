@@ -261,8 +261,6 @@ void GLContext::renderFromRD(RenderData& data) {
     bindBuffers();
 
     static auto renderBatch = [](GLContext& ctx, auto& objects, auto& commands) {
-        Math::fbox scrBounds = fbox(0, 0, ctx.m_screen_size.x, ctx.m_screen_size.y);
-        glNamedBufferSubData(ctx.m_ub.bounds.buf, 0, sizeof(Math::fbox), &scrBounds);
         glNamedBufferSubData(ctx.m_ssb.objects.buf, 0, sizeof(RenderData::Object) * objects.size(), objects.data());
 
         int count = 0;
@@ -274,12 +272,14 @@ void GLContext::renderFromRD(RenderData& data) {
                 
                 case RenderData::Command::QUAD:
                 {
-                    c.scissorBox.x -= ctx.m_screen_size.x / 2.f;
-                    c.scissorBox.y = ctx.m_screen_size.y / 2.f - c.scissorBox.y - c.scissorBox.height;
-                    c.scissorBox.pos /= vec2(ctx.m_screen_size.x/2.f, ctx.m_screen_size.y/2.f);
-                    c.scissorBox.size = c.scissorBox.size / vec2(ctx.m_screen_size.x/2.f, ctx.m_screen_size.y/2.f);
 
-                    glNamedBufferSubData(ctx.m_ub.bounds.buf, 0, sizeof(Math::fbox), &c.scissorBox);
+                    fbox sb = c.scissorBox;
+                    sb.x -= ctx.m_screen_size.x / 2.f;
+                    sb.y = ctx.m_screen_size.y / 2.f - c.scissorBox.y - c.scissorBox.height;
+                    sb.pos /= vec2(ctx.m_screen_size.x/2.f, ctx.m_screen_size.y/2.f);
+                    sb.size = c.scissorBox.size / vec2(ctx.m_screen_size.x/2.f, ctx.m_screen_size.y/2.f);
+
+                    glNamedBufferSubData(ctx.m_ub.bounds.buf, 0, sizeof(Math::fbox), &sb);
 
                     glBindTextureUnit(ctx.m_ta.texture.bind, c.texentry->glID);
                     
