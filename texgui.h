@@ -466,45 +466,15 @@ struct Paragraph
 
     Paragraph(TextSegment* ptr, uint32_t n);
 };
-
-
-struct TextSegment
-{
-    union
-    {
-        struct {
-            const char* data;
-            float tw; // Width of the text (not including whitespace)
-            int16_t len;
-        } word;
-
-        TexEntry* icon;
-
-        struct {
-            Paragraph base;
-            Paragraph tooltip;
-        } tooltip;
-    };
-
-    float width; // Width of the segment pre-scaling
-        // Pt for text, pixels for icons. Includes whitespace for text
-
-    enum Type : uint8_t {
-        WORD,        // Denotes text followed by whitespace
-        ICON,        // An icon to render inline with the text
-        NEWLINE,     // Line break
-        TOOLTIP,     // Marks the beginning/end of a tooltip's boundary
-    } type;
-};
-
 // Text chunks are used to describe the layout of a text block. They get cached into Paragraphs.
 struct TextChunk
 {
     enum Type : uint8_t {
         TEXT,
         ICON,        // An icon to render inline with the text
-       TOOLTIP,      // Marks the beginning/end of a tooltip's boundary
+        TOOLTIP,     // Marks the beginning/end of a tooltip's boundary
         INDIRECT,    // include a dynamic part while still processing the rest at compile time
+        PLACEHOLDER, // Gets substituted for another chunk at draw time
     } type;
 
     union
@@ -533,6 +503,40 @@ struct TextChunk
 
     constexpr TextChunk(TextChunk* chunk) :
         type(INDIRECT), indirect(chunk) {}
+};
+inline TextChunk Placeholder() { TextChunk c; c.type = TextChunk::PLACEHOLDER; return c; };
+
+struct TextSegment
+{
+    union
+    {
+        struct {
+            const char* data;
+            float tw; // Width of the text (not including whitespace)
+            int16_t len;
+        } word;
+
+        TexEntry* icon;
+
+        struct {
+            Paragraph base;
+            Paragraph tooltip;
+        } tooltip;
+    };
+
+    float width; // Width of the segment pre-scaling
+        // Pt for text, pixels for icons. Includes whitespace for text
+
+    enum Type : uint8_t {
+        WORD,        // Denotes text followed by whitespace
+        ICON,        // An icon to render inline with the text
+        NEWLINE,     // Line break
+        TOOLTIP,     // Marks the beginning/end of a tooltip's boundary
+        PLACEHOLDER, // Gets substituted for another chunk at draw time
+    } type;
+
+    // Doesn't break a chunk into words so you don't get text wrapping.
+    static TextSegment FromChunkFast(TextChunk chunk);
 };
 
 
@@ -573,9 +577,10 @@ public:
     bool      Button(const char* text, TexEntry* texture = nullptr);
     Container Box(float xpos, float ypos, float width, float height, TexEntry* texture = nullptr);
     Container ScrollPanel(const char* name, TexEntry* texture = nullptr, TexEntry* bartex = nullptr);
-    void      TextInput(const char* name, std::string& buf);
     void      Image(TexEntry* texture);
-    void      Text(Paragraph text, int32_t scale);
+
+    void      TextInput(const char* name, std::string& buf);
+    void      Text(Paragraph text, int32_t scale, TextDecl parameters = {});
 
     Container Align(uint32_t flags = 0, Math::fvec4 padding = Math::fvec4(0,0,0,0));
 
@@ -585,7 +590,10 @@ public:
     // If you don't want them to be clickable - set selected to nullptr, and 0 or 1 for whether it is active in id
     Container ListItem(uint32_t* selected, uint32_t id);
 
+    // Arranges children in a bento-grid layout.
     Container Grid();
+    // Arranges children in a vertical stack.
+    Container Stack(float padding = -1);
         
     void Row(Container* out, const float* widths, uint32_t n, float height, uint32_t flags = 0);
     template <uint32_t N>
@@ -628,6 +636,12 @@ private:
         {
             uint32_t flags;
         } align;
+
+        struct
+        {
+            float y;
+            float padding;
+        } stack;
     };
 
     void* scrollPanelState = nullptr;
@@ -666,6 +680,10 @@ NAMESPACE_BEGIN(Defaults);
 
 inline int PixelSize  = 1;
 inline uint32_t Flags = SLICE_9;
+
+namespace Stack {
+    inline float Padding = 8;
+}
 
 //#TODO: use font px instead of sacle, uising msdf
 namespace Tooltip {
