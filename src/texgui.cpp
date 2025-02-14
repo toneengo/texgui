@@ -883,7 +883,7 @@ static void renderTooltip(Paragraph text, RenderData* rs)
 void Container::Text(Paragraph text, int32_t scale, TextDecl parameters)
 {
     float x = bounds.x;
-    float y = bounds.y + scale;
+    float y = bounds.y + scale / 2.0;
 
     writeText(text, scale, bounds, x, y, rs, false, 0, 0, parameters);
 }
