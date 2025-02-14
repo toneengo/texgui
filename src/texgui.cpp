@@ -126,7 +126,6 @@ void TexGui_ImplGlfw_CursorPosCallback(GLFWwindow* window, double x, double y)
 void TexGui_ImplGlfw_KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     auto& bd = GTexGui->backendData;
-    auto& io = GTexGui->io;
     if (bd.PrevUserCallbackKey)
         bd.PrevUserCallbackKey(window, key, scancode, action, mods);
 
@@ -648,10 +647,9 @@ Container Container::Grid()
             child = fbox(grid->bounds.pos + fvec2(gs.x, gs.y), child.size);
 
         gs.x += child.width + spacing;
-        if (grid->parent->arrange)
-        {
-            grid->parent->arrange(grid, {grid->bounds.x, grid->bounds.y, grid->bounds.width, gs.y + gs.rowHeight + spacing});
-        }
+
+        Arrange(grid->parent, {grid->bounds.x, grid->bounds.y, grid->bounds.width, gs.y + gs.rowHeight + spacing});
+
         gs.rowHeight = 0;
         gs.n++;
         
@@ -661,6 +659,25 @@ Container Container::Grid()
     grid.grid = { 0, 0, 0, 0 };
     return grid;
 }
+
+Container Container::Stack(float padding)
+{
+    static auto arrange = [](Container* stack, fbox child)
+    {
+        auto& s = stack->stack;
+
+        child = fbox(stack->bounds.pos + fvec2(0, s.y), child.size);
+        s.y += child.size.y + s.padding;
+    
+        Arrange(stack->parent, {stack->bounds.x, stack->bounds.y, stack->bounds.width, s.y});
+
+        return child;
+    };
+    Container stack = withBounds(bounds, arrange);
+    stack.stack = {0, padding < 0 ? Defaults::Stack::Padding : padding};
+    return stack;
+}
+
 
 void Container::TextInput(const char* name, std::string& buf)
 {
@@ -738,10 +755,8 @@ static fvec2 calculateTextBounds(Paragraph text, int32_t scale, float maxWidth)
             x = bounds.x;
             break;
 
+        case TextSegment::PLACEHOLDER:
         case TextSegment::TOOLTIP:
-            {
-                // #TODO
-            }
             break;
         }
     }
@@ -753,23 +768,20 @@ static fvec2 calculateTextBounds(Paragraph text, int32_t scale, float maxWidth)
 
 #define TTUL Defaults::Tooltip::UnderlineSize
 
-static bool writeText(Paragraph text, int32_t scale, Math::fbox bounds, float& x, float& y, RenderData* rs, bool checkHover = false, int32_t zLayer = 0, uint32_t flags = 0)
-{
-    auto& io = inputFrame;
+static bool writeText(Paragraph text, int32_t scale, Math::fbox bounds, float& x, float& y, RenderData* rs, bool checkHover = false, int32_t zLayer = 0, uint32_t flags = 0, TextDecl parameters = {});
 
-    static const auto underline = [](auto* rs, float x, float y, float w, int32_t scale, uint32_t flags, int32_t zLayer)
+inline static void drawChunk(TextSegment s, RenderData* rs, Math::fbox bounds, float& x, float& y, int32_t scale, uint32_t flags, int32_t zLayer, bool& hovered, bool checkHover, uint32_t& placeholderIdx, TextDecl parameters)
     {
-        if (flags & UNDERLINE)
+        static const auto underline = [](auto* rs, float x, float y, float w, int32_t scale, uint32_t flags, int32_t zLayer)
         {
-            fbox ul = fbox(fvec2(x - TTUL.x, y + scale / 2.0 - 2), fvec2(w + TTUL.x * 2, TTUL.y));
-            rs->drawQuad(ul, fvec4(1,1,1,0.3), zLayer);
-        }
-    };
+            if (flags & UNDERLINE)
+            {
+                fbox ul = fbox(fvec2(x - TTUL.x, y + scale / 2.0 - 2), fvec2(w + TTUL.x * 2, TTUL.y));
+                rs->drawQuad(ul, fvec4(1,1,1,0.3), zLayer);
+            }
+        };
 
-    bool hovered = false;
-    for (int32_t i = 0; i < text.count; i++) 
-    {
-        auto& s = text.data[i];
+        auto& io = inputFrame;
         switch (s.type)
         {
         case TextSegment::WORD:
@@ -821,7 +833,29 @@ static bool writeText(Paragraph text, int32_t scale, Math::fbox bounds, float& x
                 if (hoverTT) renderTooltip(s.tooltip.tooltip, rs);
             }
             break;
+        case TextSegment::PLACEHOLDER:
+            {
+                assert(placeholderIdx < parameters.count);
+                bool blah = false;
+                drawChunk(TextSegment::FromChunkFast(parameters.data[placeholderIdx]), rs, bounds, x, y, scale, flags, zLayer, blah, false, placeholderIdx, {});
+                placeholderIdx++;
+            }
+            break;
         }
+        
+    }
+
+static bool writeText(Paragraph text, int32_t scale, Math::fbox bounds, float& x, float& y, RenderData* rs, bool checkHover, int32_t zLayer, uint32_t flags, TextDecl parameters)
+{
+
+
+    bool hovered = false;
+    // Index into the amount of placeholders we've substituted
+    uint32_t placeholderIdx = 0;
+
+    for (int32_t i = 0; i < text.count; i++) 
+    {
+        drawChunk(text.data[i], rs, bounds, x, y, scale, flags, zLayer, hovered, checkHover, placeholderIdx, parameters);
     }
     return hovered;
 }
@@ -840,18 +874,18 @@ static void renderTooltip(Paragraph text, RenderData* rs)
 
     fbox bounds = fbox::margin(textBounds, Defaults::Tooltip::Padding);
 
-    rs->drawTexture(bounds, tex, 0, _PX, SLICE_9, 1);
+    rs->drawTexture(bounds, tex, 0, _PX, SLICE_9, bounds, 1);
 
     float x = textBounds.x, y = textBounds.y;
     writeText(text, Defaults::Tooltip::TextScale, textBounds, x, y, rs, false, 1);
 }
 
-void Container::Text(Paragraph text, int32_t scale)
+void Container::Text(Paragraph text, int32_t scale, TextDecl parameters)
 {
     float x = bounds.x;
     float y = bounds.y + scale;
 
-    writeText(text, scale, bounds, x, y, rs);
+    writeText(text, scale, bounds, x, y, rs, false, 0, 0, parameters);
 }
 
 void Container::Row(Container* out, const float* widths, uint32_t n, float height, uint32_t flags)
@@ -1021,6 +1055,12 @@ void cacheChunk(const TextChunk& chunk, std::vector<TextSegment>& out)
     {
         cacheChunk(*chunk.indirect, out);
     }
+    else if (chunk.type == TextChunk::PLACEHOLDER)
+    {
+        out.push_back({
+            .type = TextSegment::TOOLTIP,
+        });
+    }
 }
 std::vector<TextSegment> TexGui::cacheText(TextDecl text)
 {
@@ -1032,6 +1072,37 @@ std::vector<TextSegment> TexGui::cacheText(TextDecl text)
 
     return out;
 }
+
+TextSegment TextSegment::FromChunkFast(TextChunk chunk)
+{
+    switch (chunk.type)
+    {
+        // These should not be used as substitutes for a placeholder
+        case TextChunk::TOOLTIP:
+        case TextChunk::INDIRECT:
+        case TextChunk::PLACEHOLDER:
+            chunk.text = "ERROR";
+
+        case TextChunk::TEXT: {
+            int16_t len = strlen(chunk.text);
+            float w = computeTextWidth(chunk.text, len);
+            return {
+                .word = { chunk.text, w, len },
+                .width = w,
+                .type = TextSegment::WORD,
+            };
+        }
+
+        case TextChunk::ICON: {
+            return {
+                .icon = chunk.icon,
+                .width = float(chunk.icon->bounds.width),
+                .type = TextSegment::ICON,
+            };
+        }
+    }
+}
+
 
 bool cacheChunk(uint32_t& i, const TextChunk& chunk, TextSegment* buffer, uint32_t capacity)
 {
@@ -1074,6 +1145,14 @@ bool cacheChunk(uint32_t& i, const TextChunk& chunk, TextSegment* buffer, uint32
     else if (chunk.type == TextChunk::INDIRECT)
     {
         cacheChunk(i, *chunk.indirect, buffer, capacity);
+    }
+    else if (chunk.type == TextChunk::PLACEHOLDER)
+    {
+        if (i >= capacity) return false;
+        buffer[i] = {
+            .type = TextSegment::PLACEHOLDER,
+        }; 
+        i++;
     }
     return true;
 }
