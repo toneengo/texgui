@@ -1173,3 +1173,11 @@ TexGui::Paragraph::Paragraph(std::vector<TextSegment>& s) :
 
 TexGui::Paragraph::Paragraph(TextSegment* ptr, uint32_t n) :
     data(ptr), count(n) {}
+
+TexGui::TextDecl::TextDecl(TextChunk* d, uint32_t n) :
+    data(d),
+    count(n) {}
+
+TexGui::TextDecl::TextDecl(std::initializer_list<TextChunk> s) :
+    data(s.begin()),
+    count(s.size()) {}

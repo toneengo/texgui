@@ -549,13 +549,9 @@ struct TextDecl
 
     TextDecl() = default;
 
-    TextDecl(TextChunk* d, uint32_t n) :
-        data(d),
-        count(n) {}
+    TextDecl(TextChunk* d, uint32_t n);
 
-    TextDecl(std::initializer_list<TextChunk> s) :
-        data(s.begin()),
-        count(s.size()) {}
+    TextDecl(std::initializer_list<TextChunk> s);
 
     const TextChunk* begin() const { return data; }
     const TextChunk* end() const { return data + count; }
