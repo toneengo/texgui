@@ -618,3 +618,23 @@ void GLContext::loadTextures(const char* dir)
         stbi_image_free(e.second._active);
     }
 }
+
+IconSheet GLContext::loadIcons(const char* path, int32_t iconWidth, int32_t iconHeight)
+{
+    int width, height, channels;
+    unsigned char* im = stbi_load(path, &width, &height, &channels, 4);
+    
+    GLuint texID = -1;
+    glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, &texID);
+    glTextureStorage3D(texID, 1, GL_RGBA8, ATLAS_SIZE, ATLAS_SIZE, 1);
+    glTextureSubImage3D(texID, 0, 0, 0, 0, width, height, 1, GL_RGBA, GL_UNSIGNED_BYTE, im);
+
+    glTextureParameteri(texID, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);	
+    glTextureParameteri(texID, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTextureParameteri(texID, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTextureParameteri(texID, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    stbi_image_free(im);
+
+    return { texID, iconWidth, iconHeight, width, height };
+}

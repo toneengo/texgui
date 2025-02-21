@@ -238,6 +238,11 @@ void TexGui::loadTextures(const char* dir)
     GTexGui->renderCtx.loadTextures(dir);
 }
 
+IconSheet TexGui::loadIcons(const char* dir, int32_t iconWidth, int32_t iconHeight)
+{
+    return GTexGui->renderCtx.loadIcons(dir, iconWidth, iconHeight);
+}
+
 extern std::unordered_map<std::string, TexGui::TexEntry> m_tex_map;
 
 // We just need pointer stability, we aren't gonna be iterating it so using list :P
@@ -882,10 +887,15 @@ static void renderTooltip(Paragraph text, RenderData* rs)
 
 void Container::Text(Paragraph text, int32_t scale, TextDecl parameters)
 {
-    float x = bounds.x;
-    float y = bounds.y + scale / 2.0;
+    fbox textBounds = {
+        { bounds.x, bounds.y },
+        calculateTextBounds(text, scale, bounds.width)
+    };
 
-    writeText(text, scale, bounds, x, y, rs, false, 0, 0, parameters);
+    textBounds = Arrange(this, textBounds);
+    textBounds.y += + scale / 2.0f;
+
+    writeText(text, scale, bounds, textBounds.x, textBounds.y, rs, false, 0, 0, parameters);
 }
 
 void Container::Row(Container* out, const float* widths, uint32_t n, float height, uint32_t flags)
@@ -1181,3 +1191,11 @@ TexGui::TextDecl::TextDecl(TextChunk* d, uint32_t n) :
 TexGui::TextDecl::TextDecl(std::initializer_list<TextChunk> s) :
     data(s.begin()),
     count(s.size()) {}
+
+TexEntry* IconSheet::getIcon(uint32_t x, uint32_t y)
+{
+    // #TODO: the user's icon sheet has different size, but
+    // the shader expects all tex size to be 512.
+    ibox bounds = { ivec2(x, y + 1) * ivec2(iw, ih), ivec2(iw, ih) };
+    return &m_custom_texs.emplace_back(glID, 0, bounds, 0, 0, 0, 0);
+}

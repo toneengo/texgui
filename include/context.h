@@ -27,6 +27,9 @@ public:
     void loadTextures(const char* dir);
 
     void renderFromRD(RenderData& data);
+
+    IconSheet loadIcons(const char* path, int32_t iconWidth, int32_t iconHeight);
+
 protected:
     // Buffer name/Buffer binding pair
     struct nameIdx

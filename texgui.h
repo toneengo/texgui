@@ -148,6 +148,13 @@ struct vec2
         return val;
     }
 
+    template <typename v>
+    vec2<T> operator*(const vec2<v>& num) const
+    {
+        vec2<T> val(x * static_cast<T>(num.x), y * static_cast<T>(num.y));
+        return val;
+    }
+
     //division
     template <typename v>
     vec2<T> operator/(const v& num) const
@@ -655,6 +662,14 @@ private:
     static Math::fbox Arrange(Container* o, Math::fbox child);
 };
 
+struct IconSheet
+{
+    uint32_t glID;
+    int32_t iw, ih; // Size of a single icon
+    int32_t w, h;
+    TexEntry* getIcon(uint32_t x, uint32_t y);
+};
+
 inline Container Base;
 
 void render();
@@ -662,6 +677,7 @@ void render(RenderData& rs);
 RenderData* newRenderData();
 void loadFont(const char* font);
 void loadTextures(const char* dir);
+IconSheet loadIcons(const char* dir, int32_t iconWidth, int32_t iconHeight);
 void clear();
 void clear(RenderData& rs);
 
