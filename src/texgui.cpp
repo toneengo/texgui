@@ -443,7 +443,7 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
 
 }
 
-bool Container::Button(const char* text, TexEntry* texture)
+bool Container::Button(const char* text, TexEntry* texture, Container* out)
 {
     if (!buttonStates->contains(text))
     {
@@ -458,10 +458,18 @@ bool Container::Button(const char* text, TexEntry* texture)
 
     rs->drawTexture(bounds, tex, state, _PX, SLICE_9, scissorBox);
 
-    rs->drawText(text, 
-        state & STATE_PRESS ? bounds.pos + bounds.size / 2 + Defaults::Button::POffset
-                            : bounds.pos + bounds.size / 2,
-        Defaults::Font::Color, Defaults::Font::Size, CENTER_X | CENTER_Y);
+    vec2 pos = state & STATE_PRESS 
+                       ? bounds.pos + Defaults::Button::POffset
+                       : bounds.pos;
+    fbox innerBounds = {pos, bounds.size};
+
+    if (out)
+        *out = withBounds(innerBounds);
+    else
+    {
+        innerBounds.pos += bounds.size / 2;
+        rs->drawText(text, innerBounds, Defaults::Font::Color, Defaults::Font::Size, CENTER_X | CENTER_Y);
+    }
 
     auto& io = inputFrame;
     return state & STATE_ACTIVE && io.lmb == KEY_Release && bounds.contains(io.cursorPos) ? true : false;
@@ -934,8 +942,7 @@ void Container::Row(Container* out, const float* widths, uint32_t n, float heigh
             y += height + spacing;
         }
 
-        out[i] = *this;
-        out[i].bounds = Math::fbox(x, y, width, height);
+        out[i] = withBounds({x, y, width, height});
 
         x += width;
     }
@@ -976,8 +983,7 @@ void Container::Column(Container* out, const float* heights, uint32_t n, float w
         else
             height = heights[i];
         
-        out[i] = *this;
-        out[i].bounds = Math::fbox(bounds.x + x, bounds.y + y, width, height);
+        out[i] = withBounds({bounds.pos + vec2{x, y}, {width, height}});
 
         y += height + spacing;
     }
