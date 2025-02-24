@@ -492,6 +492,29 @@ Container Container::Box(float xpos, float ypos, float width, float height, TexE
     return withBounds(internal);
 }
 
+void Container::CheckBox(bool* val)
+{
+    static TexEntry* texture = &m_tex_map[Defaults::CheckBox::Texture];
+
+    auto& io = inputFrame;
+    if (io.lmb == KEY_Release && bounds.contains(io.cursorPos)) *val = !*val;
+
+    if (texture == nullptr) return;
+    rs->drawTexture(bounds, texture, *val ? STATE_ACTIVE : 0, 2, SLICE_9, scissorBox);
+}
+
+void Container::RadioButton(uint32_t* selected, uint32_t id)
+{
+    static TexEntry* texture = &m_tex_map[Defaults::RadioButton::Texture];
+
+    auto& io = inputFrame;
+    if (io.lmb == KEY_Release && bounds.contains(io.cursorPos)) *selected = id;
+
+    if (texture == nullptr) return;
+    rs->drawTexture(bounds, texture, *selected == id ? STATE_ACTIVE : 0, 2, SLICE_9, scissorBox);
+
+}
+
 Container Container::ScrollPanel(const char* name, TexEntry* texture, TexEntry* bartex)
 {
     auto& io = inputFrame;
@@ -860,8 +883,6 @@ inline static void drawChunk(TextSegment s, RenderData* rs, Math::fbox bounds, f
 
 static bool writeText(Paragraph text, int32_t scale, Math::fbox bounds, float& x, float& y, RenderData* rs, bool checkHover, int32_t zLayer, uint32_t flags, TextDecl parameters)
 {
-
-
     bool hovered = false;
     // Index into the amount of placeholders we've substituted
     uint32_t placeholderIdx = 0;
@@ -900,10 +921,23 @@ void Container::Text(Paragraph text, int32_t scale, TextDecl parameters)
         calculateTextBounds(text, scale, bounds.width)
     };
 
+    if (scale == 0) scale = Defaults::Font::Size;
     textBounds = Arrange(this, textBounds);
     textBounds.y += + scale / 2.0f;
 
     writeText(text, scale, bounds, textBounds.x, textBounds.y, rs, false, 0, 0, parameters);
+}
+
+void Container::Text(const char* text, int32_t scale, TextDecl parameters)
+{
+    //#TODO: markdown w/ icons and stuff
+    if (scale == 0) scale = Defaults::Font::Size;
+    auto ts = TextSegment::FromChunkFast(TextChunk(text));
+    fbox sized = {bounds.x, bounds.y, ts.width * scale, 0.f};
+    sized = Arrange(this, sized);
+    auto p = Paragraph(&ts, 1);
+
+    writeText(p, scale, sized, sized.x, sized.y, rs, false, 0, 0, parameters);
 }
 
 void Container::Row(Container* out, const float* widths, uint32_t n, float height, uint32_t flags)
@@ -988,9 +1022,6 @@ void Container::Column(Container* out, const float* heights, uint32_t n, float w
         y += height + spacing;
     }
 }
-
-
-
 
 // Text processing
 

@@ -579,11 +579,15 @@ public:
     Container Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags = 0,  TexEntry* texture = nullptr);
     bool      Button(const char* text, TexEntry* texture = nullptr, Container* out = nullptr);
     Container Box(float xpos, float ypos, float width, float height, TexEntry* texture = nullptr);
+    void      CheckBox(bool* val);
+    void      RadioButton(uint32_t* selected, uint32_t id);
     Container ScrollPanel(const char* name, TexEntry* texture = nullptr, TexEntry* bartex = nullptr);
+    Container Slider(const char* name, TexEntry* texture = nullptr, TexEntry* bartex = nullptr);
     void      Image(TexEntry* texture);
 
     void      TextInput(const char* name, std::string& buf);
-    void      Text(Paragraph text, int32_t scale, TextDecl parameters = {});
+    void      Text(Paragraph text, int32_t scale = 0, TextDecl parameters = {});
+    void      Text(const char* text, int32_t scale = 0, TextDecl parameters = {});
 
     Container Align(uint32_t flags = 0, Math::fvec4 padding = Math::fvec4(0,0,0,0));
 
@@ -742,6 +746,13 @@ namespace ListItem {
 
 namespace Box {
     inline Math::fvec4 Padding(8);
+}
+
+namespace CheckBox {
+    inline std::string Texture = "checkbox";
+}
+namespace RadioButton {
+    inline std::string Texture = "radiobutton";
 }
 
 namespace ScrollPanel {

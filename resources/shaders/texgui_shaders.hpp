@@ -38,9 +38,6 @@ layout (std140, binding = 1) uniform indexBuf {
     int index;
 };
 
-layout (std140, binding = 2) uniform boundsBuf {
-    vec4 bounds;
-};
 )#";
 
 inline const std::string TEXTVERT = R"#(
@@ -48,6 +45,7 @@ layout (std430, binding = 0) buffer objectBuf {
     Character text[];
 };
 
+out vec2 pos;
 out vec2 uv;
 flat out vec4 colour;
 flat out int layer;
@@ -85,13 +83,14 @@ void main() {
     screenPxRange = max(text[index + gl_InstanceID].size / FONT_PX * pxRange, 1);
 
     vec2 size = rect.zw / round(vec2(screenSz.x/2.0, screenSz.y/2.0)) / FONT_PX;
-    vec2 pos = quad[gl_VertexID] * size + rect.xy / round(vec2(screenSz.x/2.0, screenSz.y/2.0));
+    pos = quad[gl_VertexID] * size + rect.xy / round(vec2(screenSz.x/2.0, screenSz.y/2.0));
     gl_Position = vec4(pos, 0.0, 1.0);
 }
 )#";
 
 inline const std::string TEXTFRAG = R"#(
 in vec2 uv;
+in vec2 pos;
 flat in vec4 colour;
 flat in int layer;
 flat in float screenPxRange;
@@ -101,9 +100,22 @@ float median(float r, float g, float b) {
     return max(min(r, g), min(max(r, g), b));
 }
 
+layout (std140, binding = 2) uniform boundsBuf {
+    vec4 bounds;
+};
+
 layout (binding = 2) uniform sampler2DArray font;
 
+bool contains(vec4 box, vec2 p)
+{
+    return p.x <= box.x + box.z && p.x >= box.x &&
+           p.y <= box.y + box.w && p.y >= box.y;
+}
+
 void main() {
+    if (!contains(bounds, pos))
+        discard;
+
     vec3 msd = texture(font, vec3(uv, layer)).rgb;
     float sd = median(msd.r, msd.g, msd.b);
     float screenPxDistance = screenPxRange*(sd - 0.5);

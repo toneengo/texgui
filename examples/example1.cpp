@@ -124,7 +124,7 @@ void main() {
     TexGui::Defaults::Font::MsdfPxRange = 2;
 
     TexGui::initGlfwOpenGL(window);
-    TexGui::loadFont("resources/fonts/unifont.ttf");
+    TexGui::loadFont("resources/fonts/PixelOperator.ttf");
     TexGui::loadTextures("resources/sprites");
 
     //glEnable(GL_DEPTH_TEST);
@@ -147,8 +147,28 @@ void main() {
         data.Base.Window("not bob", 400, 500, 200, 200, TexGui::CENTER_X | TexGui::CENTER_Y);
         auto win = data.Base.Window("bob", 200, 100, 400, 600);
 
-        auto box = win.ScrollPanel("panel1", TexGui::texByName("box2"));
-        auto grid = box.Grid();
+        auto row = win.Row({200, 0});
+
+        static bool a = false;
+        static bool b = false;
+        static bool c = true;
+
+        static uint32_t selected2 = 0;
+        auto box0 = row[0].Column({24, 24, 24});
+        auto checkBoxCon = box0[0].Row({24, 0});
+        checkBoxCon[0].CheckBox(&a);
+        checkBoxCon[1].Align(TexGui::ALIGN_CENTER_Y).Text("value a");
+
+        checkBoxCon = box0[1].Row({24, 0});
+        checkBoxCon[0].RadioButton(&selected2, 0);
+        checkBoxCon[1].Align(TexGui::ALIGN_CENTER_Y).Text("value b");
+
+        checkBoxCon = box0[2].Row({24, 0});
+        checkBoxCon[0].RadioButton(&selected2, 1);
+        checkBoxCon[1].Align(TexGui::ALIGN_CENTER_Y).Text("value c");
+
+        auto box1 = row[1].ScrollPanel("panel1", TexGui::texByName("box2"));
+        auto grid = box1.Grid();
 
         for (uint32_t i = 0; i < 10; i++)
         {
