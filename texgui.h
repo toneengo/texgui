@@ -53,6 +53,8 @@ enum TexGui_state : uint8_t
     STATE_PRESS  = 0b00001000,
 };
 
+inline bool CapturingMouse = false;
+
 NAMESPACE_BEGIN(Math);
 
 //Barebones version of glm vec2, vec3 and vec4.

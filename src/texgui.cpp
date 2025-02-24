@@ -279,6 +279,7 @@ inline static void clearInput()
     inputFrame.cursorPos = io.cursorPos;
     inputFrame.lmb = io.lmb;
     inputFrame.scroll = io.scroll;
+    TexGui::CapturingMouse = false;
     io.scroll = {0, 0};
 
     if (io.lmb == KEY_Press) io.lmb = KEY_Held;
@@ -386,6 +387,8 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
     static TexEntry* wintex = &m_tex_map[Defaults::Window::Texture];
     if (!texture) texture = wintex;
     WindowState& wstate = GTexGui->windows[name];
+
+    if (wstate.box.contains(io.cursorPos)) CapturingMouse = true;
 
     if (flags & LOCKED)
     {
