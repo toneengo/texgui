@@ -750,6 +750,43 @@ void Container::TextInput(const char* name, std::string& buf)
     );
 }
 
+void Container::TextInput(const char* name, char* buf, uint32_t bufsize)
+{
+    auto& io = inputFrame;
+    static TexEntry* inputtex = &m_tex_map[Defaults::TextInput::Texture];
+    
+    if (!GTexGui->textInputs.contains(name))
+    {
+        GTexGui->textInputs.insert({name, {}});
+    }
+    
+    auto& tstate = GTexGui->textInputs[name];
+
+    getBoxState(tstate.state, bounds);
+    
+    int32_t tlen = strlen(buf);
+
+    if (io.character != 0 && (tstate.state & STATE_ACTIVE) && tlen < bufsize - 1)
+    {
+        buf[bufsize] = io.character;
+        buf[bufsize + 1] = '\0';
+        bufsize += 1;
+    }
+
+    rs->drawTexture(bounds, inputtex, tstate.state, _PX, SLICE_9, scissorBox);
+    float offsetx = 0;
+    fvec4 padding = Defaults::TextInput::Padding;
+    fvec4 color = Defaults::Font::Color;
+    rs->drawText(
+        !getBit(tstate.state, STATE_ACTIVE) && tlen == 0
+        ? name : buf,
+        {bounds.x + offsetx + padding.left, bounds.y + bounds.height / 2},
+        Defaults::Font::Color,
+        Defaults::Font::Size,
+        CENTER_Y
+    );
+}
+
 static void renderTooltip(Paragraph text, RenderData* rs);
 
 // Bump the line of text

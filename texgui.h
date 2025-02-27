@@ -588,6 +588,7 @@ public:
     void      Image(TexEntry* texture);
 
     void      TextInput(const char* name, std::string& buf);
+    void      TextInput(const char* name, char* buf, uint32_t bufsize);
     void      Text(Paragraph text, int32_t scale = 0, TextDecl parameters = {});
     void      Text(const char* text, int32_t scale = 0, TextDecl parameters = {});
 
