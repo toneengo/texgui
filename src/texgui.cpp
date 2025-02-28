@@ -475,7 +475,11 @@ bool Container::Button(const char* text, TexEntry* texture, Container* out)
     }
 
     auto& io = inputFrame;
-    return state & STATE_ACTIVE && io.lmb == KEY_Release && bounds.contains(io.cursorPos) ? true : false;
+
+    bool hovered = scissorBox.contains(io.cursorPos) 
+                && bounds.contains(io.cursorPos);
+
+    return state & STATE_ACTIVE && io.lmb == KEY_Release && hovered ? true : false;
 }
 
 Container Container::Box(float xpos, float ypos, float width, float height, TexEntry* texture)
