@@ -662,11 +662,17 @@ Container Container::Align(uint32_t flags, Math::fvec4 padding)
 {
     static auto arrange = [](Container* align, fbox child)
     {
-        return AlignBox(align->bounds, child, align->align.flags);
+        Math::fvec4 pad = {align->align.top, align->align.right, align->align.bottom, align->align.left};
+        fbox bounds = fbox::margin(child, pad);
+        bounds = Arrange(align->parent, bounds);
+        return fbox::pad(AlignBox(align->bounds, bounds, align->align.flags), pad);
     };
     // Add padding to the contents
     Container aligner = withBounds(fbox::pad(bounds, padding), arrange);
-    aligner.align.flags = flags;
+    aligner.align = {
+        flags,
+        padding.x, padding.y, padding.z, padding.w,
+    };
     return aligner;
 }
 

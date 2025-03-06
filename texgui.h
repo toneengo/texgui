@@ -645,6 +645,7 @@ private:
         struct 
         {
             uint32_t flags;
+            float top, right, bottom, left;
         } align;
 
         struct
