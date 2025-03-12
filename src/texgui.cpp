@@ -577,22 +577,6 @@ Container Container::ScrollPanel(const char* name, TexEntry* texture, TexEntry* 
     return sp;
 }
 
-void Container::Clip()
-{
-    if (scissorBox.x == -1)
-        return;
-
-    rs->scissor(scissorBox);
-}
-
-void Container::Unclip()
-{
-    if (scissorBox.x == -1)
-        return;
-
-    rs->descissor();
-}
-
 void Container::Image(TexEntry* texture)
 {
     ivec2 tsize = ivec2(texture->bounds.width, texture->bounds.height) * _PX;

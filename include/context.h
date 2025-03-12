@@ -12,7 +12,6 @@ NAMESPACE_BEGIN(TexGui);
 
 class GLContext
 {
-friend class Screen;
 public:
     GLContext();
     ~GLContext();

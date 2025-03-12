@@ -594,8 +594,6 @@ public:
 
     Container Align(uint32_t flags = 0, Math::fvec4 padding = Math::fvec4(0,0,0,0));
 
-    void      Clip();
-    void      Unclip();
     // Similar to radio buttons - the id of the selected one is stored in the *selected pointer.
     // If you don't want them to be clickable - set selected to nullptr, and 0 or 1 for whether it is active in id
     Container ListItem(uint32_t* selected, uint32_t id);

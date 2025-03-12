@@ -308,34 +308,6 @@ void GLContext::renderFromRD(RenderData& data) {
                     glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number);
                     break;
                 }
-                case RenderData::Command::SCISSOR:
-                {
-                    c.scissorBox.y = ctx.m_screen_size.y - c.scissorBox.y - c.scissorBox.height;
-
-                    glEnable(GL_SCISSOR_TEST);
-                    Math::ibox _b;
-                    if (scissorStack.empty())
-                        _b = {0, 0, ctx.m_screen_size.x, ctx.m_screen_size.y};
-                    else
-                        glGetIntegerv(GL_SCISSOR_BOX, (GLint*)&_b);
-
-                    scissorStack.push(_b);
-                    glScissor(c.scissorBox.x,
-                              c.scissorBox.y,
-                              c.scissorBox.width,
-                              c.scissorBox.height);
-                    break;
-                }
-                case RenderData::Command::DESCISSOR:
-                {
-                    //it shouldn't be empty, we always scissor before descissoring
-                    if (!scissorStack.empty())
-                    {
-                        auto& _b = scissorStack.top();
-                        glScissor(_b.x, _b.y, _b.width, _b.height);
-                        scissorStack.pop();
-                    }
-                }
                 default:
                     break;
             }
