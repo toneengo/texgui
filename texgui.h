@@ -462,6 +462,7 @@ NAMESPACE_END(Math);
 struct RenderData;
 bool initGlfwOpenGL(GLFWwindow* window);
 
+
 struct TexEntry;
 struct TextSegment;
 struct Paragraph
@@ -475,6 +476,11 @@ struct Paragraph
 
     Paragraph(TextSegment* ptr, uint32_t n);
 };
+
+using LazyData = int64_t;
+
+using LazyIconFunc = TexEntry*(*)(LazyData);
+
 // Text chunks are used to describe the layout of a text block. They get cached into Paragraphs.
 struct TextChunk
 {
@@ -484,6 +490,7 @@ struct TextChunk
         TOOLTIP,     // Marks the beginning/end of a tooltip's boundary
         INDIRECT,    // include a dynamic part while still processing the rest at compile time
         PLACEHOLDER, // Gets substituted for another chunk at draw time
+        LAZY_ICON,   // Lazily fetch an icon
     } type;
 
     union
@@ -497,6 +504,11 @@ struct TextChunk
         } tooltip;
 
         TextChunk* indirect;
+
+        struct {
+            LazyData data;
+            LazyIconFunc func;
+        } lazyIcon;
     };
 
     TextChunk() = default;
@@ -512,6 +524,9 @@ struct TextChunk
 
     constexpr TextChunk(TextChunk* chunk) :
         type(INDIRECT), indirect(chunk) {}
+
+    constexpr TextChunk(LazyData d, LazyIconFunc f) :
+        type(LAZY_ICON), lazyIcon({d, f}) {}
 };
 inline TextChunk Placeholder() { TextChunk c; c.type = TextChunk::PLACEHOLDER; return c; };
 
@@ -531,6 +546,11 @@ struct TextSegment
             Paragraph base;
             Paragraph tooltip;
         } tooltip;
+
+        struct {
+            LazyData data;
+            LazyIconFunc func;
+        } lazyIcon;
     };
 
     float width; // Width of the segment pre-scaling
@@ -542,6 +562,7 @@ struct TextSegment
         NEWLINE,     // Line break
         TOOLTIP,     // Marks the beginning/end of a tooltip's boundary
         PLACEHOLDER, // Gets substituted for another chunk at draw time
+        LAZY_ICON,
     } type;
 
     // Doesn't break a chunk into words so you don't get text wrapping.
@@ -693,6 +714,8 @@ struct TexEntry;
 TexEntry* texByName(const char* name);
 // Prepare a reference to a texture already present in an OpenGL array texture.
 TexEntry* customTexture(unsigned int glTexID, unsigned int layer, Math::ibox pixelBounds);
+
+Math::ivec2 getTexSize(TexEntry* tex);
 
 NAMESPACE_BEGIN(Defaults);
 
