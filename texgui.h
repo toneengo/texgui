@@ -540,7 +540,7 @@ NAMESPACE_END(Defaults);
 
 
 
-struct RenderData;
+class RenderData;
 bool initGlfwOpenGL(GLFWwindow* window);
 
 
