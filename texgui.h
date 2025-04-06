@@ -43,6 +43,9 @@ enum TexGui_flags : uint32_t
     UNDERLINE = 0x8000,
     LOCKED = 0x10000, // Window is immovable
     HIDE_TITLE = 0x40000,
+
+    CAPTURE_INPUT = 0x80000,
+    RESIZABLE = 0x100000
 };
 
 enum TexGui_state : uint8_t 
@@ -492,6 +495,7 @@ namespace Font {
 namespace Window {
     inline std::string Texture = "window";
     inline Math::fvec4 Padding(12);
+    inline uint32_t flags;
 }
 
 namespace Button {

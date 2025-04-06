@@ -134,6 +134,8 @@ void main() {
 
     TexGui::RenderData data; 
     TexGui::RenderData copy; 
+
+    char charbuf[128] = "\0";
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
@@ -145,7 +147,7 @@ void main() {
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
         data.Base.Window("not bob", 400, 500, 200, 200, TexGui::CENTER_X | TexGui::CENTER_Y);
-        auto win = data.Base.Window("bob", 200, 100, 400, 600);
+        auto win = data.Base.Window("bob", 200, 100, 400, 600, TexGui::RESIZABLE);
 
         auto row = win.Row({200, 0});
 
@@ -154,7 +156,7 @@ void main() {
         static bool c = true;
 
         static uint32_t selected2 = 0;
-        auto box0 = row[0].Column({24, 24, 24});
+        auto box0 = row[0].Column({24, 24, 24, 24, 24});
         auto checkBoxCon = box0[0].Row({24, 0});
         checkBoxCon[0].CheckBox(&a);
         checkBoxCon[1].Align(TexGui::ALIGN_CENTER_Y).Text("value a");
@@ -166,6 +168,10 @@ void main() {
         checkBoxCon = box0[2].Row({24, 0});
         checkBoxCon[0].RadioButton(&selected2, 1);
         checkBoxCon[1].Align(TexGui::ALIGN_CENTER_Y).Text("value c");
+
+        static std::string input;
+        box0[3].TextInput("std::string input...", input);
+        box0[4].TextInput("char input...", charbuf, 128);
 
         auto box1 = row[1].ScrollPanel("panel1", TexGui::texByName("box2"));
         auto grid = box1.Grid();

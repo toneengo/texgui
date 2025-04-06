@@ -431,7 +431,7 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
     if (!texture) texture = wintex;
     WindowState& wstate = GTexGui->windows[name];
 
-    if (wstate.box.contains(io.cursorPos)) CapturingMouse = true;
+    if (flags & CAPTURE_INPUT && wstate.box.contains(io.cursorPos)) CapturingMouse = true;
 
     if (flags & LOCKED)
     {
@@ -447,26 +447,18 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
             wstate.resizing = false;
         }
 
-        if (fbox(wstate.box.x, wstate.box.y, wstate.box.width, texture->top * _PX).contains(io.cursorPos) && io.lmb == KEY_Press)
-        {
+        if (fbox(wstate.box.x, wstate.box.y, wstate.box.width, texture->top * _PX).contains(io.cursorPos) && io.lmb == KEY_Held)
             wstate.moving = true;
-        }
 
-        if (fbox(wstate.box.x + wstate.box.width - texture->right * _PX,
+        if (flags & RESIZABLE && fbox(wstate.box.x + wstate.box.width - texture->right * _PX,
                  wstate.box.y + wstate.box.height - texture->bottom * _PX,
-                 texture->right * _PX, texture->bottom * _PX).contains(io.cursorPos) && io.lmb == KEY_Press)
-        {
+                 texture->right * _PX, texture->bottom * _PX).contains(io.cursorPos) && io.lmb == KEY_Held)
             wstate.resizing = true;
-        }
 
         if (wstate.moving)
-        {
             wstate.box.pos += io.mouseRelativeMotion;
-        }
         else if (wstate.resizing)
-        {
             wstate.box.size += io.mouseRelativeMotion;
-        }
     }
 
     fvec4 padding = Defaults::Window::Padding;
