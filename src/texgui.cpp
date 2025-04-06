@@ -7,6 +7,7 @@
 #include <cmath>
 #include <mutex>
 #include <list>
+#include <queue>
 
 using namespace TexGui;
 
@@ -52,7 +53,6 @@ struct WindowState
 {
     Math::fbox box;
     Math::fbox initial_box;
-    Math::fvec2 last_cursorPos;
 
     uint32_t state = 0;
     bool moving = false;
@@ -68,13 +68,30 @@ struct TextInputState
     uint32_t state = 0;
 };
 
-#include <queue>
-struct InputData
+enum KeyState : int
 {
+    KEY_Off = 0,
+    KEY_Press = 1,
+    KEY_Held = 2,
+    KEY_Release = 3,
+};
+
+struct InputData {
+    int keyStates[GLFW_KEY_LAST + 1];
+    int mouseStates[GLFW_MOUSE_BUTTON_LAST + 1];
+    int mods;
+
+    int& lmb = mouseStates[GLFW_MOUSE_BUTTON_LEFT];
+
     Math::fvec2 cursorPos;
-    uint8_t     lmb;
-    std::queue<unsigned int> charQueue;
+    Math::fvec2 mouseRelativeMotion;
     Math::fvec2 scroll;
+    std::queue<unsigned int> charQueue;
+
+    bool firstMouse = false;
+
+    InputData() { memset(keyStates, KEY_Off, sizeof(int)*(GLFW_KEY_LAST+1));
+                  memset(mouseStates, KEY_Off, sizeof(int)*(GLFW_MOUSE_BUTTON_LAST+1)); }
 };
 
 struct ScrollPanelState
@@ -92,6 +109,7 @@ struct TexGuiContext
     GLContext renderCtx;
     InputData io;
 };
+
 TexGuiContext* GTexGui = nullptr;
 
 RenderData TGRenderData;
@@ -119,7 +137,13 @@ void TexGui_ImplGlfw_CursorPosCallback(GLFWwindow* window, double x, double y)
         bd.PrevUserCallbackCursorPos(window, x, y);
 
     //#TODO: window scale
+
     std::lock_guard<std::mutex> lock(TGInputLock);
+    if (!io.firstMouse)
+        io.firstMouse = true;
+    else
+        io.mouseRelativeMotion += Math::fvec2(x - io.cursorPos.x, y - io.cursorPos.y);
+
     io.cursorPos = Math::fvec2(x, y);
 }
 
@@ -132,14 +156,6 @@ void TexGui_ImplGlfw_KeyCallback(GLFWwindow* window, int key, int scancode, int 
     std::lock_guard<std::mutex> lock(TGInputLock);
 }
 
-enum KeyState : uint8_t
-{
-    KEY_Off = 0,
-    KEY_Press = 1,
-    KEY_Held = 2,
-    KEY_Release = 3,
-};
-
 void TexGui_ImplGlfw_MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 {
     auto& bd = GTexGui->backendData;
@@ -149,11 +165,8 @@ void TexGui_ImplGlfw_MouseButtonCallback(GLFWwindow* window, int button, int act
         bd.PrevUserCallbackMousebutton(window, button, action, mods);
 
     std::lock_guard<std::mutex> lock(TGInputLock);
-    if (button == GLFW_MOUSE_BUTTON_1)
-    {
-        if (action == GLFW_RELEASE) io.lmb = KEY_Release;
-        else if (io.lmb == KEY_Off) io.lmb = KEY_Press;
-    }
+    if (action == GLFW_RELEASE) io.mouseStates[button] = KEY_Release;
+    else if (io.mouseStates[button] == KEY_Off) io.mouseStates[button] = KEY_Press;
 };
 
 void TexGui_ImplGlfw_CharCallback(GLFWwindow* window, unsigned int codepoint)
@@ -264,26 +277,51 @@ TexEntry* TexGui::customTexture(unsigned int glTexID, unsigned int layer, Math::
 
 struct InputFrame
 {
+    int keyStates[GLFW_KEY_LAST + 1];
+    int mouseStates[GLFW_MOUSE_BUTTON_LAST + 1];
+    int mods;
+
+    int& lmb = mouseStates[GLFW_MOUSE_BUTTON_LEFT];
+
     Math::fvec2 cursorPos;
-    uint32_t lmb = 0;
-    unsigned int character = 0;
-    Math::fvec2 scroll = 0;
+    Math::fvec2 mouseRelativeMotion;
+    Math::fvec2 scroll;
+
+    unsigned int character;
 };
+
 InputFrame inputFrame;
 
 inline static void clearInput()
 {
-    std::lock_guard<std::mutex> lock(TGInputLock);
     auto& io = GTexGui->io;
+    std::lock_guard<std::mutex> lock(TGInputLock);
+
+    inputFrame.mods = io.mods;
 
     inputFrame.cursorPos = io.cursorPos;
-    inputFrame.lmb = io.lmb;
     inputFrame.scroll = io.scroll;
+    inputFrame.mouseRelativeMotion = io.mouseRelativeMotion;
+    io.mouseRelativeMotion = {0, 0};
+
     TexGui::CapturingMouse = false;
     io.scroll = {0, 0};
 
-    if (io.lmb == KEY_Press) io.lmb = KEY_Held;
-    if (io.lmb == KEY_Release) io.lmb = KEY_Off;
+    memcpy(inputFrame.mouseStates, io.mouseStates, sizeof(int) * GLFW_MOUSE_BUTTON_LAST + 1);
+    memcpy(inputFrame.keyStates, io.keyStates, sizeof(int) * GLFW_KEY_LAST + 1);
+    //if press and release happen too fast (glfw thread polling faster than sim thread), the press event can be lost. but that never should happen so watever
+    for (int i = 0; i < GLFW_MOUSE_BUTTON_LAST + 1; i++)
+    {
+        if (io.mouseStates[i] == KEY_Press) io.mouseStates[i] = KEY_Held;
+        if (io.mouseStates[i] == KEY_Release) io.mouseStates[i] = KEY_Off;
+    }
+
+    for (int i = 0; i < GLFW_KEY_LAST + 1; i++)
+    {
+        if (io.keyStates[i] == KEY_Press) io.keyStates[i] = KEY_Held;
+        if (io.keyStates[i] == KEY_Release) io.keyStates[i] = KEY_Off;
+    }
+
     if (!io.charQueue.empty())
     {
         inputFrame.character = io.charQueue.front();
@@ -406,7 +444,6 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
 
         if (fbox(wstate.box.x, wstate.box.y, wstate.box.width, texture->top * _PX).contains(io.cursorPos) && io.lmb == KEY_Press)
         {
-            wstate.last_cursorPos = io.cursorPos;
             wstate.moving = true;
         }
 
@@ -414,19 +451,16 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
                  wstate.box.y + wstate.box.height - texture->bottom * _PX,
                  texture->right * _PX, texture->bottom * _PX).contains(io.cursorPos) && io.lmb == KEY_Press)
         {
-            wstate.last_cursorPos = io.cursorPos;
             wstate.resizing = true;
         }
 
         if (wstate.moving)
         {
-            wstate.box.pos += io.cursorPos - wstate.last_cursorPos;
-            wstate.last_cursorPos = io.cursorPos;
+            wstate.box.pos += io.mouseRelativeMotion;
         }
         else if (wstate.resizing)
         {
-            wstate.box.size += io.cursorPos - wstate.last_cursorPos;
-            wstate.last_cursorPos = io.cursorPos;
+            wstate.box.size += io.mouseRelativeMotion;
         }
     }
 
