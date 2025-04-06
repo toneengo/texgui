@@ -582,14 +582,14 @@ Container Container::ScrollPanel(const char* name, TexEntry* texture, TexEntry* 
     return sp;
 }
 
-void Container::Image(TexEntry* texture)
+void Container::Image(TexEntry* texture, int scale)
 {
-    ivec2 tsize = ivec2(texture->bounds.width, texture->bounds.height) * _PX;
+    ivec2 tsize = ivec2(texture->bounds.width, texture->bounds.height) * scale;
 
     fbox sized = fbox(bounds.pos, fvec2(tsize));
     fbox arranged = Arrange(this, sized);
 
-    rs->drawTexture(arranged, texture, STATE_NONE, _PX, 0, scissorBox);
+    rs->drawTexture(arranged, texture, STATE_NONE, scale, 0, scissorBox);
 }
 
 fbox Container::Arrange(Container* o, fbox child)
