@@ -459,8 +459,90 @@ typedef box<bool>  bbox;
 
 NAMESPACE_END(Math);
 
-struct RenderData;
+NAMESPACE_BEGIN(Defaults);
+
+inline int PixelSize  = 1;
+inline uint32_t Flags = SLICE_9;
+
+namespace Stack {
+    inline float Padding = 8;
+}
+
+//#TODO: use font px instead of sacle, uising msdf
+namespace Tooltip {
+    inline Math::fvec4 HoverPadding(6, 12, 6, 12);
+    inline int TextScale = 20;
+    inline Math::fvec2 MouseOffset(16, 16);
+    inline std::string Texture = "tooltip";
+    inline Math::fvec4 Padding(18, 12, 18, 12);
+    inline float MaxWidth = 400;
+
+    inline Math::fvec2 UnderlineSize(0, 2);
+}
+
+namespace Settings {
+    inline bool Async = false;
+}
+namespace Font {
+    inline Math::fvec4 Color = {1, 1, 1, 1};
+    inline int Size = 20;
+    inline int MsdfPxRange = 1;
+}
+
+namespace Window {
+    inline std::string Texture = "window";
+    inline Math::fvec4 Padding(12);
+}
+
+namespace Button {
+    inline std::string Texture = "button";
+    inline Math::fvec4 Padding(12);
+    inline uint32_t    Flags   = SLICE_9 | CENTER_X | CENTER_Y;
+    inline Math::fvec2 POffset = 0;
+}
+
+namespace TextInput {
+    inline std::string Texture = "textinput";
+    inline Math::fvec4 Padding(8);
+}
+
+namespace ListItem {
+    inline std::string Texture = "listitem";
+    inline Math::fvec4 Padding(4);
+}
+
+namespace Box {
+    inline Math::fvec4 Padding(8);
+}
+
+namespace CheckBox {
+    inline std::string Texture = "checkbox";
+}
+namespace RadioButton {
+    inline std::string Texture = "radiobutton";
+}
+
+namespace ScrollPanel {
+    inline Math::fvec4 Padding(8);
+}
+
+namespace Row {
+    inline int Height = INHERIT;
+    inline int Spacing = 4;
+}
+
+namespace Column {
+    inline int Height = INHERIT;
+    inline int Spacing = 4;
+}
+
+NAMESPACE_END(Defaults);
+
+
+
+class RenderData;
 bool initGlfwOpenGL(GLFWwindow* window);
+
 
 struct TexEntry;
 struct TextSegment;
@@ -475,6 +557,11 @@ struct Paragraph
 
     Paragraph(TextSegment* ptr, uint32_t n);
 };
+
+using LazyData = int64_t;
+
+using LazyIconFunc = TexEntry*(*)(LazyData);
+
 // Text chunks are used to describe the layout of a text block. They get cached into Paragraphs.
 struct TextChunk
 {
@@ -484,6 +571,7 @@ struct TextChunk
         TOOLTIP,     // Marks the beginning/end of a tooltip's boundary
         INDIRECT,    // include a dynamic part while still processing the rest at compile time
         PLACEHOLDER, // Gets substituted for another chunk at draw time
+        LAZY_ICON,   // Lazily fetch an icon
     } type;
 
     union
@@ -497,6 +585,11 @@ struct TextChunk
         } tooltip;
 
         TextChunk* indirect;
+
+        struct {
+            LazyData data;
+            LazyIconFunc func;
+        } lazyIcon;
     };
 
     TextChunk() = default;
@@ -512,6 +605,9 @@ struct TextChunk
 
     constexpr TextChunk(TextChunk* chunk) :
         type(INDIRECT), indirect(chunk) {}
+
+    constexpr TextChunk(LazyData d, LazyIconFunc f) :
+        type(LAZY_ICON), lazyIcon({d, f}) {}
 };
 inline TextChunk Placeholder() { TextChunk c; c.type = TextChunk::PLACEHOLDER; return c; };
 
@@ -531,6 +627,11 @@ struct TextSegment
             Paragraph base;
             Paragraph tooltip;
         } tooltip;
+
+        struct {
+            LazyData data;
+            LazyIconFunc func;
+        } lazyIcon;
     };
 
     float width; // Width of the segment pre-scaling
@@ -542,6 +643,7 @@ struct TextSegment
         NEWLINE,     // Line break
         TOOLTIP,     // Marks the beginning/end of a tooltip's boundary
         PLACEHOLDER, // Gets substituted for another chunk at draw time
+        LAZY_ICON,
     } type;
 
     // Doesn't break a chunk into words so you don't get text wrapping.
@@ -585,7 +687,7 @@ public:
     void      RadioButton(uint32_t* selected, uint32_t id);
     Container ScrollPanel(const char* name, TexEntry* texture = nullptr, TexEntry* bartex = nullptr);
     Container Slider(const char* name, TexEntry* texture = nullptr, TexEntry* bartex = nullptr);
-    void      Image(TexEntry* texture);
+    void      Image(TexEntry* texture, int scale = Defaults::PixelSize);
 
     void      TextInput(const char* name, std::string& buf);
     void      TextInput(const char* name, char* buf, uint32_t bufsize);
@@ -694,84 +796,7 @@ TexEntry* texByName(const char* name);
 // Prepare a reference to a texture already present in an OpenGL array texture.
 TexEntry* customTexture(unsigned int glTexID, unsigned int layer, Math::ibox pixelBounds);
 
-NAMESPACE_BEGIN(Defaults);
-
-inline int PixelSize  = 1;
-inline uint32_t Flags = SLICE_9;
-
-namespace Stack {
-    inline float Padding = 8;
-}
-
-//#TODO: use font px instead of sacle, uising msdf
-namespace Tooltip {
-    inline Math::fvec4 HoverPadding(6, 12, 6, 12);
-    inline int TextScale = 20;
-    inline Math::fvec2 MouseOffset(16, 16);
-    inline std::string Texture = "tooltip";
-    inline Math::fvec4 Padding(18, 12, 18, 12);
-    inline float MaxWidth = 400;
-
-    inline Math::fvec2 UnderlineSize(0, 2);
-}
-
-namespace Settings {
-    inline bool Async = false;
-}
-namespace Font {
-    inline Math::fvec4 Color = {1, 1, 1, 1};
-    inline int Size = 20;
-    inline int MsdfPxRange = 1;
-}
-
-namespace Window {
-    inline std::string Texture = "window";
-    inline Math::fvec4 Padding(12);
-}
-
-namespace Button {
-    inline std::string Texture = "button";
-    inline Math::fvec4 Padding(12);
-    inline uint32_t    Flags   = SLICE_9 | CENTER_X | CENTER_Y;
-    inline Math::fvec2 POffset = 0;
-}
-
-namespace TextInput {
-    inline std::string Texture = "textinput";
-    inline Math::fvec4 Padding(8);
-}
-
-namespace ListItem {
-    inline std::string Texture = "listitem";
-    inline Math::fvec4 Padding(4);
-}
-
-namespace Box {
-    inline Math::fvec4 Padding(8);
-}
-
-namespace CheckBox {
-    inline std::string Texture = "checkbox";
-}
-namespace RadioButton {
-    inline std::string Texture = "radiobutton";
-}
-
-namespace ScrollPanel {
-    inline Math::fvec4 Padding(8);
-}
-
-namespace Row {
-    inline int Height = INHERIT;
-    inline int Spacing = 4;
-}
-
-namespace Column {
-    inline int Height = INHERIT;
-    inline int Spacing = 4;
-}
-
-NAMESPACE_END(Defaults);
+Math::ivec2 getTexSize(TexEntry* tex);
 
 std::vector<TextSegment> cacheText(TextDecl text);
 // Caches text into a buffer. Returns -1 on failure (if there's not enough buffer space), or the amount otherwise

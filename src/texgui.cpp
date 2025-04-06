@@ -275,6 +275,11 @@ TexEntry* TexGui::customTexture(unsigned int glTexID, unsigned int layer, Math::
     return &m_custom_texs.emplace_back(glTexID, layer, pixelBounds, 0, yth, xth, yth, xth);
 }
 
+Math::ivec2 TexGui::getTexSize(TexEntry* tex)
+{
+    return tex->bounds.wh;
+}
+
 struct InputFrame
 {
     int keyStates[GLFW_KEY_LAST + 1];
@@ -611,14 +616,14 @@ Container Container::ScrollPanel(const char* name, TexEntry* texture, TexEntry* 
     return sp;
 }
 
-void Container::Image(TexEntry* texture)
+void Container::Image(TexEntry* texture, int scale)
 {
-    ivec2 tsize = ivec2(texture->bounds.width, texture->bounds.height) * _PX;
+    ivec2 tsize = ivec2(texture->bounds.width, texture->bounds.height) * scale;
 
     fbox sized = fbox(bounds.pos, fvec2(tsize));
     fbox arranged = Arrange(this, sized);
 
-    rs->drawTexture(arranged, texture, STATE_NONE, _PX, 0, scissorBox);
+    rs->drawTexture(arranged, texture, STATE_NONE, scale, 0, scissorBox);
 }
 
 fbox Container::Arrange(Container* o, fbox child)
@@ -709,6 +714,7 @@ Container Container::Grid()
             gs.x = 0;
             gs.y += gs.rowHeight + spacing;
             child = fbox(grid->bounds.pos + fvec2(gs.x, gs.y), child.size);
+            gs.rowHeight = 0;
         }
         else
             child = fbox(grid->bounds.pos + fvec2(gs.x, gs.y), child.size);
@@ -717,7 +723,6 @@ Container Container::Grid()
 
         Arrange(grid->parent, {grid->bounds.x, grid->bounds.y, grid->bounds.width, gs.y + gs.rowHeight + spacing});
 
-        gs.rowHeight = 0;
         gs.n++;
         
         return child;
@@ -860,13 +865,22 @@ static fvec2 calculateTextBounds(Paragraph text, int32_t scale, float maxWidth)
             break;
 
         case TextSegment::PLACEHOLDER:
+            // Assume small width of placeholder. this is fudgy af but generally gives us better layouts
+            {
+                bumpline(x, y, 10 * _PX, bounds, scale);
+                x += 10 * _PX;
+            }
+            break;
         case TextSegment::TOOLTIP:
+            break;
+
+        case TextSegment::LAZY_ICON:
             break;
         }
     }
 
     return y > 0
-        ? fvec2(maxWidth, y)
+        ? fvec2(maxWidth, y + scale)
         : fvec2(x, scale);
 }
 
@@ -886,6 +900,7 @@ inline static void drawChunk(TextSegment s, RenderData* rs, Math::fbox bounds, f
         };
 
         auto& io = inputFrame;
+
         switch (s.type)
         {
         case TextSegment::WORD:
@@ -906,8 +921,11 @@ inline static void drawChunk(TextSegment s, RenderData* rs, Math::fbox bounds, f
             break;
 
         case TextSegment::ICON: 
+        case TextSegment::LAZY_ICON:
             {
-                fvec2 tsize = fvec2(s.icon->bounds.width, s.icon->bounds.height) * _PX;
+                TexEntry* icon = s.type == TextSegment::LAZY_ICON ? s.lazyIcon.func(s.lazyIcon.data) : s.icon;
+
+                fvec2 tsize = fvec2(icon->bounds.width, icon->bounds.height) * _PX;
                 bumpline(x, y, tsize.x, bounds, scale);
 
                 fbox bounds = { x, y - tsize.y / 2, tsize.x, tsize.y };
@@ -915,7 +933,7 @@ inline static void drawChunk(TextSegment s, RenderData* rs, Math::fbox bounds, f
                 underline(rs, x, y, tsize.x, scale, flags, zLayer);
 
                 //#TODO: pass in container here
-                rs->drawTexture(bounds, s.icon, 0, _PX, 0, {0,0,8192,8192}, zLayer);
+                rs->drawTexture(bounds, icon, 0, _PX, 0, {0,0,8192,8192}, zLayer);
 
                 // if (checkHover) rs->drawQuad(bounds, fvec4(1, 0, 0, 1));
                 hovered |= checkHover && !hovered && fbox::margin(bounds, Defaults::Tooltip::HoverPadding).contains(io.cursorPos);
@@ -1158,6 +1176,13 @@ void cacheChunk(const TextChunk& chunk, std::vector<TextSegment>& out)
             .type = TextSegment::ICON,
         });
     }
+    else if (chunk.type == TextChunk::LAZY_ICON)
+    {
+        out.push_back({
+            .lazyIcon = { chunk.lazyIcon.data, chunk.lazyIcon.func },
+            .type = TextSegment::LAZY_ICON,
+        });
+    }
     else if (chunk.type == TextChunk::TOOLTIP)
     {
         out.push_back({
@@ -1215,59 +1240,78 @@ TextSegment TextSegment::FromChunkFast(TextChunk chunk)
                 .type = TextSegment::ICON,
             };
         }
+        case TextChunk::LAZY_ICON: {
+            return {
+                .lazyIcon = { chunk.lazyIcon.data, chunk.lazyIcon.func },
+                .width = 0,
+                .type = TextSegment::LAZY_ICON,
+            };
+        }
     }
 }
 
 
 bool cacheChunk(uint32_t& i, const TextChunk& chunk, TextSegment* buffer, uint32_t capacity)
 {
-    if (chunk.type == TextChunk::TEXT) 
+    switch (chunk.type)
     {
-        const char* t = chunk.text;
-        while (true)
+    case TextChunk::TEXT:
         {
-            // Break the chunk into words and whitespace
-            TextSegment s;
-            int32_t len = parseText(t, &s);
-            if (len == -1) break;
+            const char* t = chunk.text;
+            while (true)
+            {
+                // Break the chunk into words and whitespace
+                TextSegment s;
+                int32_t len = parseText(t, &s);
+                if (len == -1) break;
 
+                if (i >= capacity) return false;
+                buffer[i] = s;
+                i++;
+                t += len;
+            }
+        } break;
+    case TextChunk::ICON:
+        {
             if (i >= capacity) return false;
-            buffer[i] = s;
+            buffer[i] = {
+                .icon = chunk.icon,
+                .width = float(chunk.icon->bounds.width),
+                .type = TextSegment::ICON,
+            };
             i++;
-            t += len;
-        }
-    }
-    else if (chunk.type == TextChunk::ICON) 
-    {
-        if (i >= capacity) return false;
-        buffer[i] = {
-            .icon = chunk.icon,
-            .width = float(chunk.icon->bounds.width),
-            .type = TextSegment::ICON,
-        };
-        i++;
-    }
-    else if (chunk.type == TextChunk::TOOLTIP)
-    {
-        if (i >= capacity) return false;
-        buffer[i] = {
-            .tooltip = { chunk.tooltip.base, chunk.tooltip.tooltip },
-            .width = 0,
-            .type = TextSegment::TOOLTIP,
-        };
-        i++;
-    }
-    else if (chunk.type == TextChunk::INDIRECT)
-    {
+        } break;
+    case TextChunk::LAZY_ICON:
+        {
+            if (i >= capacity) return false;
+            buffer[i] = {
+                .lazyIcon = { chunk.lazyIcon.data, chunk.lazyIcon.func },
+                .width = 0,
+                .type = TextSegment::LAZY_ICON,
+            };
+            i++;
+        } break;
+    case TextChunk::TOOLTIP:
+        {
+            if (i >= capacity) return false;
+            buffer[i] = {
+                .tooltip = { chunk.tooltip.base, chunk.tooltip.tooltip },
+                .width = 0,
+                .type = TextSegment::TOOLTIP,
+            };
+            i++;
+        } break;
+    case TextChunk::INDIRECT:
         cacheChunk(i, *chunk.indirect, buffer, capacity);
-    }
-    else if (chunk.type == TextChunk::PLACEHOLDER)
-    {
-        if (i >= capacity) return false;
-        buffer[i] = {
-            .type = TextSegment::PLACEHOLDER,
-        }; 
-        i++;
+        break;
+    case TextChunk::PLACEHOLDER:
+        {
+            if (i >= capacity) return false;
+            buffer[i] = {
+                .type = TextSegment::PLACEHOLDER,
+            }; 
+            i++;
+        } break;
     }
     return true;
 }
