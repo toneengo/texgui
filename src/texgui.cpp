@@ -723,6 +723,15 @@ Container Container::Grid()
     grid.grid = { 0, 0, 0, 0 };
     return grid;
 }
+void Container::Divider(float padding)
+{
+    float width = 2;
+    fbox ln = Arrange(this, {bounds.x,bounds.y, this->bounds.width, width + padding*2.f});
+    fbox line = {
+        ln.x, ln.y + padding, ln.width, width,
+    };
+    rs->drawQuad(line, fvec4(1,1,1,0.5), 1);
+}
 
 Container Container::Stack(float padding)
 {
@@ -824,7 +833,15 @@ static void bumpline(float& x, float& y, float w, Math::fbox& bounds, int32_t sc
     }
 }
 
-static fvec2 calculateTextBounds(Paragraph text, int32_t scale, float maxWidth)
+fvec2 TexGui::calculateTextBounds(const char* text, float maxWidth, int32_t scale)
+{
+    auto ts = TextSegment::FromChunkFast(TextChunk(text));
+    auto p = Paragraph(&ts, 1);
+
+    return calculateTextBounds(p, scale, maxWidth);
+}
+
+fvec2 TexGui::calculateTextBounds(Paragraph text, int32_t scale, float maxWidth)
 {
     float x = 0, y = 0;
 
@@ -972,34 +989,41 @@ static bool writeText(Paragraph text, int32_t scale, Math::fbox bounds, float& x
     return hovered;
 }
 
-static void renderTooltip(Paragraph text, RenderData* rs)
+Container RenderData::drawTooltip(fvec2 size)
 {
     auto& io = inputFrame;
-
     static TexEntry* tex = &m_tex_map[Defaults::Tooltip::Texture];
+    
+    fbox bounds = {
+        io.cursorPos + Defaults::Tooltip::MouseOffset, 
+        size,
+    };
+    bounds = fbox::margin(bounds, Defaults::Tooltip::Padding);
+
+    return this->Base.Box(bounds.x, bounds.y, bounds.w, bounds.h, tex);
+}
+
+static void renderTooltip(Paragraph text, RenderData* rs)
+{
     int scale = Defaults::Tooltip::TextScale;
 
-    fbox textBounds = {
-        io.cursorPos + Defaults::Tooltip::MouseOffset, 
-        calculateTextBounds(text, scale, Defaults::Tooltip::MaxWidth)
-    };
+    fvec2 textBounds = calculateTextBounds(text, scale, Defaults::Tooltip::MaxWidth);
 
-    fbox bounds = fbox::margin(textBounds, Defaults::Tooltip::Padding);
+    Container s = rs->drawTooltip(textBounds);
 
-    rs->drawTexture(bounds, tex, 0, _PX, SLICE_9, bounds, 1);
-
-    float x = textBounds.x, y = textBounds.y;
-    writeText(text, Defaults::Tooltip::TextScale, textBounds, x, y, rs, false, 1);
+    float x = s.bounds.x, y = s.bounds.y;
+    writeText(text, Defaults::Tooltip::TextScale, s.bounds, x, y, rs, false, 1);
 }
 
 void Container::Text(Paragraph text, int32_t scale, TextDecl parameters)
 {
+    if (scale == 0) scale = Defaults::Font::Size;
+
     fbox textBounds = {
         { bounds.x, bounds.y },
         calculateTextBounds(text, scale, bounds.width)
     };
 
-    if (scale == 0) scale = Defaults::Font::Size;
     textBounds = Arrange(this, textBounds);
     textBounds.y += + scale / 2.0f;
 
@@ -1008,14 +1032,20 @@ void Container::Text(Paragraph text, int32_t scale, TextDecl parameters)
 
 void Container::Text(const char* text, int32_t scale, TextDecl parameters)
 {
-    //#TODO: markdown w/ icons and stuff
     if (scale == 0) scale = Defaults::Font::Size;
     auto ts = TextSegment::FromChunkFast(TextChunk(text));
-    fbox sized = {bounds.x, bounds.y, ts.width * scale, 0.f};
-    sized = Arrange(this, sized);
     auto p = Paragraph(&ts, 1);
 
-    writeText(p, scale, sized, sized.x, sized.y, rs, false, 0, 0, parameters);
+    fbox textBounds = {
+        { bounds.x, bounds.y },
+        calculateTextBounds(p, scale, bounds.width)
+    };
+
+    if (scale == 0) scale = Defaults::Font::Size;
+    textBounds = Arrange(this, textBounds);
+    textBounds.y += + scale / 2.0f;
+
+    writeText(p, scale, bounds, textBounds.x, textBounds.y, rs, false, 0, 0, parameters);
 }
 
 void Container::Row(Container* out, const float* widths, uint32_t n, float height, uint32_t flags)
