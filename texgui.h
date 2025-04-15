@@ -371,7 +371,7 @@ struct box
     {}
 
     template <typename v>
-    box(const v& _box)
+    box(const box<v>& _box)
         : x(static_cast<T>(_box.x)),
           y(static_cast<T>(_box.y)),
           w(static_cast<T>(_box.w)),
@@ -379,7 +379,7 @@ struct box
     {}
 
     template <typename v>
-    box(v&& _box)
+    box(box<v>&& _box)
         : x(static_cast<T>(_box.x)),
           y(static_cast<T>(_box.y)),
           w(static_cast<T>(_box.w)),
@@ -676,6 +676,7 @@ struct TextDecl
 class Container
 {
     friend struct Arrangers;
+    friend class RenderData;
 
 public:
     using ArrangeFunc = Math::fbox(*)(Container* parent, Math::fbox in);
@@ -699,6 +700,8 @@ public:
     void      Text(const char* text, int32_t scale = 0, TextDecl parameters = {});
 
     Container Align(uint32_t flags = 0, Math::fvec4 padding = Math::fvec4(0,0,0,0));
+
+    void      Divider(float padding = 0);
 
     // Similar to radio buttons - the id of the selected one is stored in the *selected pointer.
     // If you don't want them to be clickable - set selected to nullptr, and 0 or 1 for whether it is active in id
@@ -821,6 +824,8 @@ public:
     }
     Container Base;
 
+    Container drawTooltip(Math::fvec2 size);
+
     void drawQuad(const Math::fbox& rect, const Math::fvec4& col, int32_t zLayer = 0);
     void drawTexture(const Math::fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags, const Math::fbox& bounds, int32_t zLayer = 0);
     int drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len = -1, int32_t zLayer = 0);
@@ -941,5 +946,8 @@ private:
     std::vector<Object> objects2;
     std::vector<Command> commands2;
 };
+
+Math::fvec2 calculateTextBounds(Paragraph text, int32_t scale, float maxWidth);
+Math::fvec2 calculateTextBounds(const char* text, float maxWidth, int32_t scale = Defaults::Font::Size);
 
 NAMESPACE_END(TexGui);
