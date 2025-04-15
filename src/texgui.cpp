@@ -90,6 +90,8 @@ struct InputData {
 
     bool firstMouse = false;
 
+    bool backspace = false;
+
     InputData() { memset(keyStates, KEY_Off, sizeof(int)*(GLFW_KEY_LAST+1));
                   memset(mouseStates, KEY_Off, sizeof(int)*(GLFW_MOUSE_BUTTON_LAST+1)); }
 };
@@ -150,8 +152,13 @@ void TexGui_ImplGlfw_CursorPosCallback(GLFWwindow* window, double x, double y)
 void TexGui_ImplGlfw_KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     auto& bd = GTexGui->backendData;
+    auto& io = GTexGui->io;
     if (bd.PrevUserCallbackKey)
         bd.PrevUserCallbackKey(window, key, scancode, action, mods);
+
+    if (key == GLFW_KEY_BACKSPACE
+        && (action == GLFW_PRESS || action == GLFW_REPEAT)) 
+        io.backspace = true;
 
     std::lock_guard<std::mutex> lock(TGInputLock);
 }
@@ -293,6 +300,8 @@ struct InputFrame
     Math::fvec2 scroll;
 
     unsigned int character;
+
+    bool backspace;
 };
 
 InputFrame inputFrame;
@@ -307,6 +316,8 @@ inline static void clearInput()
     inputFrame.cursorPos = io.cursorPos;
     inputFrame.scroll = io.scroll;
     inputFrame.mouseRelativeMotion = io.mouseRelativeMotion;
+    inputFrame.backspace = io.backspace;
+    io.backspace = false;
     io.mouseRelativeMotion = {0, 0};
 
     TexGui::CapturingMouse = false;
@@ -751,32 +762,36 @@ Container Container::Stack(float padding)
     return stack;
 }
 
-
-void Container::TextInput(const char* name, std::string& buf)
+static bool textInputUpdate(TextInputState& tstate, unsigned int* c, CharacterFilter filter)
 {
     auto& io = inputFrame;
+    *c = 0;
+
+    if (!(tstate.state & STATE_ACTIVE)) return false;
+
+    if (io.character != 0 && (filter == nullptr || filter(io.character)))
+    {
+        *c = io.character;
+        return false;
+    }
+    if (io.backspace)
+    {
+        return true;
+    }
+    return false;
+}
+
+void renderTextInput(RenderData* rs, const char* name, fbox bounds, fbox scissor, TextInputState& tstate, const char* text, int32_t len)
+{
     static TexEntry* inputtex = &m_tex_map[Defaults::TextInput::Texture];
-    if (!GTexGui->textInputs.contains(name))
-    {
-        GTexGui->textInputs.insert({name, {}});
-    }
-    
-    auto& tstate = GTexGui->textInputs[name];
 
-    getBoxState(tstate.state, bounds);
-    
-    if (io.character != 0 && tstate.state & STATE_ACTIVE)
-    {
-        buf.push_back(io.character);
-    }
-
-    rs->drawTexture(bounds, inputtex, tstate.state, _PX, SLICE_9, scissorBox);
+    rs->drawTexture(bounds, inputtex, tstate.state, _PX, SLICE_9, scissor);
     float offsetx = 0;
     fvec4 padding = Defaults::TextInput::Padding;
     fvec4 color = Defaults::Font::Color;
     rs->drawText(
-        !getBit(tstate.state, STATE_ACTIVE) && buf.size() == 0
-        ? name : buf.c_str(),
+        !getBit(tstate.state, STATE_ACTIVE) && len == 0
+        ? name : text,
         {bounds.x + offsetx + padding.left, bounds.y + bounds.height / 2},
         Defaults::Font::Color,
         Defaults::Font::Size,
@@ -784,10 +799,30 @@ void Container::TextInput(const char* name, std::string& buf)
     );
 }
 
-void Container::TextInput(const char* name, char* buf, uint32_t bufsize)
+void Container::TextInput(const char* name, std::string& buf, CharacterFilter filter)
+{
+    if (!GTexGui->textInputs.contains(name))
+    {
+        GTexGui->textInputs.insert({name, {}});
+    }
+    
+    auto& tstate = GTexGui->textInputs[name];
+    getBoxState(tstate.state, bounds);
+    
+    unsigned int c;
+    if (textInputUpdate(tstate, &c, filter))
+    {
+        if (buf.size() > 0) buf.pop_back();
+    }
+    else if (c)
+        buf.push_back(c);
+    
+    renderTextInput(rs, name, bounds, scissorBox, tstate, buf.c_str(), buf.size());
+}
+
+void Container::TextInput(const char* name, char* buf, uint32_t bufsize, CharacterFilter filter)
 {
     auto& io = inputFrame;
-    static TexEntry* inputtex = &m_tex_map[Defaults::TextInput::Texture];
     
     if (!GTexGui->textInputs.contains(name))
     {
@@ -797,28 +832,25 @@ void Container::TextInput(const char* name, char* buf, uint32_t bufsize)
     auto& tstate = GTexGui->textInputs[name];
 
     getBoxState(tstate.state, bounds);
-    
     int32_t tlen = strlen(buf);
-
-    if (io.character != 0 && (tstate.state & STATE_ACTIVE) && tlen < bufsize - 1)
+    
+    unsigned int c;
+    if (textInputUpdate(tstate, &c, filter))
     {
-        buf[bufsize] = io.character;
-        buf[bufsize + 1] = '\0';
-        bufsize += 1;
+        if (tlen > 0)
+        {
+            // Backspace
+            tlen -= 1;
+            buf[tlen] = '\0';
+        }
     }
-
-    rs->drawTexture(bounds, inputtex, tstate.state, _PX, SLICE_9, scissorBox);
-    float offsetx = 0;
-    fvec4 padding = Defaults::TextInput::Padding;
-    fvec4 color = Defaults::Font::Color;
-    rs->drawText(
-        !getBit(tstate.state, STATE_ACTIVE) && tlen == 0
-        ? name : buf,
-        {bounds.x + offsetx + padding.left, bounds.y + bounds.height / 2},
-        Defaults::Font::Color,
-        Defaults::Font::Size,
-        CENTER_Y
-    );
+    else if (c && tlen < bufsize - 1)
+    {
+        buf[tlen] = io.character;
+        buf[tlen + 1] = '\0';
+        tlen += 1;
+    }
+    renderTextInput(rs, name, bounds, scissorBox, tstate, buf, tlen);
 }
 
 static void renderTooltip(Paragraph text, RenderData* rs);

@@ -45,7 +45,7 @@ enum TexGui_flags : uint32_t
     HIDE_TITLE = 0x40000,
 
     CAPTURE_INPUT = 0x80000,
-    RESIZABLE = 0x100000
+    RESIZABLE = 0x100000,
 };
 
 enum TexGui_state : uint8_t 
@@ -672,6 +672,7 @@ struct TextDecl
     const TextChunk* end() const { return data + count; }
 };
     
+using CharacterFilter = bool(*)(unsigned int c);
 
 class Container
 {
@@ -694,8 +695,8 @@ public:
     Container Slider(const char* name, TexEntry* texture = nullptr, TexEntry* bartex = nullptr);
     void      Image(TexEntry* texture, int scale = Defaults::PixelSize);
 
-    void      TextInput(const char* name, std::string& buf);
-    void      TextInput(const char* name, char* buf, uint32_t bufsize);
+    void      TextInput(const char* name, std::string& buf, CharacterFilter filter = nullptr);
+    void      TextInput(const char* name, char* buf, uint32_t bufsize, CharacterFilter filter = nullptr);
     void      Text(Paragraph text, int32_t scale = 0, TextDecl parameters = {});
     void      Text(const char* text, int32_t scale = 0, TextDecl parameters = {});
 
