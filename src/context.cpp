@@ -28,7 +28,7 @@
 using namespace TexGui;
 using namespace TexGui::Math;
 
-constexpr int ATLAS_SIZE = 512;
+constexpr int ATLAS_SIZE = 1024;
 std::unordered_map<uint32_t, uint32_t> m_char_map;
 
 GLContext::GLContext()

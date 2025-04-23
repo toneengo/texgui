@@ -1398,7 +1398,7 @@ TexGui::TextDecl::TextDecl(std::initializer_list<TextChunk> s) :
 TexEntry* IconSheet::getIcon(uint32_t x, uint32_t y)
 {
     // #TODO: the user's icon sheet has different size, but
-    // the shader expects all tex size to be 512.
+    // the shader expects all tex size to be ATLAS_SIZE.
     ibox bounds = { ivec2(x, y + 1) * ivec2(iw, ih), ivec2(iw, ih) };
     return &m_custom_texs.emplace_back(glID, 0, bounds, 0, 0, 0, 0);
 }

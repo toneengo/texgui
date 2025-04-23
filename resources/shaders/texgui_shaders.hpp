@@ -172,7 +172,7 @@ void main() {
         ivec2(1, 0)
     ); 
 
-    int ATLAS_SIZE = 512;
+    int ATLAS_SIZE = 1024;
     vec4 rect = quads[index + gl_InstanceID].rect;
 
     rect.x -= screenSz.x / 2;
@@ -224,7 +224,7 @@ void main() {
         ivec2(1, 0)
     ); 
 
-    int ATLAS_SIZE = 512;
+    int ATLAS_SIZE = 1024;
     int px = quads[index + gl_InstanceID / 9].pixelSize;
     vec4 rect = quads[index + gl_InstanceID / 9].rect;
     rect.x -= screenSz.x / 2;
