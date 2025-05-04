@@ -8,7 +8,7 @@
 #include "stb_ds.h"
 
 #include "texgui.h"
-#include "context.h"
+#include "texgui_opengl.hpp"
 #include "util.h"
 
 #include <filesystem>

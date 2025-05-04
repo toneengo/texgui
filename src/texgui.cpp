@@ -1,5 +1,5 @@
 #include "texgui.h"
-#include "context.h"
+#include "texgui_opengl.hpp"
 #include "types.h"
 #include "GLFW/glfw3.h"
 #include <cassert>
