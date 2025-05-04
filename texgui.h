@@ -545,8 +545,9 @@ NAMESPACE_END(Defaults);
 
 
 class RenderData;
+struct VulkanInitInfo;
 bool initGlfwOpenGL(GLFWwindow* window);
-bool initGlfwVulkan(GLFWwindow* window);
+bool initGlfwVulkan(GLFWwindow* window, const VulkanInitInfo& info);
 
 
 struct TexEntry;
@@ -829,7 +830,7 @@ public:
     Container drawTooltip(Math::fvec2 size);
 
     void drawQuad(const Math::fbox& rect, const Math::fvec4& col, int32_t zLayer = 0);
-    void drawTexture(const Math::fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags, const Math::fbox& bounds, int32_t zLayer = 0);
+    void drawTexture(Math::fbox rect, TexEntry* e, int state, int pixel_size, uint32_t flags, const Math::fbox& bounds, int32_t zLayer = 0);
     int drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len = -1, int32_t zLayer = 0);
     //void scissor(int x, int y, int width, int height);
     void scissor(Math::fbox bounds);

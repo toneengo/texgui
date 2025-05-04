@@ -4,9 +4,6 @@
 #endif
 #include "GLFW/glfw3.h"
 
-#define STB_DS_IMPLEMENTATION
-#include "stb_ds.h"
-
 #include "texgui.h"
 #include "texgui_opengl.hpp"
 #include "util.h"
@@ -17,13 +14,9 @@
 #include "shaders/texgui_shaders.hpp"
 #include "msdf-atlas-gen/msdf-atlas-gen.h"
 
-#define STB_IMAGE_IMPLEMENTATION
+#include "stb_ds.h"
 #include "stb_image.h"
-
-#define STB_RECT_PACK_IMPLEMENTATION
 #include "stb_rect_pack.h"
-
-#define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
 #include <iostream>
@@ -110,155 +103,6 @@ void GLContext::setScreenSize(int width, int height)
     glNamedBufferSubData(m_ub.screen_size.buf, 0, sizeof(int) * 2, &m_screen_size);
 }
 
-extern std::vector<msdf_atlas::GlyphGeometry> glyphs;
-
-float TexGui::computeTextWidth(const char* text, size_t numchars)
-{
-    float total = 0;
-    for (size_t i = 0; i < numchars; i++)
-    {
-        total += glyphs[m_char_map[text[i]]].getAdvance();
-    }
-    return total;
-}
-
-int RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len, int32_t zLayer)
-{
-    auto& objects = zLayer > 0 ? this->objects2 : this->objects;
-    auto& commands = zLayer > 0 ? this->commands2 : this->commands;
-
-    size_t numchars = len == -1 ? strlen(text) : len;
-    size_t numcopy = numchars;
-
-    const auto& a = glyphs[m_char_map['a']];
-    if (flags & CENTER_Y)
-    {
-        double l, b, r, t;
-        a.getQuadPlaneBounds(l, b, r, t);
-        pos.y += (size - (t * size)) / 2;
-    }
-
-    if (flags & CENTER_X)
-    {
-        pos.x -= computeTextWidth(text, numchars) * size / 2.0;
-    }
-
-    float currx = pos.x;
-
-    //const CharInfo& hyphen = m_char_map['-'];
-    for (int idx = 0; idx < numchars; idx++)
-    {
-        const auto& info = glyphs[m_char_map[text[idx]]];
-        /*
-        if (flags & WRAPPED && currx + (info.advance + hyphen.advance) * scale > width)
-        {
-            if (text[idx] != ' ' && (idx > 0 && text[idx - 1] != ' '))
-            {
-                Character h = {
-                    .rect = fbox(
-                        currx + hyphen.bearing.x * scale + m_widget_pos.x,
-                        pos.y - hyphen.bearing.y * scale + font_height * scale + m_widget_pos.y,
-                        hyphen.size.x * scale,
-                        hyphen.size.y * scale
-                    ),
-                    .col = col,
-                    .layer = hyphen.layer,
-                    .scale = scale,
-                };
-                objects.push_back(h);
-                numcopy++;
-            }
-            currx = 0;
-            pos.y += line_height;
-        }
-        */
-        if (!info.isWhitespace())
-        {
-            int x, y, w, h;
-            info.getBoxRect(x, y, w, h);
-            double l, b, r, t;
-            info.getQuadPlaneBounds(l, b, r, t);
-
-            Character c = {
-                .rect = fbox(
-                    currx + l * size,
-                    pos.y - b * size,
-                    w * size,
-                    h * size
-                ),
-                .texBounds = {x, y, w, h},
-                .layer = 0,
-                .size = size
-            };
-
-            objects.push_back(c);
-        }
-        else
-            numcopy--;
-        currx += font_px * info.getAdvance() * size / font_px;
-    }
-
-    commands.push_back({Command::CHARACTER, uint32_t(numcopy), flags});
-    return currx;
-}
-
-#include <stack>
-std::stack<fbox> scissorStack;
-void RenderData::scissor(Math::fbox bounds)
-{
-    commands.push_back({Command::SCISSOR, 0, 0, nullptr, bounds});
-}
-
-void RenderData::descissor()
-{
-    commands.push_back({Command::DESCISSOR, 0, 0, nullptr});
-}
-
-void RenderData::drawTexture(const fbox& rect, TexEntry* e, int state, int pixel_size, uint32_t flags, const fbox& bounds, int32_t zLayer )
-{
-    if (bounds.width < 1 || bounds.height < 1) return;
-
-    auto& objects = zLayer > 0 ? this->objects2 : this->objects;
-    auto& commands = zLayer > 0 ? this->commands2 : this->commands;
-
-    if (!e) return;
-    int layer = 0;
-    //#TODO: don't hard code numebrs
-    if (getBit(e->has_state, state))
-    {
-        if (getBit(state, STATE_PRESS) && getBit(e->has_state, STATE_PRESS))
-            layer = 2;
-        else if (getBit(state, STATE_HOVER) && getBit(e->has_state, STATE_HOVER))
-            layer = 1;
-        else if (getBit(e->has_state, STATE_ACTIVE))
-            layer = 3;
-    }
-
-    Quad q = {
-        .rect = fbox(rect.pos, rect.size),
-        .texBounds = e->bounds,
-        .layer = layer,
-        .pixelSize = pixel_size
-    };
-
-    objects.push_back(q);
-    commands.push_back({Command::QUAD, 1, flags, e, bounds});
-}
-
-void RenderData::drawQuad(const Math::fbox& rect, const Math::fvec4& col, int32_t zLayer)
-{
-    auto& objects = zLayer > 0 ? this->objects2 : this->objects;
-    auto& commands = zLayer > 0 ? this->commands2 : this->commands;
-
-    ColQuad q = {
-        .rect = fbox(rect.pos, rect.size),
-        .col = col,
-    };
-
-    objects.push_back(q);
-    commands.push_back({Command::COLQUAD, 1, 0, nullptr});
-}
-
 void GLContext::renderFromRD(RenderData& data) {
     bindBuffers();
 
@@ -271,10 +115,8 @@ void GLContext::renderFromRD(RenderData& data) {
             glNamedBufferSubData(ctx.m_ub.objIndex.buf, 0, sizeof(int), &count);
             switch (c.type)
             {
-                
                 case RenderData::Command::QUAD:
                 {
-
                     fbox sb = c.scissorBox;
                     sb.x -= ctx.m_screen_size.x / 2.f;
                     sb.y = ctx.m_screen_size.y / 2.f - c.scissorBox.y - c.scissorBox.height;
@@ -285,17 +127,8 @@ void GLContext::renderFromRD(RenderData& data) {
 
                     glBindTextureUnit(ctx.m_ta.texture.bind, c.texentry->glID);
                     
-                    if (c.flags & SLICE_9)
-                    {
-                        ctx.m_shaders.quad9slice.use();
-                        glUniform4f(ctx.m_shaders.quad9slice.slices,
-                                    c.texentry->top, c.texentry->right, c.texentry->bottom, c.texentry->left);
-                        glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number * 9);
-                    }
-                    else {
-                        ctx.m_shaders.quad.use();
-                        glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number);
-                    }
+                    ctx.m_shaders.quad.use();
+                    glDrawArraysInstanced(GL_TRIANGLES, 0, 6, c.number);
                     break;
                 }
                 case RenderData::Command::COLQUAD:

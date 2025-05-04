@@ -28,6 +28,8 @@ find_package(OpenGL REQUIRED)
 find_package(glfw3 CONFIG REQUIRED)
 find_package(Freetype REQUIRED)
 
+find_package(Vulkan REQUIRED)
+
 set(MSDF_ATLAS_NO_ARTERY_FONT ON)
 set(MSDF_ATLAS_USE_SKIA OFF)
 set(MSDF_ATLAS_MSDFGEN_EXTERNAL OFF)
@@ -42,6 +44,7 @@ foreach(TARGET texgui)
     add_dependencies(${TARGET} msdf-atlas-gen)
 
     target_link_libraries(${TARGET} PRIVATE OpenGL::GL)
+    target_link_libraries(${TARGET} PRIVATE Vulkan::Vulkan)
     target_link_libraries(${TARGET} PRIVATE glfw)
     target_link_libraries(${TARGET} PUBLIC Freetype::Freetype)
 

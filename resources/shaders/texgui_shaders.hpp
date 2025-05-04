@@ -40,6 +40,7 @@ layout (std140, binding = 1) uniform indexBuf {
 
 )#";
 
+
 inline const std::string TEXTVERT = R"#(
 layout (std430, binding = 0) buffer objectBuf {
     Character text[];
@@ -174,10 +175,6 @@ void main() {
 
     int ATLAS_SIZE = 1024;
     vec4 rect = quads[index + gl_InstanceID].rect;
-
-    rect.x -= screenSz.x / 2;
-    rect.y = screenSz.y / 2 - rect.y - rect.w;
-
     vec4 texBounds = quads[index + gl_InstanceID].texBounds;
 
     uv = quad[gl_VertexID];

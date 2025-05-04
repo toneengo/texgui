@@ -1,5 +1,6 @@
 #include "texgui.h"
 #include "texgui_opengl.hpp"
+#include "texgui_vulkan.hpp"
 #include "types.h"
 #include "GLFW/glfw3.h"
 #include <cassert>
@@ -104,11 +105,12 @@ struct ScrollPanelState
 
 struct TexGuiContext
 {
+    Math::ivec2 framebufferSize;
     ImplGlfw_Data backendData;
     std::unordered_map<std::string, WindowState> windows;
     std::unordered_map<std::string, TextInputState> textInputs;
     std::unordered_map<std::string, ScrollPanelState> scrollPanels;
-    GLContext renderCtx;
+    NoApiContext* renderCtx = nullptr;
     InputData io;
 };
 
@@ -194,7 +196,8 @@ void TexGui_ImplGlfw_FramebufferSizeCallback(GLFWwindow* window, int width, int 
     if (bd.PrevUserCallbackFramebufferSize)
         bd.PrevUserCallbackFramebufferSize(window, width, height);
 
-    GTexGui->renderCtx.setScreenSize(width, height);
+    GTexGui->renderCtx->setScreenSize(width, height);
+    GTexGui->framebufferSize = {width, height};
 
     std::lock_guard<std::mutex> lock(TGInputLock);
     Base.bounds.size = Math::fvec2(width, height);
@@ -221,7 +224,18 @@ bool initGlfwCallbacks(GLFWwindow* window)
 bool TexGui::initGlfwOpenGL(GLFWwindow* window)
 {
     GTexGui = new TexGuiContext();
-    GTexGui->renderCtx.initFromGlfwWindow(window);
+    GTexGui->renderCtx = new GLContext();
+    GTexGui->renderCtx->initFromGlfwWindow(window);
+    initGlfwCallbacks(window);
+    Base.rs = &TGRenderData;
+    return true;
+} 
+
+bool TexGui::initGlfwVulkan(GLFWwindow* window, const VulkanInitInfo& info)
+{
+    GTexGui = new TexGuiContext();
+    GTexGui->renderCtx = new VulkanContext(info);
+    GTexGui->renderCtx->initFromGlfwWindow(window);
     initGlfwCallbacks(window);
     Base.rs = &TGRenderData;
     return true;
@@ -231,16 +245,16 @@ void TexGui::render()
 {
     if (Defaults::Settings::Async)
     {
-        GTexGui->renderCtx.renderFromRD(TGRenderData);
+        GTexGui->renderCtx->renderFromRD(TGRenderData);
         return;
     }
 
-    GTexGui->renderCtx.renderFromRD(TGSyncedRenderData);
+    GTexGui->renderCtx->renderFromRD(TGSyncedRenderData);
 }
 
 void TexGui::render(RenderData& data)
 {
-    GTexGui->renderCtx.renderFromRD(data);
+    GTexGui->renderCtx->renderFromRD(data);
 }
 
 RenderData* TexGui::newRenderData()
@@ -250,17 +264,17 @@ RenderData* TexGui::newRenderData()
 
 void TexGui::loadFont(const char* font)
 {
-    GTexGui->renderCtx.loadFont(font);
+    GTexGui->renderCtx->loadFont(font);
 }
 
 void TexGui::loadTextures(const char* dir)
 {
-    GTexGui->renderCtx.loadTextures(dir);
+    GTexGui->renderCtx->loadTextures(dir);
 }
 
 IconSheet TexGui::loadIcons(const char* dir, int32_t iconWidth, int32_t iconHeight)
 {
-    return GTexGui->renderCtx.loadIcons(dir, iconWidth, iconHeight);
+    return GTexGui->renderCtx->loadIcons(dir, iconWidth, iconHeight);
 }
 
 extern std::unordered_map<std::string, TexGui::TexEntry> m_tex_map;
@@ -1401,4 +1415,199 @@ TexEntry* IconSheet::getIcon(uint32_t x, uint32_t y)
     // the shader expects all tex size to be ATLAS_SIZE.
     ibox bounds = { ivec2(x, y + 1) * ivec2(iw, ih), ivec2(iw, ih) };
     return &m_custom_texs.emplace_back(glID, 0, bounds, 0, 0, 0, 0);
+}
+
+#include "msdf-atlas-gen/msdf-atlas-gen.h"
+extern std::vector<msdf_atlas::GlyphGeometry> glyphs;
+extern std::unordered_map<uint32_t, uint32_t> m_char_map;
+float TexGui::computeTextWidth(const char* text, size_t numchars)
+{
+    float total = 0;
+    for (size_t i = 0; i < numchars; i++)
+    {
+        total += glyphs[m_char_map[text[i]]].getAdvance();
+    }
+    return total;
+}
+
+int RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len, int32_t zLayer)
+{
+    auto& objects = zLayer > 0 ? this->objects2 : this->objects;
+    auto& commands = zLayer > 0 ? this->commands2 : this->commands;
+
+    size_t numchars = len == -1 ? strlen(text) : len;
+    size_t numcopy = numchars;
+
+    const auto& a = glyphs[m_char_map['a']];
+    if (flags & CENTER_Y)
+    {
+        double l, b, r, t;
+        a.getQuadPlaneBounds(l, b, r, t);
+        pos.y += (size - (t * size)) / 2;
+    }
+
+    if (flags & CENTER_X)
+    {
+        pos.x -= computeTextWidth(text, numchars) * size / 2.0;
+    }
+
+    float currx = pos.x;
+
+    //const CharInfo& hyphen = m_char_map['-'];
+    for (int idx = 0; idx < numchars; idx++)
+    {
+        const auto& info = glyphs[m_char_map[text[idx]]];
+        /*
+        if (flags & WRAPPED && currx + (info.advance + hyphen.advance) * scale > width)
+        {
+            if (text[idx] != ' ' && (idx > 0 && text[idx - 1] != ' '))
+            {
+                Character h = {
+                    .rect = fbox(
+                        currx + hyphen.bearing.x * scale + m_widget_pos.x,
+                        pos.y - hyphen.bearing.y * scale + font_height * scale + m_widget_pos.y,
+                        hyphen.size.x * scale,
+                        hyphen.size.y * scale
+                    ),
+                    .col = col,
+                    .layer = hyphen.layer,
+                    .scale = scale,
+                };
+                objects.push_back(h);
+                numcopy++;
+            }
+            currx = 0;
+            pos.y += line_height;
+        }
+        */
+        if (!info.isWhitespace())
+        {
+            int x, y, w, h;
+            info.getBoxRect(x, y, w, h);
+            double l, b, r, t;
+            info.getQuadPlaneBounds(l, b, r, t);
+
+            Character c = {
+                .rect = fbox(
+                    currx + l * size,
+                    pos.y - b * size,
+                    w * size,
+                    h * size
+                ),
+                .texBounds = {x, y, w, h},
+                .layer = 0,
+                .size = size
+            };
+
+            objects.push_back(c);
+        }
+        else
+            numcopy--;
+        currx += font_px * info.getAdvance() * size / font_px;
+    }
+
+    commands.push_back({Command::CHARACTER, uint32_t(numcopy), flags});
+    return currx;
+}
+
+void RenderData::drawTexture(fbox rect, TexEntry* e, int state, int pixel_size, uint32_t flags, const fbox& bounds, int32_t zLayer )
+{
+    if (bounds.width < 1 || bounds.height < 1) return;
+
+    auto& objects = zLayer > 0 ? this->objects2 : this->objects;
+    auto& commands = zLayer > 0 ? this->commands2 : this->commands;
+
+    if (!e) return;
+    int layer = 0;
+    //#TODO: don't hard code numebrs
+    if (getBit(e->has_state, state))
+    {
+        if (getBit(state, STATE_PRESS) && getBit(e->has_state, STATE_PRESS))
+            layer = 2;
+        else if (getBit(state, STATE_HOVER) && getBit(e->has_state, STATE_HOVER))
+            layer = 1;
+        else if (getBit(e->has_state, STATE_ACTIVE))
+            layer = 3;
+    }
+
+    ivec2 framebufferSize = GTexGui->framebufferSize;
+    rect.x -= framebufferSize.x / 2.f;
+    rect.y = framebufferSize.y / 2.f - rect.y - rect.height;
+
+    if (flags & SLICE_9)
+    {
+        for (int y = 0; y < 3; y++)
+        {
+            for (int x = 0; x < 3; x++)
+            {
+                Quad quad;
+                if (x == 0)
+                {
+                    quad.rect.width = e->left * pixel_size;
+                    quad.texBounds.width = e->left;
+                }
+                if (x == 1)
+                {
+                    quad.rect.x += e->left * pixel_size;
+                    quad.rect.width -= (e->left + e->right) * pixel_size;
+                    quad.texBounds.x += e->left;
+                    quad.texBounds.width -= e->left + e->right;
+                }
+                else if (x == 2)
+                {
+                    quad.rect.x += rect.width - e->right * pixel_size;
+                    quad.rect.width = e->right * pixel_size;
+                    quad.texBounds.x += quad.texBounds.width - e->right; 
+                    quad.texBounds.width = e->right;
+                }
+
+                if (y == 0)
+                {
+                    quad.rect.height = e->bottom * pixel_size;
+                    quad.texBounds.w = e->bottom;
+                }
+                else if (y == 1)
+                {
+                    quad.rect.y += e->bottom * pixel_size;
+                    quad.rect.height -= (e->top + e->bottom) * pixel_size;
+                    quad.texBounds.y -= e->bottom;
+                    quad.texBounds.height -= e->top + e->bottom;
+                }
+                else if (y == 2)
+                {
+                    quad.rect.y += quad.rect.w - e->top * pixel_size;
+                    quad.rect.height = e->top * pixel_size;
+                    quad.texBounds.y -= quad.texBounds.height - e->top;
+                    quad.texBounds.height = e->top;
+                }
+                objects.push_back(quad);
+            }
+        }
+        commands.push_back({Command::QUAD, 9, flags, e, bounds});
+        return;
+    }
+
+    Quad q = {
+        .rect = fbox(rect.pos, rect.size),
+        .texBounds = e->bounds,
+        .layer = layer,
+        .pixelSize = pixel_size
+    };
+
+    objects.push_back(q);
+    commands.push_back({Command::QUAD, 1, flags, e, bounds});
+}
+
+void RenderData::drawQuad(const Math::fbox& rect, const Math::fvec4& col, int32_t zLayer)
+{
+    auto& objects = zLayer > 0 ? this->objects2 : this->objects;
+    auto& commands = zLayer > 0 ? this->commands2 : this->commands;
+
+    ColQuad q = {
+        .rect = fbox(rect.pos, rect.size),
+        .col = col,
+    };
+
+    objects.push_back(q);
+    commands.push_back({Command::COLQUAD, 1, 0, nullptr});
 }

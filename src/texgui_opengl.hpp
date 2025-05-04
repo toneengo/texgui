@@ -5,6 +5,7 @@
 #endif
 #include "texgui.h"
 #include "common.h"
+#include "context.hpp"
 #include "types.h"
 
 NAMESPACE_BEGIN(TexGui);
@@ -35,7 +36,7 @@ struct Shader
 
 void createShader(Shader* shader, const std::string& vertexShader, const std::string& fragmentShader);
 
-class GLContext
+class GLContext : public NoApiContext
 {
 public:
     GLContext();
@@ -43,15 +44,10 @@ public:
 
     void initFromGlfwWindow(GLFWwindow* window);
     void bindBuffers();
-
     void setScreenSize(int width, int height);
-    Math::ivec2 getScreenSize() { return m_screen_size; };
-
     void loadFont(const char* pathToFont);
     void loadTextures(const char* dir);
-
     void renderFromRD(RenderData& data);
-
     IconSheet loadIcons(const char* path, int32_t iconWidth, int32_t iconHeight);
 
 protected:
