@@ -546,6 +546,7 @@ NAMESPACE_END(Defaults);
 
 class RenderData;
 bool initGlfwOpenGL(GLFWwindow* window);
+bool initGlfwVulkan(GLFWwindow* window);
 
 
 struct TexEntry;
