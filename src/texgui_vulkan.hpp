@@ -1,7 +1,6 @@
 #pragma once
 
 #include "texgui.h"
-#include "common.h"
 #include "context.hpp"
 #include "types.h"
 #include <vulkan/vulkan_core.h>
@@ -52,10 +51,7 @@ public:
 
     void initFromGlfwWindow(GLFWwindow* window);
     void setScreenSize(int width, int height);
-    void loadFont(const char* pathToFont);
-    void loadTextures(const char* dir);
     void renderFromRD(RenderData& data);
-    IconSheet loadIcons(const char* path, int32_t iconWidth, int32_t iconHeight);
 
 protected:
     VkDevice                    device;

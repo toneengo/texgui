@@ -1,7 +1,6 @@
 #pragma once
 
-#include "../texgui.h"
-#include "common.h"
+#include "texgui.h"
 #include <stdint.h>
 #include <vector>
 
@@ -16,15 +15,15 @@ struct CharInfo
     unsigned int advance;
 };
 
-struct TexEntry
+struct Texture
 {
-    unsigned int glID;
-    int layer;
+    unsigned int id = -1;
 
+    //Texture sub-region
     Math::ibox bounds;
-    
-    // Flags for if the texture has alternate images for states e.g. hovered/pressed etc
-    unsigned int has_state = 0;
+
+    //Total size of texture
+    Math::ivec2 size;
 
     // Used for 9-slice rendering
     float top;
@@ -32,11 +31,10 @@ struct TexEntry
     float bottom;
     float left;
 
-    // #TODO: low priority - this shouldn't be in the struct, and just in a temporary map when creating our atlas
-    unsigned char* data;
-    unsigned char* _hover;
-    unsigned char* _press;
-    unsigned char* _active;
+    //texture IDs for hover press and active textures
+    unsigned int hover = -1;
+    unsigned int press = -1;
+    unsigned int active = -1;
 };
 
 inline int line_height = 0;

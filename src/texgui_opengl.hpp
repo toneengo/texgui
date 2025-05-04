@@ -4,34 +4,16 @@
 #include "glad/gl.h"
 #endif
 #include "texgui.h"
-#include "common.h"
 #include "context.hpp"
 #include "types.h"
 
 NAMESPACE_BEGIN(TexGui);
 
-struct uniformInfo
-{ 
-    char * key;
-
-    struct Value
-    {
-	    int32_t location;
-	    uint32_t count;
-    };
-    Value value;
-};
-
 struct Shader
 {
     uint32_t id;
-    uniformInfo * uniforms;
 
     void use();
-    uint32_t getLocation(const char * uniform_name);
-
-    uint32_t fontPx = -1;
-    int slices;
 };
 
 void createShader(Shader* shader, const std::string& vertexShader, const std::string& fragmentShader);
@@ -45,12 +27,12 @@ public:
     void initFromGlfwWindow(GLFWwindow* window);
     void bindBuffers();
     void setScreenSize(int width, int height);
-    void loadFont(const char* pathToFont);
-    void loadTextures(const char* dir);
-    void renderFromRD(RenderData& data);
-    IconSheet loadIcons(const char* path, int32_t iconWidth, int32_t iconHeight);
+    void renderFromRD(const RenderData& data);
+    uint32_t createTexture(void* data, int width, int height);
+    Math::ivec2 getTextureSize(uint32_t texID);
 
 protected:
+    void ogl_renderFromRD(const auto& objects, const auto& commands);
     // Buffer name/Buffer binding pair
     struct nameIdx
     {
@@ -74,13 +56,6 @@ protected:
         nameIdx colquad;
         nameIdx objects;
     } m_ssb;
-
-    // Texture arrays
-    struct
-    {
-        nameIdx texture;
-        nameIdx font;
-    } m_ta;
 
     struct
     {
