@@ -122,6 +122,11 @@ TexGuiContext* GTexGui = nullptr;
 RenderData TGRenderData;
 RenderData TGSyncedRenderData;
 
+const RenderData& getRenderData()
+{
+    return TGRenderData;
+}
+
 GLFWmonitorfun TexGui_ImplGlfw_MonitorCallback; 
 
 void TexGui_ImplGlfw_ScrollCallback(GLFWwindow* window, double xoffset, double yoffset)
@@ -229,6 +234,7 @@ bool TexGui::initGlfwOpenGL(GLFWwindow* window)
     GTexGui = new TexGuiContext();
     GTexGui->renderCtx = new GLContext();
     GTexGui->renderCtx->initFromGlfwWindow(window);
+    glfwGetWindowSize(window, &GTexGui->framebufferSize.x, &GTexGui->framebufferSize.y);
     initGlfwCallbacks(window);
     Base.rs = &TGRenderData;
     return true;
@@ -236,16 +242,19 @@ bool TexGui::initGlfwOpenGL(GLFWwindow* window)
 
 bool TexGui::initGlfwVulkan(GLFWwindow* window, const VulkanInitInfo& info)
 {
-    /*
     GTexGui = new TexGuiContext();
     GTexGui->renderCtx = new VulkanContext(info);
     GTexGui->renderCtx->initFromGlfwWindow(window);
+    glfwGetWindowSize(window, &GTexGui->framebufferSize.x, &GTexGui->framebufferSize.y);
     initGlfwCallbacks(window);
     Base.rs = &TGRenderData;
     return true;
-    */
 } 
 
+void TexGui::newFrame()
+{
+    GTexGui->renderCtx->newFrame();
+}
 void TexGui::render()
 {
     if (Defaults::Settings::Async)
@@ -257,8 +266,14 @@ void TexGui::render()
     GTexGui->renderCtx->renderFromRD(TGSyncedRenderData);
 }
 
-void TexGui::render(RenderData& data)
+void TexGui::render(const RenderData& data)
 {
+    GTexGui->renderCtx->renderFromRD(data);
+}
+
+void TexGui::render_Vulkan(const RenderData& data, VkCommandBuffer cmd)
+{
+    GTexGui->renderCtx->setCommandBuffer(cmd);
     GTexGui->renderCtx->renderFromRD(data);
 }
 
@@ -1682,6 +1697,7 @@ void RenderData::drawTexture(fbox rect, Texture* e, int state, int pixel_size, u
     rect.y = framebufferSize.y / 2.f - rect.y - rect.height;
 
     Quad quad;
+    quad.pixelSize = pixel_size;
     if (flags & SLICE_9)
     {
         for (int y = 0; y < 3; y++)
@@ -1746,14 +1762,4 @@ void RenderData::drawTexture(fbox rect, Texture* e, int state, int pixel_size, u
 
 void RenderData::drawQuad(const Math::fbox& rect, const Math::fvec4& col, int32_t zLayer)
 {
-    auto& objects = zLayer > 0 ? this->objects2 : this->objects;
-    auto& commands = zLayer > 0 ? this->commands2 : this->commands;
-
-    ColQuad q = {
-        .rect = fbox(rect.pos, rect.size),
-        .col = col,
-    };
-
-    objects.push_back(q);
-    commands.push_back({Command::COLQUAD, 1, 0, nullptr});
 }

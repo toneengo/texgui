@@ -30,6 +30,8 @@ public:
     void renderFromRD(const RenderData& data);
     uint32_t createTexture(void* data, int width, int height);
     Math::ivec2 getTextureSize(uint32_t texID);
+    void clean();
+    void newFrame() {};
 
 protected:
     void ogl_renderFromRD(const auto& objects, const auto& commands);

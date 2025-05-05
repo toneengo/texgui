@@ -1,3 +1,6 @@
 [submodule "msdf-atlas-gen"]
 	path = msdf-atlas-gen
 	url = https://github.com/Chlumsky/msdf-atlas-gen
+[submodule "VulkanMemoryAllocator"]
+	path = VulkanMemoryAllocator
+	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git

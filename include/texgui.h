@@ -17,10 +17,53 @@
 #include "texgui_math.hpp"
 #include "texgui_settings.hpp"
 #include "texgui_settings.hpp"
+
+#undef VMA_IMPLEMENTATION
+#include "vk_mem_alloc.h"
+
 #include <vulkan/vulkan_core.h>
 
 struct GLFWwindow;
 NAMESPACE_BEGIN(TexGui);
+
+//ONLY DYNAMIC RENDERING IS SUPPORTED
+//This is copied from Dear ImGui
+struct VulkanInitInfo
+{
+    uint32_t                        ApiVersion;                 // Fill with API version of Instance, e.g. VK_API_VERSION_1_3 or your value of VkApplicationInfo::apiVersion. May be lower than header version (VK_HEADER_VERSION_COMPLETE)
+    VkInstance                      Instance;
+    VkPhysicalDevice                PhysicalDevice;
+    VkDevice                        Device;
+    uint32_t                        QueueFamily;
+    VkQueue                         Queue;
+    VkDescriptorPool                DescriptorPool;             // See requirements in note above; ignored if using DescriptorPoolSize > 0
+    //VkRenderPass                    RenderPass;                 // Ignored if using dynamic rendering
+    uint32_t                        MinImageCount;              // >= 2
+    uint32_t                        ImageCount;                 // >= MinImageCount
+    VkSampleCountFlagBits           MSAASamples;                // 0 defaults to VK_SAMPLE_COUNT_1_BIT
+
+    // (Optional)
+    VkPipelineCache                 PipelineCache;
+    uint32_t                        Subpass;
+
+    // (Optional) Set to create internal descriptor pool instead of using DescriptorPool
+    uint32_t                        DescriptorPoolSize;
+
+    // (Optional) Dynamic Rendering
+    // Need to explicitly enable VK_KHR_dynamic_rendering extension to use this, even for Vulkan 1.3.
+    bool                            UseDynamicRendering;
+    VkPipelineRenderingCreateInfo PipelineRenderingCreateInfo;
+
+    // (Optional) Allocation, Debugging
+    /*
+    const VkAllocationCallbacks*    Allocator;
+    void                            (*CheckVkResultFn)(VkResult err);
+    VkDeviceSize                    MinAllocationSize;          // Minimum allocation size. Set to 1024*1024 to satisfy zealous best practices validation layer and waste a little memory.
+                                                                // */
+
+    //#TODO: GET rid of this
+    VmaAllocator Allocator;
+};
 
 inline bool CapturingMouse = false;
 
@@ -269,9 +312,14 @@ struct IconSheet
 
 inline Container Base;
 
+void newFrame();
 void render();
-void render(RenderData& rs);
+void render(const RenderData& rs);
+void render_Vulkan(const RenderData& rs, VkCommandBuffer cmd);
 RenderData* newRenderData();
+
+//"official" one
+const RenderData& getRenderData();
 void loadFont(const char* font);
 void loadTextures(const char* dir);
 IconSheet loadIcons(const char* dir, int32_t iconWidth, int32_t iconHeight);
@@ -298,6 +346,7 @@ float computeTextWidth(const char* text, size_t numchars);
 class RenderData
 {
     friend class GLContext;
+    friend class VulkanContext;
 public:
     RenderData()
     {
@@ -369,13 +418,6 @@ private:
         int pixelSize;
     };
 
-    struct alignas(16) ColQuad
-    {
-        Math::fbox rect; //xpos, ypos, width, height
-        Math::fvec4 col;
-        int padding;
-    };
-
     struct alignas(16) Object
     {
         Object()
@@ -396,14 +438,9 @@ private:
             quad = q;
         }
 
-        Object(ColQuad q)
-        {
-            cq = q;
-        }
         union {
             Character ch;
             Quad quad;
-            ColQuad cq;
         };
     };
 
@@ -412,9 +449,6 @@ private:
         enum {
             QUAD,
             CHARACTER,
-            COLQUAD,
-            SCISSOR,
-            DESCISSOR,
         } type;
 
         uint32_t number;

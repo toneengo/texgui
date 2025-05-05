@@ -27,7 +27,7 @@ endif()
 find_package(OpenGL REQUIRED)
 find_package(glfw3 CONFIG REQUIRED)
 find_package(Freetype REQUIRED)
-
+find_package(glslang REQUIRED)
 find_package(Vulkan REQUIRED)
 
 set(MSDF_ATLAS_NO_ARTERY_FONT ON)
@@ -38,6 +38,7 @@ if (WIN32)
 endif()
 
 add_subdirectory(msdf-atlas-gen)
+add_subdirectory(VulkanMemoryAllocator)
 
 foreach(TARGET texgui)
     set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${PROJECT}")
@@ -48,6 +49,11 @@ foreach(TARGET texgui)
     target_link_libraries(${TARGET} PRIVATE glfw)
     target_link_libraries(${TARGET} PUBLIC Freetype::Freetype)
 
+    target_link_libraries(${TARGET} PRIVATE glslang::glslang)
+    target_link_libraries(${TARGET} PRIVATE glslang::glslang-default-resource-limits)
+
+    target_link_libraries(${TARGET} PUBLIC GPUOpen::VulkanMemoryAllocator)
+
     target_link_libraries(${TARGET} PUBLIC msdf-atlas-gen::msdf-atlas-gen)
     target_link_libraries(${TARGET} PUBLIC msdfgen::msdfgen-core)
     target_link_libraries(${TARGET} PUBLIC msdfgen::msdfgen-ext)
@@ -57,6 +63,7 @@ foreach(TARGET texgui)
     target_include_directories(${TARGET} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/resources/")
     target_include_directories(${TARGET} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/msdf-atlas-gen")
     target_include_directories(${TARGET} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/msdf-atlas-gen/msdfgen")
+    target_include_directories(${TARGET} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/VulkanMemoryAllocator/include")
 endforeach(TARGET)
 
 if (TEXGUI_BUILD_EXAMPLE)

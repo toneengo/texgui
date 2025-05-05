@@ -8,7 +8,7 @@
 #include "util.h"
 
 #include <glm/gtc/type_ptr.hpp>
-#include "shaders/texgui_shaders.hpp"
+#include "opengl_shaders.hpp"
 
 #include "stb_image.h"
 
@@ -103,14 +103,15 @@ void GLContext::ogl_renderFromRD(const auto& objects, const auto& commands) {
 
                 m_shaders.quad.use();
 
+                int texID = c.texture->id;
                 if (getBit(c.state, STATE_PRESS) && c.texture->press != -1)
-                    glBindTexture(GL_TEXTURE_2D, c.texture->press);
-                else if (getBit(c.state, STATE_HOVER) && c.texture->hover != -1)
-                    glBindTexture(GL_TEXTURE_2D, c.texture->hover);
-                else if (getBit(c.state, STATE_ACTIVE) && c.texture->active != -1)
-                    glBindTexture(GL_TEXTURE_2D, c.texture->active);
-                else
-                    glBindTexture(GL_TEXTURE_2D, c.texture->id);
+                    texID = c.texture->press;
+                if (getBit(c.state, STATE_HOVER) && c.texture->hover != -1)
+                    texID = c.texture->hover;
+                if (getBit(c.state, STATE_ACTIVE) && c.texture->active != -1)
+                    texID = c.texture->active;
+
+                glBindTexture(GL_TEXTURE_2D, texID);
 
                 glUniform1i(0, c.texture->size.x);
                 glUniform1i(1, c.texture->size.y);
@@ -171,6 +172,10 @@ Math::ivec2 GLContext::getTextureSize(uint32_t texID)
     glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &res.x);
     glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &res.y);
     return res;
+}
+
+void GLContext::clean()
+{
 }
 
 void Shader::use()
