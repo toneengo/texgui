@@ -79,9 +79,9 @@ if (TEXGUI_BUILD_EXAMPLE)
         add_dependencies(${X} resources)
         target_link_libraries(${X} PRIVATE glfw)
         target_link_libraries(${X} PRIVATE OpenGL::GL)
+        target_link_libraries(${X} PRIVATE Vulkan::Vulkan)
         target_link_libraries(${X} PRIVATE texgui)
 
-        target_include_directories(${X} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
         target_include_directories(${X} PRIVATE "include/")
     endforeach()
 
