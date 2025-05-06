@@ -700,10 +700,12 @@ Math::ivec2 VulkanContext::getTextureSize(uint32_t texID)
 
 void VulkanContext::newFrame()
 {
-    if (windowSizeDescriptorSet == VK_NULL_HANDLE)
+    /*
+    if (windowSizeDescriptorSet != VK_NULL_HANDLE)
         vkFreeDescriptorSets(device, descriptorPool, 1, &windowSizeDescriptorSet);
-    if (storageDescriptorSet == VK_NULL_HANDLE)
+    if (storageDescriptorSet != VK_NULL_HANDLE)
         vkFreeDescriptorSets(device, descriptorPool, 1, &storageDescriptorSet);
+    */
 
     vkResetDescriptorPool(device, descriptorPool, 0);
     for (auto& buf : buffersToDestroy)
