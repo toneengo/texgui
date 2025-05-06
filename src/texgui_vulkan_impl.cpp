@@ -369,7 +369,23 @@ VulkanContext::VulkanContext(const VulkanInitInfo& init_info)
         printf("Failed to create pipeline\n");
         assert(false);
     }
+    // allocate buffer
+    VkBufferCreateInfo bufferCreateInfo = {};
+    bufferCreateInfo.sType              = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferCreateInfo.pNext              = nullptr;
+    bufferCreateInfo.size               = sizeof(Math::ivec2);
+    bufferCreateInfo.usage              = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 
+    VmaAllocationCreateInfo vmaallocInfo = {};
+    vmaallocInfo.usage                   = VMA_MEMORY_USAGE_CPU_TO_GPU;
+    vmaallocInfo.flags                   = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+    VmaAllocationInfo allocationInfo;
+    vmaCreateBuffer(allocator, &bufferCreateInfo, &vmaallocInfo, &windowSizeBuffer, &windowSizeBufferAllocation, &allocationInfo);
+
+    bufferCreateInfo.size               = sizeof(RenderData::Object) * (1 << 16);
+    bufferCreateInfo.usage              = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    vmaCreateBuffer(allocator, &bufferCreateInfo, &vmaallocInfo, &storageBuffer, &storageBufferAllocation, &allocationInfo);
     //need to delete more stuff
     vkDestroyShaderModule(device, quadvert, nullptr);
     vkDestroyShaderModule(device, quadfrag, nullptr);
@@ -552,37 +568,13 @@ void VulkanContext::renderFromRD(const RenderData& data)
     scissor.extent.width  = windowSize.x;
     scissor.extent.height = windowSize.y;
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-
-    VkDescriptorSetAllocateInfo allocInfo = {};
-    allocInfo.pNext                       = VK_NULL_HANDLE;
-    allocInfo.sType                       = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool              = descriptorPool;
-    allocInfo.descriptorSetCount          = 1;
-    allocInfo.pSetLayouts                 = &storageDescriptorSetLayout;
-
-    VkResult        result = vkAllocateDescriptorSets(device, &allocInfo, &storageDescriptorSet);
-
-    //update window size uniform (#TODO: this is inefficient)
+    //update window size uniform
     {
-        // allocate buffer
-        VkBufferCreateInfo bufferCreateInfo = {};
-        bufferCreateInfo.sType              = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bufferCreateInfo.pNext              = nullptr;
-        bufferCreateInfo.size               = sizeof(Math::ivec2);
-        bufferCreateInfo.usage              = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-
-        VmaAllocationCreateInfo vmaallocInfo = {};
-        vmaallocInfo.usage                   = VMA_MEMORY_USAGE_CPU_TO_GPU;
-        vmaallocInfo.flags                   = VMA_ALLOCATION_CREATE_MAPPED_BIT;
-
-        VmaAllocationInfo allocationInfo;
-        vmaCreateBuffer(allocator, &bufferCreateInfo, &vmaallocInfo, &windowSizeBuffer, &windowSizeBufferAllocation, &allocationInfo);
-        void* dst = allocationInfo.pMappedData;
-        memcpy(dst, &windowSize, bufferCreateInfo.size);
+        vmaCopyMemoryToAllocation(allocator, &windowSize, windowSizeBufferAllocation, 0, sizeof(Math::ivec2));
         VkDescriptorBufferInfo bufferInfo = {
             .buffer = windowSizeBuffer,
             .offset = 0,
-            .range = bufferCreateInfo.size
+            .range = sizeof(Math::ivec2)
         };
 
         VkDescriptorSetAllocateInfo allocInfo = {};
@@ -607,31 +599,22 @@ void VulkanContext::renderFromRD(const RenderData& data)
         };
 
         vkUpdateDescriptorSets(device, 1, &bufferWrite, 0, nullptr);
-        buffersToDestroy.push_back({.buffer = windowSizeBuffer, .allocation = windowSizeBufferAllocation});
     }
-    // allocate buffer
-    VkBuffer buffer = nullptr;
-    VmaAllocation allocation = 0;
-    VmaAllocationInfo allocationInfo;
-    if (data.objects.size() > 0)
+    // allocate object buffer
     {
-        VkBufferCreateInfo bufferCreateInfo = {};
-        bufferCreateInfo.sType              = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bufferCreateInfo.pNext              = nullptr;
-        bufferCreateInfo.size               = data.objects.size() * sizeof(RenderData::Object);
-        bufferCreateInfo.usage              = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        vmaCopyMemoryToAllocation(allocator, data.objects.data(), storageBufferAllocation, 0, data.objects.size() * sizeof(RenderData::Object));
+        VkDescriptorSetAllocateInfo allocInfo = {};
+        allocInfo.pNext                       = VK_NULL_HANDLE;
+        allocInfo.sType                       = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocInfo.descriptorPool              = descriptorPool;
+        allocInfo.descriptorSetCount          = 1;
+        allocInfo.pSetLayouts                 = &storageDescriptorSetLayout;
+        VkResult        result = vkAllocateDescriptorSets(device, &allocInfo, &storageDescriptorSet);
 
-        VmaAllocationCreateInfo vmaallocInfo = {};
-        vmaallocInfo.usage                   = VMA_MEMORY_USAGE_CPU_TO_GPU;
-        vmaallocInfo.flags                   = VMA_ALLOCATION_CREATE_MAPPED_BIT;
-
-        vmaCreateBuffer(allocator, &bufferCreateInfo, &vmaallocInfo, &buffer, &allocation, &allocationInfo);
-        void* dst = allocationInfo.pMappedData;
-        memcpy(dst, data.objects.data(), bufferCreateInfo.size);
         VkDescriptorBufferInfo bufferInfo = {
-            .buffer = buffer,
+            .buffer = storageBuffer,
             .offset = 0,
-            .range = bufferCreateInfo.size
+            .range = data.objects.size() * sizeof(RenderData::Object)
         };
 
         VkWriteDescriptorSet bufferWrite = VkWriteDescriptorSet {
@@ -648,7 +631,6 @@ void VulkanContext::renderFromRD(const RenderData& data)
         };
 
         vkUpdateDescriptorSets(device, 1, &bufferWrite, 0, nullptr);
-        buffersToDestroy.push_back({.buffer = buffer, .allocation = allocation});
     }
 
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, quadPipelineLayout, 0, 1, &storageDescriptorSet, 0, nullptr);
@@ -700,20 +682,14 @@ Math::ivec2 VulkanContext::getTextureSize(uint32_t texID)
 
 void VulkanContext::newFrame()
 {
-    /*
-    if (windowSizeDescriptorSet != VK_NULL_HANDLE)
-        vkFreeDescriptorSets(device, descriptorPool, 1, &windowSizeDescriptorSet);
-    if (storageDescriptorSet != VK_NULL_HANDLE)
-        vkFreeDescriptorSets(device, descriptorPool, 1, &storageDescriptorSet);
-    */
-
     vkResetDescriptorPool(device, descriptorPool, 0);
-    for (auto& buf : buffersToDestroy)
-    {
-        vmaDestroyBuffer(allocator, buf.buffer, buf.allocation);
-    }
-    buffersToDestroy.clear();
 }
+
 void VulkanContext::clean()
 {
+    vkDestroyDescriptorPool(device, globalDescriptorPool, 0);
+    vkDestroyDescriptorPool(device, descriptorPool, 0);
+    vmaDestroyBuffer(allocator, windowSizeBuffer, windowSizeBufferAllocation);
+    vmaDestroyBuffer(allocator, storageBuffer, storageBufferAllocation);
+    //#TODO: need to destroy all textures here
 }

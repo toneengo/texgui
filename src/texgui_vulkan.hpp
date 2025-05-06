@@ -28,7 +28,6 @@ protected:
         VmaAllocation allocation;
         VmaAllocationInfo info;
     } buffer;
-    std::vector<Buf> buffersToDestroy;
     uint32_t textureCount = 0;
     VkShaderModule createShaderModule(int stage, const std::string& filePath);
     VkDevice                    device;
@@ -62,9 +61,13 @@ protected:
 
     VkDescriptorSet imageDescriptorSet = VK_NULL_HANDLE;
     VkDescriptorSetLayout imageDescriptorSetLayout;
+    VkBuffer imageBuffer = 0;
+    VmaAllocation imageBufferAllocation = 0;
 
     VkDescriptorSet storageDescriptorSet = VK_NULL_HANDLE;
     VkDescriptorSetLayout storageDescriptorSetLayout;
+    VkBuffer storageBuffer = 0;
+    VmaAllocation storageBufferAllocation = 0;
 
     VkPipeline quadPipeline;
     VkPipelineLayout quadPipelineLayout = VK_NULL_HANDLE;
