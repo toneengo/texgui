@@ -69,8 +69,7 @@ inline bool CapturingMouse = false;
 
 class RenderData;
 struct VulkanInitInfo;
-bool initGlfwOpenGL(GLFWwindow* window);
-bool initGlfwVulkan(GLFWwindow* window, const VulkanInitInfo& info);
+bool initGlfw(GLFWwindow* window);
 
 struct Texture;
 struct TextSegment;

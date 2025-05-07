@@ -72,4 +72,5 @@ protected:
     int m_pixel_size = 2;
 };
 
+bool initOpenGL();
 NAMESPACE_END(TexGui);

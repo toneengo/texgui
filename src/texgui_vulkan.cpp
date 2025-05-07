@@ -693,3 +693,12 @@ void VulkanContext::clean()
     vmaDestroyBuffer(allocator, storageBuffer, storageBufferAllocation);
     //#TODO: need to destroy all textures here
 }
+
+extern void _setRenderCtx(NoApiContext* ptr);
+bool TexGui::initVulkan(VulkanInitInfo& info)
+{
+    _setRenderCtx(new VulkanContext(info));
+    return true;
+} 
+
+

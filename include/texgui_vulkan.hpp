@@ -74,4 +74,5 @@ protected:
 
 };
 
+bool initVulkan(VulkanInitInfo& info);
 NAMESPACE_END(TexGui);

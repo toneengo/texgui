@@ -1,6 +1,5 @@
 #include "texgui.h"
-#include "texgui_opengl.hpp"
-#include "texgui_vulkan.hpp"
+#include "context.hpp"
 #include "types.h"
 #include "GLFW/glfw3.h"
 #include <cassert>
@@ -119,6 +118,10 @@ struct TexGuiContext
 
 TexGuiContext* GTexGui = nullptr;
 
+void _setRenderCtx(NoApiContext* ptr)
+{
+    GTexGui->renderCtx = ptr;
+}
 RenderData TGRenderData;
 RenderData TGSyncedRenderData;
 
@@ -229,30 +232,18 @@ bool initGlfwCallbacks(GLFWwindow* window)
     return true;
 } 
 
-bool TexGui::initGlfwOpenGL(GLFWwindow* window)
+bool TexGui::initGlfw(GLFWwindow* window)
 {
     GTexGui = new TexGuiContext();
-    GTexGui->renderCtx = new GLContext();
-    GTexGui->renderCtx->initFromGlfwWindow(window);
-    glfwGetWindowSize(window, &GTexGui->framebufferSize.x, &GTexGui->framebufferSize.y);
     initGlfwCallbacks(window);
+    glfwGetWindowSize(window, &GTexGui->framebufferSize.x, &GTexGui->framebufferSize.y);
     Base.rs = &TGRenderData;
     return true;
-} 
-
-bool TexGui::initGlfwVulkan(GLFWwindow* window, const VulkanInitInfo& info)
-{
-    GTexGui = new TexGuiContext();
-    GTexGui->renderCtx = new VulkanContext(info);
-    GTexGui->renderCtx->initFromGlfwWindow(window);
-    glfwGetWindowSize(window, &GTexGui->framebufferSize.x, &GTexGui->framebufferSize.y);
-    initGlfwCallbacks(window);
-    Base.rs = &TGRenderData;
-    return true;
-} 
+}
 
 void TexGui::newFrame()
 {
+    GTexGui->renderCtx->setScreenSize(GTexGui->framebufferSize.x, GTexGui->framebufferSize.y);
     GTexGui->renderCtx->newFrame();
 }
 void TexGui::render()
