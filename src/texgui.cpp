@@ -242,6 +242,7 @@ bool TexGui::initGlfw(GLFWwindow* window)
     initGlfwCallbacks(window);
     glfwGetWindowSize(window, &GTexGui->framebufferSize.x, &GTexGui->framebufferSize.y);
     if (GTexGui->renderCtx != nullptr) GTexGui->renderCtx->setScreenSize(GTexGui->framebufferSize.x, GTexGui->framebufferSize.y);
+    Base.bounds.size = GTexGui->framebufferSize;
     Base.rs = &TGRenderData;
     return true;
 }
