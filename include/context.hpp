@@ -3,7 +3,6 @@
 #include <vulkan/vulkan_core.h>
 
 NAMESPACE_BEGIN(TexGui)
-struct VulkanInitInfo;
 class NoApiContext
 {
     public:

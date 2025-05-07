@@ -232,18 +232,22 @@ bool initGlfwCallbacks(GLFWwindow* window)
     return true;
 } 
 
+Math::ivec2 _getScreenSize()
+{
+    return GTexGui->framebufferSize;
+}
 bool TexGui::initGlfw(GLFWwindow* window)
 {
     GTexGui = new TexGuiContext();
     initGlfwCallbacks(window);
     glfwGetWindowSize(window, &GTexGui->framebufferSize.x, &GTexGui->framebufferSize.y);
+    if (GTexGui->renderCtx != nullptr) GTexGui->renderCtx->setScreenSize(GTexGui->framebufferSize.x, GTexGui->framebufferSize.y);
     Base.rs = &TGRenderData;
     return true;
 }
 
 void TexGui::newFrame()
 {
-    GTexGui->renderCtx->setScreenSize(GTexGui->framebufferSize.x, GTexGui->framebufferSize.y);
     GTexGui->renderCtx->newFrame();
 }
 void TexGui::render()

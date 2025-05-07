@@ -125,10 +125,11 @@ struct PushConstants
     int atlasHeight;
 } pushConstants;
 
+extern Math::ivec2 _getScreenSize();
 constexpr int MAX_SAMPLERS = 65536;
 VulkanContext::VulkanContext(const VulkanInitInfo& init_info)
 {
-
+    windowSize = _getScreenSize();
     device = init_info.Device;
     physicalDevice = init_info.PhysicalDevice;
 
@@ -700,5 +701,3 @@ bool TexGui::initVulkan(VulkanInitInfo& info)
     _setRenderCtx(new VulkanContext(info));
     return true;
 } 
-
-
