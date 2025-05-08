@@ -52,7 +52,10 @@ protected:
     Math::ivec2 windowSize;
 
     VkDescriptorPool globalDescriptorPool;
-    VkDescriptorPool descriptorPool;
+
+    uint32_t imageCount;
+    std::vector<VkDescriptorPool> frameDescriptorPools;
+    uint32_t currentFrame = 0;
 
     VkDescriptorSet windowSizeDescriptorSet;
     VkDescriptorSetLayout windowSizeDescriptorSetLayout;

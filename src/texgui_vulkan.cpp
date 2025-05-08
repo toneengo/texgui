@@ -139,7 +139,8 @@ VulkanContext::VulkanContext(const VulkanInitInfo& init_info)
     graphicsQueueFamily = init_info.QueueFamily;
 
     allocator = init_info.Allocator;
-    descriptorPool = init_info.DescriptorPool;
+
+    imageCount = init_info.ImageCount;
 
     //create default samplers
     VkSamplerCreateInfo sampl = {.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
@@ -151,21 +152,44 @@ VulkanContext::VulkanContext(const VulkanInitInfo& init_info)
     sampl.minFilter = VK_FILTER_LINEAR;
     vkCreateSampler(device, &sampl, nullptr, &linearSampler);
 
-    VkDescriptorPoolSize pool_sizes[] = {
-        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 65536},
-    };
-    VkDescriptorPoolCreateInfo pool_info = {};
-    pool_info.sType                      = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    pool_info.flags                      = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
-    pool_info.maxSets                    = 0;
+    {
+        VkDescriptorPoolSize pool_sizes[] = {
+            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 65536},
+        };
+        VkDescriptorPoolCreateInfo pool_info = {};
+        pool_info.sType                      = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        pool_info.flags                      = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
+        pool_info.maxSets                    = 0;
 
-    for (VkDescriptorPoolSize& pool_size : pool_sizes)
-        pool_info.maxSets += pool_size.descriptorCount;
+        for (VkDescriptorPoolSize& pool_size : pool_sizes)
+            pool_info.maxSets += pool_size.descriptorCount;
 
-    pool_info.poolSizeCount = sizeof(pool_sizes) / sizeof(pool_sizes[0]);
-    pool_info.pPoolSizes    = pool_sizes;
+        pool_info.poolSizeCount = sizeof(pool_sizes) / sizeof(pool_sizes[0]);
+        pool_info.pPoolSizes    = pool_sizes;
 
-    vkCreateDescriptorPool(device, &pool_info, nullptr, &globalDescriptorPool);
+        vkCreateDescriptorPool(device, &pool_info, nullptr, &globalDescriptorPool);
+    }
+
+    frameDescriptorPools.resize(imageCount);
+    for (int i = 0; i < imageCount; i++)
+    {
+        VkDescriptorPoolSize pool_sizes[] = {
+            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1},
+            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1},
+        };
+        VkDescriptorPoolCreateInfo pool_info = {};
+        pool_info.sType                      = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        pool_info.flags                      = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
+        pool_info.maxSets                    = 0;
+
+        for (VkDescriptorPoolSize& pool_size : pool_sizes)
+            pool_info.maxSets += pool_size.descriptorCount;
+
+        pool_info.poolSizeCount = sizeof(pool_sizes) / sizeof(pool_sizes[0]);
+        pool_info.pPoolSizes    = pool_sizes;
+
+        vkCreateDescriptorPool(device, &pool_info, nullptr, &frameDescriptorPools[i]);
+    }
 
     VkCommandPoolCreateInfo commandPoolInfo = {};
     commandPoolInfo.sType                   = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -581,7 +605,7 @@ void VulkanContext::renderFromRD(const RenderData& data)
         VkDescriptorSetAllocateInfo allocInfo = {};
         allocInfo.pNext                       = VK_NULL_HANDLE;
         allocInfo.sType                       = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.descriptorPool              = descriptorPool;
+        allocInfo.descriptorPool              = frameDescriptorPools[currentFrame];
         allocInfo.descriptorSetCount          = 1;
         allocInfo.pSetLayouts                 = &windowSizeDescriptorSetLayout;
         VkResult        result = vkAllocateDescriptorSets(device, &allocInfo, &windowSizeDescriptorSet);
@@ -607,7 +631,7 @@ void VulkanContext::renderFromRD(const RenderData& data)
         VkDescriptorSetAllocateInfo allocInfo = {};
         allocInfo.pNext                       = VK_NULL_HANDLE;
         allocInfo.sType                       = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.descriptorPool              = descriptorPool;
+        allocInfo.descriptorPool              = frameDescriptorPools[currentFrame];
         allocInfo.descriptorSetCount          = 1;
         allocInfo.pSetLayouts                 = &storageDescriptorSetLayout;
         VkResult        result = vkAllocateDescriptorSets(device, &allocInfo, &storageDescriptorSet);
@@ -683,13 +707,17 @@ Math::ivec2 VulkanContext::getTextureSize(uint32_t texID)
 
 void VulkanContext::newFrame()
 {
-    vkResetDescriptorPool(device, descriptorPool, 0);
+    currentFrame++;
+    if (currentFrame == imageCount) currentFrame = 0;
+    vkResetDescriptorPool(device, frameDescriptorPools[currentFrame], 0);
 }
 
 void VulkanContext::clean()
 {
     vkDestroyDescriptorPool(device, globalDescriptorPool, 0);
-    vkDestroyDescriptorPool(device, descriptorPool, 0);
+    for (auto& dp : frameDescriptorPools)
+        vkDestroyDescriptorPool(device, dp, 0);
+
     vmaDestroyBuffer(allocator, windowSizeBuffer, windowSizeBufferAllocation);
     vmaDestroyBuffer(allocator, storageBuffer, storageBufferAllocation);
     //#TODO: need to destroy all textures here
