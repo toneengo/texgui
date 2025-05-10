@@ -314,7 +314,6 @@ inline Container Base;
 void newFrame();
 void render();
 void render(const RenderData& rs);
-void render_Vulkan(const RenderData& rs, VkCommandBuffer cmd);
 RenderData* newRenderData();
 
 //"official" one

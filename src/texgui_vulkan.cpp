@@ -24,6 +24,8 @@ using namespace TexGui::Math;
 
 std::unordered_map<int, Math::ivec2> textureSizes;
 
+VulkanContext* vulkanCtx;
+
 static inline void image_barrier(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout,
                               VkPipelineStageFlags2 srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VkAccessFlags2 srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT,
                               VkPipelineStageFlags2 dstStageMask  = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
@@ -726,6 +728,13 @@ void VulkanContext::clean()
 extern void _setRenderCtx(NoApiContext* ptr);
 bool TexGui::initVulkan(VulkanInitInfo& info)
 {
-    _setRenderCtx(new VulkanContext(info));
+    vulkanCtx = new VulkanContext(info);
+    _setRenderCtx(vulkanCtx);
     return true;
 } 
+
+void TexGui::renderVulkan(const TexGui::RenderData& data, VkCommandBuffer cmd)
+{
+    vulkanCtx->setCommandBuffer(cmd);
+    vulkanCtx->renderFromRD(data);
+}

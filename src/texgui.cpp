@@ -9,6 +9,7 @@
 #include <list>
 #include <queue>
 #include <filesystem>
+#include <vulkan/vulkan_core.h>
 #include "stb_image.h"
 #include "msdf-atlas-gen/msdf-atlas-gen.h"
 
@@ -264,12 +265,6 @@ void TexGui::render()
 
 void TexGui::render(const RenderData& data)
 {
-    GTexGui->renderCtx->renderFromRD(data);
-}
-
-void TexGui::render_Vulkan(const RenderData& data, VkCommandBuffer cmd)
-{
-    GTexGui->renderCtx->setCommandBuffer(cmd);
     GTexGui->renderCtx->renderFromRD(data);
 }
 

@@ -77,5 +77,6 @@ protected:
 
 };
 
-bool initVulkan(VulkanInitInfo& info);
+bool initVulkan(TexGui::VulkanInitInfo& info);
+void renderVulkan(const TexGui::RenderData& data, VkCommandBuffer cmd);
 NAMESPACE_END(TexGui);
