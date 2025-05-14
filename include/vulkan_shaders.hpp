@@ -107,7 +107,7 @@ bool contains(vec4 box, vec2 p)
 }
 
 void main() {
-    frag = texture(samplers[pushConstants.texID], uv);
+    frag = texture(samplers[nonuniformEXT(pushConstants.texID)], uv);
     if (!contains(pushConstants.bounds, pos))
         frag.a = 0;
 }
@@ -204,7 +204,7 @@ bool contains(vec4 box, vec2 p)
 void main() {
     if (!contains(pushConstants.bounds, pos))
         discard;
-    vec4 msd = texture(samplers[pushConstants.texID], uv);
+    vec4 msd = texture(samplers[nonuniformEXT(pushConstants.texID)], uv);
     float sd = median(msd.r, msd.g, msd.b);
     float screenPxDistance = screenPxRange * (sd - 0.5);
     float opacity = clamp(screenPxDistance + 0.5, 0.0, 1.0) * colour.a;
