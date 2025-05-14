@@ -75,8 +75,8 @@ protected:
 
     VkDescriptorSet storageDescriptorSet = VK_NULL_HANDLE;
     VkDescriptorSetLayout storageDescriptorSetLayout;
-    VkBuffer storageBuffer = 0;
-    VmaAllocation storageBufferAllocation = 0;
+    std::vector<VkBuffer> storageBuffer;
+    std::vector<VmaAllocation> storageBufferAllocation;
 
     VkPipeline quadPipeline;
     VkPipeline textPipeline;

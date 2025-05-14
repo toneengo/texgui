@@ -467,7 +467,13 @@ VulkanContext::VulkanContext(const VulkanInitInfo& init_info)
 
     bufferCreateInfo.size               = sizeof(RenderData::Object) * (1 << 16);
     bufferCreateInfo.usage              = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-    vmaCreateBuffer(allocator, &bufferCreateInfo, &vmaallocInfo, &storageBuffer, &storageBufferAllocation, &allocationInfo);
+
+    storageBuffer.resize(imageCount);
+    storageBufferAllocation.resize(imageCount);
+    for (int i = 0; i < imageCount; i++)
+    {
+        vmaCreateBuffer(allocator, &bufferCreateInfo, &vmaallocInfo, &storageBuffer[i], &storageBufferAllocation[i], &allocationInfo);
+    }
 
     //need to delete more stuff
 }
@@ -675,9 +681,9 @@ static void buffer_barrier(VkCommandBuffer cmd, VkBuffer buffer, VkDeviceSize of
     VkDependencyInfo depInfo{
         .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
         .pNext = nullptr,
-        .imageMemoryBarrierCount = 0,
         .bufferMemoryBarrierCount = 1,
-        .pBufferMemoryBarriers = &bufferBarrier
+        .pBufferMemoryBarriers = &bufferBarrier,
+        .imageMemoryBarrierCount = 0,
     };
 
     vkCmdPipelineBarrier2(cmd, &depInfo);
@@ -735,7 +741,7 @@ void VulkanContext::renderFromRD(const RenderData& data)
     }
     // allocate object buffer
     {
-        vmaCopyMemoryToAllocation(allocator, data.objects.data(), storageBufferAllocation, 0, data.objects.size() * sizeof(RenderData::Object));
+        vmaCopyMemoryToAllocation(allocator, data.objects.data(), storageBufferAllocation[currentFrame], 0, data.objects.size() * sizeof(RenderData::Object));
         VkDescriptorSetAllocateInfo allocInfo = {};
         allocInfo.pNext                       = VK_NULL_HANDLE;
         allocInfo.sType                       = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -745,7 +751,7 @@ void VulkanContext::renderFromRD(const RenderData& data)
         VkResult        result = vkAllocateDescriptorSets(device, &allocInfo, &storageDescriptorSet);
 
         VkDescriptorBufferInfo bufferInfo = {
-            .buffer = storageBuffer,
+            .buffer = storageBuffer[currentFrame],
             .offset = 0,
             .range = data.objects.size() * sizeof(RenderData::Object)
         };
@@ -764,7 +770,6 @@ void VulkanContext::renderFromRD(const RenderData& data)
         };
 
         vkUpdateDescriptorSets(device, 1, &bufferWrite, 0, nullptr);
-        buffer_barrier(commandBuffer, storageBuffer, 0, data.objects.size() * sizeof(RenderData::Object));
     }
 
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, quadPipelineLayout, 0, 1, &storageDescriptorSet, 0, nullptr);
@@ -841,7 +846,10 @@ void VulkanContext::clean()
         vkDestroyDescriptorPool(device, dp, 0);
 
     vmaDestroyBuffer(allocator, windowSizeBuffer, windowSizeBufferAllocation);
-    vmaDestroyBuffer(allocator, storageBuffer, storageBufferAllocation);
+    for (int i = 0; i < imageCount; i++)
+    {
+        vmaDestroyBuffer(allocator, storageBuffer[i], storageBufferAllocation[i]);
+    }
     //#TODO: need to destroy all textures here
 }
 
