@@ -12,14 +12,14 @@ inline const std::string VERSION_HEADER = R"#(
 inline const std::string BUFFERS = R"#(
 struct Character {
     vec4 rect;
-    ivec4 texBounds;
+    vec4 texBounds;
     vec4 colour;
     int size;
 };
 
 struct Quad {
     vec4 rect;
-    ivec4 texBounds;
+    vec4 texBounds;
     vec4 colour;
     int pixelSize;
 };
