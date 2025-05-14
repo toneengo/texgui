@@ -403,7 +403,7 @@ private:
     struct alignas(16) Character
     {
         Math::fbox rect; //xpos, ypos, width, height
-        Math::ibox texBounds;
+        Math::fbox texBounds;
         Math::fvec4 colour = Math::fvec4(1.0);
         int size;
     };
@@ -411,7 +411,7 @@ private:
     struct alignas(16) Quad
     {
         Math::fbox rect; //xpos, ypos, width, height
-        Math::ibox texBounds; //xpos, ypos, width, height
+        Math::fbox texBounds; //xpos, ypos, width, height
         Math::fvec4 colour = Math::fvec4(1.0);
         int pixelSize;
     };

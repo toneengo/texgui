@@ -20,7 +20,7 @@ struct Texture
     unsigned int id = -1;
 
     //Texture sub-region
-    Math::ibox bounds;
+    Math::fbox bounds;
 
     //Total size of texture
     Math::ivec2 size;

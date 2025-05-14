@@ -66,7 +66,7 @@ void main() {
         ivec2(1, 0)
     ); 
 
-    const int FONT_PX = 32;
+    const int FONT_PX = 40;
     vec4 rect = text[index + gl_InstanceID].rect;
     vec4 texBounds = text[index + gl_InstanceID].texBounds;
     rect.x -= screenSz.x / 2;

@@ -306,10 +306,10 @@ void TexGui::loadFont(const char* font_path)
             // setDimensions or setDimensionsConstraint to find the best value
             packer.setDimensionsConstraint(DimensionsConstraint::SQUARE);
             // setScale for a fixed size or setMinimumScale to use the largest that fits
-            packer.setScale(32.0);
+            packer.setScale(40.0);
             // setPixelRange or setUnitRange
             packer.setPixelRange(TexGui::Defaults::Font::MsdfPxRange);
-            packer.setMiterLimit(1.0);
+            packer.setMiterLimit(4.0);
             // Compute atlas layout - pack glyphs
             packer.pack(glyphs.data(), glyphs.size());
             // Get final atlas dimensions
@@ -317,9 +317,9 @@ void TexGui::loadFont(const char* font_path)
             // The ImmediateAtlasGenerator class facilitates the generation of the atlas bitmap.
             ImmediateAtlasGenerator<
                 float, // pixel type of buffer for individual glyphs depends on generator function
-                4, // number of atlas color channels
-                mtsdfGenerator, // function to generate bitmaps for individual glyphs
-                BitmapAtlasStorage<byte, 4> // class that stores the atlas bitmap
+                3, // number of atlas color channels
+                msdfGenerator, // function to generate bitmaps for individual glyphs
+                BitmapAtlasStorage<byte, 3> // class that stores the atlas bitmap
                 // For example, a custom atlas storage class that stores it in VRAM can be used.
             > generator(width, height);
             // GeneratorAttributes can be modified to change the generator's default settings.
@@ -330,10 +330,25 @@ void TexGui::loadFont(const char* font_path)
             generator.generate(glyphs.data(), glyphs.size());
             // The atlas bitmap can now be retrieved via atlasStorage as a BitmapConstRef.
             // The glyphs array (or fontGeometry) contains positioning data for typesetting text.
-            msdfgen::BitmapConstRef<byte, 4> ref = generator.atlasStorage();
+            msdfgen::BitmapConstRef<byte, 3> ref = generator.atlasStorage();
 
-            uint32_t texID = GTexGui->renderCtx->createTexture((void*)ref.pixels, width, height);
+            unsigned char* rgba = new unsigned char[width * height * 4];
+            for (int r = 0; r < height; r++)
+            {
+                for (int c = 0; c < width; c++)
+                {
+                    int index = (r * width) + c;
+                    rgba[index * 4] = *((unsigned char*)(ref.pixels) + (index * 3));
+                    rgba[index * 4 + 1] = *((unsigned char*)(ref.pixels) + (index * 3 + 1));
+                    rgba[index * 4 + 2] = *((unsigned char*)(ref.pixels) + (index * 3 + 2));
+                    rgba[index * 4 + 3] = 255;
+                }
+            }
+            uint32_t texID = GTexGui->renderCtx->createTexture((void*)rgba, width, height);
+            GTexGui->renderCtx->setPxRange(TexGui::Defaults::Font::MsdfPxRange);
             GTexGui->renderCtx->setFontAtlas(texID, width, height);
+
+            delete []rgba;
 
             // Cleanup
             msdfgen::destroyFont(font);
@@ -404,10 +419,10 @@ void TexGui::loadTextures(const char* dir)
             t.size.x = width;
             t.size.y = height;
 
-            t.top = height/3.f;
-            t.right = width/3.f;
-            t.bottom = height/3.f;
-            t.left = width/3.f;
+            t.top = float(height)/3.f;
+            t.right = float(width)/3.f;
+            t.bottom = float(height)/3.f;
+            t.left = float(width)/3.f;
 
             t.id = ctx->createTexture(pixels, width, height);
         }
@@ -1658,7 +1673,7 @@ int RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& c
                     w * size,
                     h * size
                 ),
-                .texBounds = {x, y, w, h},
+                .texBounds = fbox(x, y, w, h),
                 .colour = col,
                 .size = size
             };

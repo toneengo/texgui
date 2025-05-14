@@ -12,6 +12,8 @@ class NoApiContext
         virtual uint32_t createTexture(void* data, int width, int height) = 0;
         void setFontAtlas(uint32_t texID, int width, int height)
             {fontAtlasID=texID; fontAtlasWidth=width; fontAtlasHeight=height;}
+        virtual void setPxRange(float _pxRange)
+            {pxRange=_pxRange;}
 
         virtual Math::ivec2 getTextureSize(uint32_t texID) = 0;
         virtual void clean() = 0;
@@ -24,6 +26,7 @@ class NoApiContext
         uint32_t fontAtlasID;
         uint32_t fontAtlasWidth;
         uint32_t fontAtlasHeight;
+        float pxRange;
 };
 
 NAMESPACE_END(TexGui)

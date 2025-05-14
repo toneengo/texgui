@@ -18,6 +18,7 @@ public:
     void renderFromRD(const RenderData& data);
     uint32_t createTexture(void* data, int width, int height);
     Math::ivec2 getTextureSize(uint32_t texID);
+    void setPxRange(float _pxRange);
     void clean();
     void newFrame();
 
@@ -62,6 +63,11 @@ protected:
     VkBuffer windowSizeBuffer = 0;
     VmaAllocation windowSizeBufferAllocation = 0;
 
+    VkDescriptorSet pxRangeDescriptorSet;
+    VkDescriptorSetLayout pxRangeDescriptorSetLayout;
+    VkBuffer pxRangeBuffer = 0;
+    VmaAllocation pxRangeBufferAllocation = 0;
+
     VkDescriptorSet imageDescriptorSet = VK_NULL_HANDLE;
     VkDescriptorSetLayout imageDescriptorSetLayout;
     VkBuffer imageBuffer = 0;
@@ -73,6 +79,7 @@ protected:
     VmaAllocation storageBufferAllocation = 0;
 
     VkPipeline quadPipeline;
+    VkPipeline textPipeline;
     VkPipelineLayout quadPipelineLayout = VK_NULL_HANDLE;
 
 };

@@ -32,7 +32,7 @@ namespace Settings {
 namespace Font {
     inline Math::fvec4 Color = {1, 1, 1, 1};
     inline int Size = 20;
-    inline int MsdfPxRange = 1;
+    inline float MsdfPxRange = 2.0;
 }
 
 namespace Window {

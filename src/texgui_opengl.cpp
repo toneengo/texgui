@@ -86,6 +86,7 @@ void GLContext::ogl_renderFromRD(const auto& objects, const auto& commands) {
 
     int count = 0;
     glActiveTexture(GL_TEXTURE0);
+
     for (auto& c : commands)
     {
         glNamedBufferSubData(m_ub.objIndex.buf, 0, sizeof(int), &count);
