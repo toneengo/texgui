@@ -399,7 +399,6 @@ void TexGui::loadTextures(const char* dir)
             continue;
         }
         
-
         if (m_tex_map.contains(fstr))
         {
             if (m_tex_map[fstr].bounds.w != width || m_tex_map[fstr].bounds.h != height)
@@ -424,8 +423,8 @@ void TexGui::loadTextures(const char* dir)
             t.bottom = float(height)/3.f;
             t.left = float(width)/3.f;
 
-            t.id = ctx->createTexture(pixels, width, height);
         }
+
         Texture& t = m_tex_map[fstr];
 
         if (pstr.ends_with(".hover.png"))
@@ -440,6 +439,8 @@ void TexGui::loadTextures(const char* dir)
         {
             t.active = ctx->createTexture(pixels, width, height);
         }
+        else
+            t.id = ctx->createTexture(pixels, width, height);
 
         stbi_image_free(pixels);
     }
