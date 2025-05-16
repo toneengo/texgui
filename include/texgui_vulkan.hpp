@@ -22,6 +22,7 @@ public:
     void clean();
     void newFrame();
 
+    uint32_t createTexture(VkImageView imageView, Math::fbox bounds);
 protected:
 
     struct Buf {
@@ -86,4 +87,6 @@ protected:
 
 bool initVulkan(TexGui::VulkanInitInfo& info);
 void renderVulkan(const TexGui::RenderData& data, VkCommandBuffer cmd);
+
+Texture* customTexture(VkImageView imageView, Math::ibox bounds, Math::ivec2 atlasSize = {0, 0});
 NAMESPACE_END(TexGui);

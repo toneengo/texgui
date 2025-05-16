@@ -523,6 +523,32 @@ void VulkanContext::setScreenSize(int width, int height)
     windowSize.y = height;
 }
 
+uint32_t VulkanContext::createTexture(VkImageView imageView, Math::fbox bounds)
+{
+    VkDescriptorImageInfo imgInfo{
+        .sampler = nearestSampler,
+        .imageView = imageView,
+        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+    };
+    auto imageWrite = VkWriteDescriptorSet{
+        .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .pNext            = nullptr,
+        .dstSet           = imageDescriptorSet,
+        .dstBinding       = 0,
+        .dstArrayElement  = textureCount,
+        .descriptorCount  = 1,
+        .descriptorType   = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .pImageInfo       = &imgInfo,
+        .pBufferInfo      = nullptr,
+        .pTexelBufferView = nullptr //unused for now
+    };
+    vkUpdateDescriptorSets(device, 1, &imageWrite, 0, nullptr);
+
+    textureSizes[textureCount] = ivec2(bounds.width, bounds.height);
+
+    return textureCount++;
+
+}
 uint32_t VulkanContext::createTexture(void* data, int width, int height)
 {
     VkExtent3D size = {
@@ -865,4 +891,17 @@ void TexGui::renderVulkan(const TexGui::RenderData& data, VkCommandBuffer cmd)
 {
     vulkanCtx->setCommandBuffer(cmd);
     vulkanCtx->renderFromRD(data);
+}
+
+static std::list<Texture> m_custom_texs;
+Texture* TexGui::customTexture(VkImageView imageView, Math::ibox bounds, Math::ivec2 atlasSize)
+{
+    int index = vulkanCtx->createTexture(imageView, bounds);
+
+    float xth = bounds.w / 3.f;
+    float yth = bounds.h / 3.f;
+    ivec2 size;
+    if (atlasSize.x > 0 && atlasSize.y > 0) size = atlasSize;
+    else size = bounds.size;
+    return &m_custom_texs.emplace_back(index, bounds, size, yth, xth, yth, xth);
 }
