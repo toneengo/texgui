@@ -246,7 +246,11 @@ VulkanContext::VulkanContext(const VulkanInitInfo& init_info)
         }
     };
 
-    set_info.pNext                           = VK_NULL_HANDLE;
+    VkDescriptorBindingFlags bindingFlags = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+    VkDescriptorSetLayoutBindingFlagsCreateInfo bindingInfo = {.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO};
+    bindingInfo.pBindingFlags = &bindingFlags;
+    bindingInfo.bindingCount = 1;
+    set_info.pNext                           = &bindingInfo;
     set_info.bindingCount                    = 1;
 
     set_info.pBindings                       = &bindings[0];
@@ -254,15 +258,12 @@ VulkanContext::VulkanContext(const VulkanInitInfo& init_info)
     vkCreateDescriptorSetLayout(device, &set_info, nullptr, &storageDescriptorSetLayout);
 
     set_info.pBindings                       = &bindings[1];
-    set_info.flags                           = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
     vkCreateDescriptorSetLayout(device, &set_info, nullptr, &windowSizeDescriptorSetLayout);
 
     set_info.pBindings                       = &bindings[2];
-    set_info.flags                           = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
     vkCreateDescriptorSetLayout(device, &set_info, nullptr, &pxRangeDescriptorSetLayout);
 
     set_info.pBindings                       = &bindings[3];
-    set_info.flags                           = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
     vkCreateDescriptorSetLayout(device, &set_info, nullptr, &imageDescriptorSetLayout);
 
     {
