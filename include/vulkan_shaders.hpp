@@ -109,7 +109,7 @@ bool contains(vec4 box, vec2 p)
 void main() {
     frag = texture(samplers[nonuniformEXT(pushConstants.texID)], uv);
     if (!contains(pushConstants.bounds, pos) || frag.a < 0.1)
-        discard;
+        frag.a = 0.0;
 }
 )#";
 
@@ -146,7 +146,7 @@ layout( push_constant ) uniform constants
 } pushConstants;
 
 void main() {
-    const int FONT_PX = 40;
+    const int FONT_PX = 100;
     vec4 rect = text[pushConstants.index + gl_InstanceIndex].rect;
     colour = text[pushConstants.index + gl_InstanceIndex].colour;
     vec4 texBounds = text[pushConstants.index + gl_InstanceIndex].texBounds;
@@ -202,14 +202,13 @@ bool contains(vec4 box, vec2 p)
 }
 
 void main() {
-    if (!contains(pushConstants.bounds, pos))
-        discard;
     vec4 msd = texture(samplers[nonuniformEXT(pushConstants.texID)], uv);
     float sd = median(msd.r, msd.g, msd.b);
     float screenPxDistance = screenPxRange * (sd - 0.5);
     float opacity = clamp(screenPxDistance + 0.5, 0.0, 1.0) * colour.a;
-    if (opacity < 0.1) discard;
     frag = vec4(colour.rgb, opacity);
+    if (!contains(pushConstants.bounds, pos))
+        frag.a = 0.0;
 }
 )#";
 

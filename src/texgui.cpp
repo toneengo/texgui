@@ -273,6 +273,10 @@ RenderData* TexGui::newRenderData()
     return new RenderData();
 }
 
+#ifndef M_PI
+#define M_PI  3.14159265358979323846264  // from CRC
+#endif
+
 using namespace msdf_atlas;
 std::vector<GlyphGeometry> glyphs;
 std::unordered_map<uint32_t, uint32_t> m_char_map;
@@ -297,7 +301,7 @@ void TexGui::loadFont(const char* font_path)
             fontGeometry.loadCharset(font, 1.0, Charset::ASCII);
 
             // Apply MSDF edge coloring. See edge-coloring.h for other coloring strategies.
-            const double maxCornerAngle = 3.0;
+            const double maxCornerAngle = M_PI / 4.0;
             for (GlyphGeometry &glyph : glyphs)
                 glyph.edgeColoring(&msdfgen::edgeColoringSimple, maxCornerAngle, 0);
             // TightAtlasPacker class computes the layout of the atlas.
@@ -306,7 +310,7 @@ void TexGui::loadFont(const char* font_path)
             // setDimensions or setDimensionsConstraint to find the best value
             packer.setDimensionsConstraint(DimensionsConstraint::SQUARE);
             // setScale for a fixed size or setMinimumScale to use the largest that fits
-            packer.setScale(40.0);
+            packer.setScale(100.0);
             // setPixelRange or setUnitRange
             packer.setPixelRange(TexGui::Defaults::Font::MsdfPxRange);
             packer.setMiterLimit(4.0);
