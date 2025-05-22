@@ -24,7 +24,7 @@
 
 NAMESPACE_BEGIN(TexGui);
 
-bool init();
+void init();
 
 inline bool CapturingMouse = false;
 

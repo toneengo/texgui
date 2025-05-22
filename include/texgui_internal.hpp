@@ -7,6 +7,8 @@
 #include "types.h"
 #include "SDL3/SDL.h"
 #include <queue>
+#include <mutex>
+#include <unordered_map>
 
 NAMESPACE_BEGIN(TexGui);
 
@@ -51,7 +53,7 @@ enum KeyState : int
 struct InputData {
     int keyStates[TexGuiKey_NamedKey_COUNT];
     int mouseStates[TEXGUI_MOUSE_BUTTON_COUNT];
-    int mods;
+    int mods = 0;
 
     int& lmb = mouseStates[0];
 
@@ -86,7 +88,7 @@ struct InputData {
     }
 
     InputData() { memset(keyStates, KEY_Off, sizeof(int)*(TexGuiKey_NamedKey_COUNT));
-                  memset(mouseStates, KEY_Off, sizeof(int)*(TexGuiKey_NamedKey_COUNT)); }
+                  memset(mouseStates, KEY_Off, sizeof(int)*(TEXGUI_MOUSE_BUTTON_COUNT)); }
 };
 
 struct TexGuiContext
@@ -102,5 +104,6 @@ struct TexGuiContext
     bool initialised = false;
 };
 
+//#TODO: testing without dynamic alloc
 inline TexGuiContext* GTexGui = nullptr;
 NAMESPACE_END(TexGui);

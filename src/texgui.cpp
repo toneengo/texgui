@@ -15,7 +15,7 @@
 
 using namespace TexGui;
 
-bool TexGui::init()
+void TexGui::init()
 {
     GTexGui = new TexGuiContext();
 }
