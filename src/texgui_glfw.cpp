@@ -209,15 +209,12 @@ void TexGui_ImplGlfw_KeyCallback(GLFWwindow* window, int key, int scancode, int 
     if (bd.PrevUserCallbackKey)
         bd.PrevUserCallbackKey(window, key, scancode, action, mods);
 
-    if (key == GLFW_KEY_BACKSPACE
-        && (action == GLFW_PRESS || action == GLFW_REPEAT)) 
-        io.backspace = true;
-
     std::lock_guard<std::mutex> lock(TGInputLock);
     TexGuiKey tgkey = TexGui_ImplGlfw_KeyToTexGuiKey(key, scancode);
     //#TODO: probly dont need to check if keystate is off
     if (action == GLFW_RELEASE) io.submitKey(tgkey, KEY_Release);
     else if (io.getKeyState(tgkey) == KEY_Off) io.submitKey(tgkey, KEY_Press);
+    else if (action == GLFW_REPEAT) io.submitKey(tgkey, KEY_Repeat);
 }
 
 void TexGui_ImplGlfw_MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)

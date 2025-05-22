@@ -428,9 +428,9 @@ enum TexGuiKey : int
 {
     // Keyboard
     TexGuiKey_None = 0,
-    TexGuiKey_NamedKey_BEGIN = 512,  // First valid key value (other than 0)
+    TexGuiKey_NamedKey_BEGIN = 1,  // First valid key value (other than 0)
 
-    TexGuiKey_Tab = 512,             // == TexGuiKey_NamedKey_BEGIN
+    TexGuiKey_Tab = 1,             // == TexGuiKey_NamedKey_BEGIN
     TexGuiKey_LeftArrow,
     TexGuiKey_RightArrow,
     TexGuiKey_UpArrow,
@@ -537,7 +537,8 @@ enum TexGuiKey : int
     TexGuiMod_Mask_                  = 0xF000,  // 4-bits
 
     // [Internal] If you need to iterate all keys (for e.g. an input mapper) you may use TexGuiKey_NamedKey_BEGIN..TexGuiKey_NamedKey_END.
-    TexGuiKey_NamedKey_COUNT         = TexGuiKey_NamedKey_END - TexGuiKey_NamedKey_BEGIN,
+    //TexGuiKey_NamedKey_COUNT         = TexGuiKey_NamedKey_END - TexGuiKey_NamedKey_BEGIN,
+    TexGuiKey_NamedKey_COUNT         = TexGuiKey_NamedKey_END,
     //TexGuiKey_KeysData_SIZE        = TexGuiKey_NamedKey_COUNT,  // Size of KeysData[]: only hold named keys
     //TexGuiKey_KeysData_OFFSET      = TexGuiKey_NamedKey_BEGIN,  // Accesses to io.KeysData[] must use (key - TexGuiKey_NamedKey_BEGIN) index.
 

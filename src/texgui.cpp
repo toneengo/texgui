@@ -290,7 +290,7 @@ struct InputFrame
 
     unsigned int character;
 
-    bool backspace;
+    //int& backspace = keyStates[TexGuiKey_Backspace];
 };
 
 InputFrame inputFrame;
@@ -308,9 +308,7 @@ inline static void clearInput()
     inputFrame.cursorPos = io.cursorPos;
     inputFrame.scroll = io.scroll;
     inputFrame.mouseRelativeMotion = io.mouseRelativeMotion;
-    inputFrame.backspace = io.backspace;
 
-    io.backspace = false;
     io.mouseRelativeMotion = {0, 0};
 
     TexGui::CapturingMouse = false;
@@ -767,7 +765,7 @@ static bool textInputUpdate(TextInputState& tstate, unsigned int* c, CharacterFi
         *c = io.character;
         return false;
     }
-    if (io.backspace)
+    if (io.keyStates[TexGuiKey_Backspace] == KEY_Press || io.keyStates[TexGuiKey_Backspace] == KEY_Repeat)
     {
         return true;
     }

@@ -48,6 +48,7 @@ enum KeyState : int
     KEY_Press = 1,
     KEY_Held = 2,
     KEY_Release = 3,
+    KEY_Repeat = 4,
 };
 
 #define TEXGUI_MOUSE_BUTTON_COUNT 64
@@ -66,16 +67,14 @@ struct InputData {
 
     bool firstMouse = false;
 
-    bool backspace = false;
-
     inline void submitKey(TexGuiKey key, KeyState state)
     {
-        keyStates[key - TexGuiKey_NamedKey_BEGIN] = state;
+        keyStates[key] = state;
     }
 
     inline int getKeyState(TexGuiKey key)
     {
-        return keyStates[key - TexGuiKey_NamedKey_BEGIN];
+        return keyStates[key];
     }
 
     inline void submitMouseButton(int button, KeyState state)

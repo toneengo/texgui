@@ -221,6 +221,7 @@ void TexGui::processEvent_SDL3(const SDL_Event& event)
         case SDL_EVENT_KEY_DOWN:
             tgkey = TexGui_ImplSDL3_KeyEventToTexGuiKey(event.key.key, event.key.scancode);
             if (io.getKeyState(tgkey) == KEY_Off) io.submitKey(tgkey, KEY_Press);
+            else if (event.key.repeat) io.submitKey(tgkey, KEY_Repeat);
             break;
         case SDL_EVENT_KEY_UP:
             tgkey = TexGui_ImplSDL3_KeyEventToTexGuiKey(event.key.key, event.key.scancode);
