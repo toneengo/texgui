@@ -298,6 +298,9 @@ InputFrame inputFrame;
 inline static void clearInput()
 {
     auto& io = GTexGui->io;
+    GTexGui->editingText.store(TexGui_editingText);
+    TexGui_editingText = false;
+
     std::lock_guard<std::mutex> lock(TGInputLock);
 
     inputFrame.mods = io.mods;
@@ -798,6 +801,9 @@ void Container::TextInput(const char* name, std::string& buf, CharacterFilter fi
     
     auto& tstate = GTexGui->textInputs[name];
     getBoxState(tstate.state, bounds);
+
+    if (tstate.state & STATE_ACTIVE)
+        TexGui_editingText = true;
     
     unsigned int c;
     if (textInputUpdate(tstate, &c, filter))
@@ -820,8 +826,11 @@ void Container::TextInput(const char* name, char* buf, uint32_t bufsize, Charact
     }
     
     auto& tstate = GTexGui->textInputs[name];
-
     getBoxState(tstate.state, bounds);
+
+    if (tstate.state & STATE_ACTIVE)
+        TexGui_editingText = true;
+
     int32_t tlen = strlen(buf);
     
     unsigned int c;

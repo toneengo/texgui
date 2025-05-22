@@ -8,29 +8,29 @@ using namespace TexGui;
 // Copied from Dear ImGui. Thank you Ocornut
 struct TexGui_ImplSDL3_Data
 {
-    SDL_Window*             Window;
-    SDL_WindowID            WindowID;
-    SDL_Renderer*           Renderer;
-    Uint64                  Time;
-    char*                   ClipboardTextData;
-    char                    BackendPlatformName[48];
+    SDL_Window*             window;
+    SDL_WindowID            windowID;
+    SDL_Renderer*           renderer;
+    Uint64                  time;
+    char*                   clipboardTextData;
+    char                    backendPlatformName[48];
 
     // IME handling
-    SDL_Window*             ImeWindow;
+    SDL_Window*             imeWindow;
 
     // Mouse handling
-    Uint32                  MouseWindowID;
-    int                     MouseButtonsDown;
-    //SDL_Cursor*             MouseCursors[TexGuiMouseCursor_COUNT];
-    SDL_Cursor*             MouseLastCursor;
-    int                     MousePendingLeaveFrame;
-    bool                    MouseCanUseGlobalState;
-    bool                    MouseCanUseCapture;
+    Uint32                  mouseWindowID;
+    int                     mouseButtonsDown;
+    //SDL_Cursor*             mouseCursors[TexGuiMouseCursor_COUNT];
+    SDL_Cursor*             mouseLastCursor;
+    int                     mousePendingLeaveFrame;
+    bool                    mouseCanUseGlobalState;
+    bool                    mouseCanUseCapture;
 
     // #TODO: Gamepad handling
-    //ImVector<SDL_Gamepad*>      Gamepads;
-    //TexGui_ImplSDL3_GamepadMode  GamepadMode;
-    bool                        WantUpdateGamepadsList;
+    //ImVector<SDL_Gamepad*>      gamepads;
+    //TexGui_ImplSDL3_GamepadMode  gamepadMode;
+    bool                        wantUpdateGamepadsList;
 
     TexGui_ImplSDL3_Data()   { memset((void*)this, 0, sizeof(*this)); }
 };
@@ -191,7 +191,7 @@ bool TexGui::initSDL3(SDL_Window* window)
     assert(GTexGui && !GTexGui->initialised);
     GTexGui->backendData = new TexGui_ImplSDL3_Data();
     auto& bd = *(TexGui_ImplSDL3_Data*)GTexGui->backendData;
-    bd.Window = window;
+    bd.window = window;
     SDL_GetWindowSize(window, &GTexGui->framebufferSize.x, &GTexGui->framebufferSize.y);
     GTexGui->contentScale = SDL_GetWindowDisplayScale(window);
 
@@ -204,6 +204,13 @@ bool TexGui::initSDL3(SDL_Window* window)
 
 void TexGui::processEvent_SDL3(const SDL_Event& event)
 {
+    auto& bd = *(TexGui_ImplSDL3_Data*)GTexGui->backendData;
+
+    if (!SDL_TextInputActive(bd.window) && GTexGui->editingText)
+        SDL_StartTextInput(bd.window);
+    else if (SDL_TextInputActive(bd.window) && !GTexGui->editingText)
+        SDL_StopTextInput(bd.window);
+
     auto& io = GTexGui->io;
     TexGuiKey tgkey;
 
@@ -231,6 +238,10 @@ void TexGui::processEvent_SDL3(const SDL_Event& event)
         case SDL_EVENT_MOUSE_MOTION:
             io.cursorPos = Math::fvec2(event.motion.x, event.motion.y);
             io.mouseRelativeMotion += Math::fvec2(event.motion.xrel, event.motion.yrel);
+            break;
+        case SDL_EVENT_TEXT_INPUT:
+            for (const char* c = event.text.text; *c != '\0'; c++)
+                io.charQueue.push(*c);
             break;
         default:
             break;

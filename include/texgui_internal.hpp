@@ -9,6 +9,7 @@
 #include <queue>
 #include <mutex>
 #include <unordered_map>
+#include <atomic>
 
 NAMESPACE_BEGIN(TexGui);
 
@@ -94,6 +95,7 @@ struct InputData {
 struct TexGuiContext
 {
     Math::ivec2 framebufferSize;
+    std::atomic<bool> editingText = false;
     float contentScale = 1.f;
     void* backendData = nullptr;
     std::unordered_map<std::string, WindowState> windows;
@@ -105,5 +107,6 @@ struct TexGuiContext
 };
 
 //#TODO: testing without dynamic alloc
+inline std::atomic<bool> TexGui_editingText = false;
 inline TexGuiContext* GTexGui = nullptr;
 NAMESPACE_END(TexGui);
