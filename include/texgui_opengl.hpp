@@ -24,7 +24,6 @@ public:
     GLContext();
     ~GLContext();
 
-    void initFromGlfwWindow(GLFWwindow* window);
     void bindBuffers();
     void setScreenSize(int width, int height);
     void renderFromRD(const RenderData& data);

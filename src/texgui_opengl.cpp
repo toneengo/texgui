@@ -48,19 +48,6 @@ GLContext::GLContext()
     glActiveTexture(GL_TEXTURE0);
 }
 
-extern Container Base;
-void GLContext::initFromGlfwWindow(GLFWwindow* window)
-{
-    glfwGetWindowContentScale(window, &m_window_scale, nullptr);
-    glfwGetWindowSize(window, &m_screen_size.x, &m_screen_size.y);
-    glScissor(0,0,m_screen_size.x, m_screen_size.y);
-    m_screen_size.x *= m_window_scale;
-    m_screen_size.y *= m_window_scale; 
-    Base.bounds.size = m_screen_size;
-    glViewport(0, 0, m_screen_size.x, m_screen_size.y);
-    glNamedBufferSubData(m_ub.screen_size.buf, 0, sizeof(int) * 2, &m_screen_size);
-}
-
 GLContext::~GLContext()
 {
 }

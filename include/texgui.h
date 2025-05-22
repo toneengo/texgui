@@ -16,60 +16,19 @@
 #include <vector>
 #include "texgui_math.hpp"
 #include "texgui_settings.hpp"
-#include "texgui_settings.hpp"
 
 #undef VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
 
 #include <vulkan/vulkan_core.h>
 
-struct GLFWwindow;
 NAMESPACE_BEGIN(TexGui);
 
-//ONLY DYNAMIC RENDERING IS SUPPORTED
-//This is copied from Dear ImGui
-struct VulkanInitInfo
-{
-    uint32_t                        ApiVersion;                 // Fill with API version of Instance, e.g. VK_API_VERSION_1_3 or your value of VkApplicationInfo::apiVersion. May be lower than header version (VK_HEADER_VERSION_COMPLETE)
-    VkInstance                      Instance;
-    VkPhysicalDevice                PhysicalDevice;
-    VkDevice                        Device;
-    uint32_t                        QueueFamily;
-    VkQueue                         Queue;
-    VkDescriptorPool                DescriptorPool;             // See requirements in note above; ignored if using DescriptorPoolSize > 0
-    //VkRenderPass                    RenderPass;                 // Ignored if using dynamic rendering
-    uint32_t                        MinImageCount;              // >= 2
-    uint32_t                        ImageCount;                 // >= MinImageCount
-    VkSampleCountFlagBits           MSAASamples;                // 0 defaults to VK_SAMPLE_COUNT_1_BIT
-
-    // (Optional)
-    VkPipelineCache                 PipelineCache;
-    uint32_t                        Subpass;
-
-    // (Optional) Set to create internal descriptor pool instead of using DescriptorPool
-    uint32_t                        DescriptorPoolSize;
-
-    // (Optional) Dynamic Rendering
-    // Need to explicitly enable VK_KHR_dynamic_rendering extension to use this, even for Vulkan 1.3.
-    bool                            UseDynamicRendering;
-    VkPipelineRenderingCreateInfo PipelineRenderingCreateInfo;
-
-    // (Optional) Allocation, Debugging
-    /*
-    const VkAllocationCallbacks*    Allocator;
-    void                            (*CheckVkResultFn)(VkResult err);
-    VkDeviceSize                    MinAllocationSize;          // Minimum allocation size. Set to 1024*1024 to satisfy zealous best practices validation layer and waste a little memory.
-                                                                // */
-
-    //#TODO: GET rid of this
-    VmaAllocator Allocator;
-};
+bool init();
 
 inline bool CapturingMouse = false;
 
 class RenderData;
-struct VulkanInitInfo;
-bool initGlfw(GLFWwindow* window);
 
 struct Texture;
 struct TextSegment;
@@ -466,5 +425,125 @@ private:
 
 Math::fvec2 calculateTextBounds(Paragraph text, int32_t scale, float maxWidth);
 Math::fvec2 calculateTextBounds(const char* text, float maxWidth, int32_t scale = Defaults::Font::Size);
+
+//This is copied from Dear ImGui. Thank you Ocornut
+enum TexGuiKey : int
+{
+    // Keyboard
+    TexGuiKey_None = 0,
+    TexGuiKey_NamedKey_BEGIN = 512,  // First valid key value (other than 0)
+
+    TexGuiKey_Tab = 512,             // == TexGuiKey_NamedKey_BEGIN
+    TexGuiKey_LeftArrow,
+    TexGuiKey_RightArrow,
+    TexGuiKey_UpArrow,
+    TexGuiKey_DownArrow,
+    TexGuiKey_PageUp,
+    TexGuiKey_PageDown,
+    TexGuiKey_Home,
+    TexGuiKey_End,
+    TexGuiKey_Insert,
+    TexGuiKey_Delete,
+    TexGuiKey_Backspace,
+    TexGuiKey_Space,
+    TexGuiKey_Enter,
+    TexGuiKey_Escape,
+    TexGuiKey_LeftCtrl, TexGuiKey_LeftShift, TexGuiKey_LeftAlt, TexGuiKey_LeftSuper,
+    TexGuiKey_RightCtrl, TexGuiKey_RightShift, TexGuiKey_RightAlt, TexGuiKey_RightSuper,
+    TexGuiKey_Menu,
+    TexGuiKey_0, TexGuiKey_1, TexGuiKey_2, TexGuiKey_3, TexGuiKey_4, TexGuiKey_5, TexGuiKey_6, TexGuiKey_7, TexGuiKey_8, TexGuiKey_9,
+    TexGuiKey_A, TexGuiKey_B, TexGuiKey_C, TexGuiKey_D, TexGuiKey_E, TexGuiKey_F, TexGuiKey_G, TexGuiKey_H, TexGuiKey_I, TexGuiKey_J,
+    TexGuiKey_K, TexGuiKey_L, TexGuiKey_M, TexGuiKey_N, TexGuiKey_O, TexGuiKey_P, TexGuiKey_Q, TexGuiKey_R, TexGuiKey_S, TexGuiKey_T,
+    TexGuiKey_U, TexGuiKey_V, TexGuiKey_W, TexGuiKey_X, TexGuiKey_Y, TexGuiKey_Z,
+    TexGuiKey_F1, TexGuiKey_F2, TexGuiKey_F3, TexGuiKey_F4, TexGuiKey_F5, TexGuiKey_F6,
+    TexGuiKey_F7, TexGuiKey_F8, TexGuiKey_F9, TexGuiKey_F10, TexGuiKey_F11, TexGuiKey_F12,
+    TexGuiKey_F13, TexGuiKey_F14, TexGuiKey_F15, TexGuiKey_F16, TexGuiKey_F17, TexGuiKey_F18,
+    TexGuiKey_F19, TexGuiKey_F20, TexGuiKey_F21, TexGuiKey_F22, TexGuiKey_F23, TexGuiKey_F24,
+    TexGuiKey_Apostrophe,        // '
+    TexGuiKey_Comma,             // ,
+    TexGuiKey_Minus,             // -
+    TexGuiKey_Period,            // .
+    TexGuiKey_Slash,             // /
+    TexGuiKey_Semicolon,         // ;
+    TexGuiKey_Equal,             // =
+    TexGuiKey_LeftBracket,       // [
+    TexGuiKey_Backslash,         // \ (this text inhibit multiline comment caused by backslash)
+    TexGuiKey_RightBracket,      // ]
+    TexGuiKey_GraveAccent,       // `
+    TexGuiKey_CapsLock,
+    TexGuiKey_ScrollLock,
+    TexGuiKey_NumLock,
+    TexGuiKey_PrintScreen,
+    TexGuiKey_Pause,
+    TexGuiKey_Keypad0, TexGuiKey_Keypad1, TexGuiKey_Keypad2, TexGuiKey_Keypad3, TexGuiKey_Keypad4,
+    TexGuiKey_Keypad5, TexGuiKey_Keypad6, TexGuiKey_Keypad7, TexGuiKey_Keypad8, TexGuiKey_Keypad9,
+    TexGuiKey_KeypadDecimal,
+    TexGuiKey_KeypadDivide,
+    TexGuiKey_KeypadMultiply,
+    TexGuiKey_KeypadSubtract,
+    TexGuiKey_KeypadAdd,
+    TexGuiKey_KeypadEnter,
+    TexGuiKey_KeypadEqual,
+    TexGuiKey_AppBack,               // Available on some keyboard/mouses. Often referred as "Browser Back"
+    TexGuiKey_AppForward,
+    TexGuiKey_Oem102,                // Non-US backslash.
+
+    // Gamepad (some of those are analog values, 0.0f to 1.0f)                          // NAVIGATION ACTION
+    // (download controller mapping PNG/PSD at http://dearimgui.com/controls_sheets)
+    TexGuiKey_GamepadStart,          // Menu (Xbox)      + (Switch)   Start/Options (PS)
+    TexGuiKey_GamepadBack,           // View (Xbox)      - (Switch)   Share (PS)
+    TexGuiKey_GamepadFaceLeft,       // X (Xbox)         Y (Switch)   Square (PS)        // Tap: Toggle Menu. Hold: Windowing mode (Focus/Move/Resize windows)
+    TexGuiKey_GamepadFaceRight,      // B (Xbox)         A (Switch)   Circle (PS)        // Cancel / Close / Exit
+    TexGuiKey_GamepadFaceUp,         // Y (Xbox)         X (Switch)   Triangle (PS)      // Text Input / On-screen Keyboard
+    TexGuiKey_GamepadFaceDown,       // A (Xbox)         B (Switch)   Cross (PS)         // Activate / Open / Toggle / Tweak
+    TexGuiKey_GamepadDpadLeft,       // D-pad Left                                       // Move / Tweak / Resize Window (in Windowing mode)
+    TexGuiKey_GamepadDpadRight,      // D-pad Right                                      // Move / Tweak / Resize Window (in Windowing mode)
+    TexGuiKey_GamepadDpadUp,         // D-pad Up                                         // Move / Tweak / Resize Window (in Windowing mode)
+    TexGuiKey_GamepadDpadDown,       // D-pad Down                                       // Move / Tweak / Resize Window (in Windowing mode)
+    TexGuiKey_GamepadL1,             // L Bumper (Xbox)  L (Switch)   L1 (PS)            // Tweak Slower / Focus Previous (in Windowing mode)
+    TexGuiKey_GamepadR1,             // R Bumper (Xbox)  R (Switch)   R1 (PS)            // Tweak Faster / Focus Next (in Windowing mode)
+    TexGuiKey_GamepadL2,             // L Trig. (Xbox)   ZL (Switch)  L2 (PS) [Analog]
+    TexGuiKey_GamepadR2,             // R Trig. (Xbox)   ZR (Switch)  R2 (PS) [Analog]
+    TexGuiKey_GamepadL3,             // L Stick (Xbox)   L3 (Switch)  L3 (PS)
+    TexGuiKey_GamepadR3,             // R Stick (Xbox)   R3 (Switch)  R3 (PS)
+    TexGuiKey_GamepadLStickLeft,     // [Analog]                                         // Move Window (in Windowing mode)
+    TexGuiKey_GamepadLStickRight,    // [Analog]                                         // Move Window (in Windowing mode)
+    TexGuiKey_GamepadLStickUp,       // [Analog]                                         // Move Window (in Windowing mode)
+    TexGuiKey_GamepadLStickDown,     // [Analog]                                         // Move Window (in Windowing mode)
+    TexGuiKey_GamepadRStickLeft,     // [Analog]
+    TexGuiKey_GamepadRStickRight,    // [Analog]
+    TexGuiKey_GamepadRStickUp,       // [Analog]
+    TexGuiKey_GamepadRStickDown,     // [Analog]
+
+    // Aliases: Mouse Buttons (auto-submitted from AddMouseButtonEvent() calls)
+    // - This is mirroring the data also written to io.MouseDown[], io.MouseWheel, in a format allowing them to be accessed via standard key API.
+    TexGuiKey_MouseLeft, TexGuiKey_MouseRight, TexGuiKey_MouseMiddle, TexGuiKey_MouseX1, TexGuiKey_MouseX2, TexGuiKey_MouseWheelX, TexGuiKey_MouseWheelY,
+
+    // [Internal] Reserved for mod storage
+    TexGuiKey_ReservedForModCtrl, TexGuiKey_ReservedForModShift, TexGuiKey_ReservedForModAlt, TexGuiKey_ReservedForModSuper,
+    TexGuiKey_NamedKey_END,
+
+    // Keyboard Modifiers (explicitly submitted by backend via AddKeyEvent() calls)
+    // - This is mirroring the data also written to io.KeyCtrl, io.KeyShift, io.KeyAlt, io.KeySuper, in a format allowing
+    //   them to be accessed via standard key API, allowing calls such as IsKeyPressed(), IsKeyReleased(), querying duration etc.
+    // - Code polling every key (e.g. an interface to detect a key press for input mapping) might want to ignore those
+    //   and prefer using the real keys (e.g. TexGuiKey_LeftCtrl, TexGuiKey_RightCtrl instead of TexGuiMod_Ctrl).
+    // - In theory the value of keyboard modifiers should be roughly equivalent to a logical or of the equivalent left/right keys.
+    //   In practice: it's complicated; mods are often provided from different sources. Keyboard layout, IME, sticky keys and
+    //   backends tend to interfere and break that equivalence. The safer decision is to relay that ambiguity down to the end-user...
+    // - On macOS, we swap Cmd(Super) and Ctrl keys at the time of the io.AddKeyEvent() call.
+    TexGuiMod_None                   = 0,
+    TexGuiMod_Ctrl                   = 1 << 12, // Ctrl (non-macOS), Cmd (macOS)
+    TexGuiMod_Shift                  = 1 << 13, // Shift
+    TexGuiMod_Alt                    = 1 << 14, // Option/Menu
+    TexGuiMod_Super                  = 1 << 15, // Windows/Super (non-macOS), Ctrl (macOS)
+    TexGuiMod_Mask_                  = 0xF000,  // 4-bits
+
+    // [Internal] If you need to iterate all keys (for e.g. an input mapper) you may use TexGuiKey_NamedKey_BEGIN..TexGuiKey_NamedKey_END.
+    TexGuiKey_NamedKey_COUNT         = TexGuiKey_NamedKey_END - TexGuiKey_NamedKey_BEGIN,
+    //TexGuiKey_KeysData_SIZE        = TexGuiKey_NamedKey_COUNT,  // Size of KeysData[]: only hold named keys
+    //TexGuiKey_KeysData_OFFSET      = TexGuiKey_NamedKey_BEGIN,  // Accesses to io.KeysData[] must use (key - TexGuiKey_NamedKey_BEGIN) index.
+
+};
 
 NAMESPACE_END(TexGui);

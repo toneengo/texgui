@@ -1,7 +1,6 @@
 #include "texgui.h"
 #include "context.hpp"
 #include "types.h"
-#include "GLFW/glfw3.h"
 #include <cassert>
 #include <cstring>
 #include <cmath>
@@ -12,240 +11,28 @@
 #include <vulkan/vulkan_core.h>
 #include "stb_image.h"
 #include "msdf-atlas-gen/msdf-atlas-gen.h"
+#include "texgui_internal.hpp"
 
 using namespace TexGui;
 
-std::mutex TGInputLock;
-
-// GLFW data
-enum GlfwClientApi
+bool TexGui::init()
 {
-    GlfwClientApi_Unknown,
-    GlfwClientApi_OpenGL,
-    GlfwClientApi_Vulkan,
-};
-
-struct ImplGlfw_Data
-{
-    GLFWwindow*             Window;
-    GlfwClientApi           ClientApi;
-    double                  Time;
-    GLFWwindow*             MouseWindow;
-    //GLFWcursor*             MouseCursors[TexGuiMouseCursor_COUNT];
-    Math::fvec2             LastValidMousePos;
-    bool                    InstalledCallbacks;
-    bool                    CallbacksChainForAllWindows;
-#ifdef EMSCRIPTEN_USE_EMBEDDED_GLFW3
-    const char*             CanvasSelector;
-#endif
-
-    // Chain GLFW callbacks: our callbacks will call the user's previously installed callbacks, if any.
-    GLFWwindowfocusfun      PrevUserCallbackWindowFocus;
-    GLFWcursorposfun        PrevUserCallbackCursorPos;
-    GLFWcursorenterfun      PrevUserCallbackCursorEnter;
-    GLFWmousebuttonfun      PrevUserCallbackMousebutton;
-    GLFWscrollfun           PrevUserCallbackScroll;
-    GLFWkeyfun              PrevUserCallbackKey;
-    GLFWcharfun             PrevUserCallbackChar;
-    GLFWmonitorfun          PrevUserCallbackMonitor;
-    GLFWframebuffersizefun  PrevUserCallbackFramebufferSize;
-
-    ImplGlfw_Data()   { memset((void*)this, 0, sizeof(*this)); }
-};
-
-struct WindowState
-{
-    Math::fbox box;
-    Math::fbox initial_box;
-
-    uint32_t state = 0;
-    bool moving = false;
-    bool resizing = false;
-
-    std::unordered_map<std::string, uint32_t> buttonStates;
-};
-
-struct TextInputState 
-{
-    Math::fvec2 select_pos;
-    bool selecting = false;
-    uint32_t state = 0;
-};
-
-enum KeyState : int
-{
-    KEY_Off = 0,
-    KEY_Press = 1,
-    KEY_Held = 2,
-    KEY_Release = 3,
-};
-
-struct InputData {
-    int keyStates[GLFW_KEY_LAST + 1];
-    int mouseStates[GLFW_MOUSE_BUTTON_LAST + 1];
-    int mods;
-
-    int& lmb = mouseStates[GLFW_MOUSE_BUTTON_LEFT];
-
-    Math::fvec2 cursorPos;
-    Math::fvec2 mouseRelativeMotion;
-    Math::fvec2 scroll;
-    std::queue<unsigned int> charQueue;
-
-    bool firstMouse = false;
-
-    bool backspace = false;
-
-    InputData() { memset(keyStates, KEY_Off, sizeof(int)*(GLFW_KEY_LAST+1));
-                  memset(mouseStates, KEY_Off, sizeof(int)*(GLFW_MOUSE_BUTTON_LAST+1)); }
-};
-
-struct ScrollPanelState
-{
-    Math::fvec2 contentPos;
-    Math::fbox bounds;
-};
-
-struct TexGuiContext
-{
-    Math::ivec2 framebufferSize;
-    ImplGlfw_Data backendData;
-    std::unordered_map<std::string, WindowState> windows;
-    std::unordered_map<std::string, TextInputState> textInputs;
-    std::unordered_map<std::string, ScrollPanelState> scrollPanels;
-    NoApiContext* renderCtx = nullptr;
-    InputData io;
-};
-
-TexGuiContext* GTexGui = nullptr;
+    GTexGui = new TexGuiContext();
+}
 
 void _setRenderCtx(NoApiContext* ptr)
 {
     GTexGui->renderCtx = ptr;
 }
-RenderData TGRenderData;
-RenderData TGSyncedRenderData;
 
 const RenderData& getRenderData()
 {
     return TGRenderData;
 }
 
-GLFWmonitorfun TexGui_ImplGlfw_MonitorCallback; 
-
-void TexGui_ImplGlfw_ScrollCallback(GLFWwindow* window, double xoffset, double yoffset)
-{
-    auto& bd = GTexGui->backendData;
-    auto& io = GTexGui->io;
-    if (bd.PrevUserCallbackScroll)
-        bd.PrevUserCallbackScroll(window, xoffset, yoffset);
-
-    //#TODO: window scale
-    std::lock_guard<std::mutex> lock(TGInputLock);
-    io.scroll += Math::fvec2(xoffset, yoffset);
-}
-
-void TexGui_ImplGlfw_CursorPosCallback(GLFWwindow* window, double x, double y)
-{
-    auto& bd = GTexGui->backendData;
-    auto& io = GTexGui->io;
-    if (bd.PrevUserCallbackCursorPos)
-        bd.PrevUserCallbackCursorPos(window, x, y);
-
-    //#TODO: window scale
-
-    std::lock_guard<std::mutex> lock(TGInputLock);
-    if (!io.firstMouse)
-        io.firstMouse = true;
-    else
-        io.mouseRelativeMotion += Math::fvec2(x - io.cursorPos.x, y - io.cursorPos.y);
-
-    io.cursorPos = Math::fvec2(x, y);
-}
-
-void TexGui_ImplGlfw_KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
-{
-    auto& bd = GTexGui->backendData;
-    auto& io = GTexGui->io;
-    if (bd.PrevUserCallbackKey)
-        bd.PrevUserCallbackKey(window, key, scancode, action, mods);
-
-    if (key == GLFW_KEY_BACKSPACE
-        && (action == GLFW_PRESS || action == GLFW_REPEAT)) 
-        io.backspace = true;
-
-    std::lock_guard<std::mutex> lock(TGInputLock);
-}
-
-void TexGui_ImplGlfw_MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
-{
-    auto& bd = GTexGui->backendData;
-    auto& io = GTexGui->io;
-
-    if (bd.PrevUserCallbackMousebutton)
-        bd.PrevUserCallbackMousebutton(window, button, action, mods);
-
-    std::lock_guard<std::mutex> lock(TGInputLock);
-    if (action == GLFW_RELEASE) io.mouseStates[button] = KEY_Release;
-    else if (io.mouseStates[button] == KEY_Off) io.mouseStates[button] = KEY_Press;
-};
-
-void TexGui_ImplGlfw_CharCallback(GLFWwindow* window, unsigned int codepoint)
-{
-    auto& bd = GTexGui->backendData;
-    auto& io = GTexGui->io;
-
-    if (bd.PrevUserCallbackChar)
-        bd.PrevUserCallbackChar(window, codepoint);
-
-    std::lock_guard<std::mutex> lock(TGInputLock);
-    io.charQueue.push(codepoint);
-};
-
-void TexGui_ImplGlfw_FramebufferSizeCallback(GLFWwindow* window, int width, int height)
-{
-    auto& bd = GTexGui->backendData;
-    if (bd.PrevUserCallbackFramebufferSize)
-        bd.PrevUserCallbackFramebufferSize(window, width, height);
-
-    GTexGui->renderCtx->setScreenSize(width, height);
-    GTexGui->framebufferSize = {width, height};
-
-    std::lock_guard<std::mutex> lock(TGInputLock);
-    Base.bounds.size = Math::fvec2(width, height);
-};
-
-bool initGlfwCallbacks(GLFWwindow* window)
-{
-    auto& bd = GTexGui->backendData;
-    if (bd.InstalledCallbacks) assert(false);
-    //bd.PrevUserCallbackWindowFocus = glfwSetWindowFocusCallback(window, TexGui_ImplGlfw_WindowFocusCallback);
-    //bd.PrevUserCallbackCursorEnter = glfwSetCursorEnterCallback(window, TexGui_ImplGlfw_CursorEnterCallback);
-    bd.PrevUserCallbackScroll = glfwSetScrollCallback(window, TexGui_ImplGlfw_ScrollCallback);
-    //bd.PrevUserCallbackMonitor = glfwSetMonitorCallback(TexGui_ImplGlfw_MonitorCallback);
-    bd.PrevUserCallbackCursorPos       = glfwSetCursorPosCallback(window, TexGui_ImplGlfw_CursorPosCallback);
-    bd.PrevUserCallbackMousebutton     = glfwSetMouseButtonCallback(window, TexGui_ImplGlfw_MouseButtonCallback);
-    bd.PrevUserCallbackKey             = glfwSetKeyCallback(window, TexGui_ImplGlfw_KeyCallback);
-    bd.PrevUserCallbackChar            = glfwSetCharCallback(window, TexGui_ImplGlfw_CharCallback);
-    bd.PrevUserCallbackFramebufferSize = glfwSetFramebufferSizeCallback(window, TexGui_ImplGlfw_FramebufferSizeCallback);
-    bd.InstalledCallbacks = true;
-
-    return true;
-} 
-
 Math::ivec2 _getScreenSize()
 {
     return GTexGui->framebufferSize;
-}
-bool TexGui::initGlfw(GLFWwindow* window)
-{
-    GTexGui = new TexGuiContext();
-    initGlfwCallbacks(window);
-    glfwGetWindowSize(window, &GTexGui->framebufferSize.x, &GTexGui->framebufferSize.y);
-    if (GTexGui->renderCtx != nullptr) GTexGui->renderCtx->setScreenSize(GTexGui->framebufferSize.x, GTexGui->framebufferSize.y);
-    Base.bounds.size = GTexGui->framebufferSize;
-    Base.rs = &TGRenderData;
-    return true;
 }
 
 void TexGui::newFrame()
@@ -491,11 +278,11 @@ Math::ivec2 TexGui::getTexSize(Texture* tex)
 
 struct InputFrame
 {
-    int keyStates[GLFW_KEY_LAST + 1];
-    int mouseStates[GLFW_MOUSE_BUTTON_LAST + 1];
+    int keyStates[TexGuiKey_NamedKey_COUNT];
+    int mouseStates[TEXGUI_MOUSE_BUTTON_COUNT];
     int mods;
 
-    int& lmb = mouseStates[GLFW_MOUSE_BUTTON_LEFT];
+    int& lmb = mouseStates[0];
 
     Math::fvec2 cursorPos;
     Math::fvec2 mouseRelativeMotion;
@@ -519,22 +306,23 @@ inline static void clearInput()
     inputFrame.scroll = io.scroll;
     inputFrame.mouseRelativeMotion = io.mouseRelativeMotion;
     inputFrame.backspace = io.backspace;
+
     io.backspace = false;
     io.mouseRelativeMotion = {0, 0};
 
     TexGui::CapturingMouse = false;
     io.scroll = {0, 0};
 
-    memcpy(inputFrame.mouseStates, io.mouseStates, sizeof(int) * GLFW_MOUSE_BUTTON_LAST + 1);
-    memcpy(inputFrame.keyStates, io.keyStates, sizeof(int) * GLFW_KEY_LAST + 1);
+    memcpy(inputFrame.mouseStates, io.mouseStates, sizeof(int) * TEXGUI_MOUSE_BUTTON_COUNT);
+    memcpy(inputFrame.keyStates, io.keyStates, sizeof(int) * TexGuiKey_NamedKey_COUNT);
     //if press and release happen too fast (glfw thread polling faster than sim thread), the press event can be lost. but that never should happen so watever
-    for (int i = 0; i < GLFW_MOUSE_BUTTON_LAST + 1; i++)
+    for (int i = 0; i < TEXGUI_MOUSE_BUTTON_COUNT; i++)
     {
         if (io.mouseStates[i] == KEY_Press) io.mouseStates[i] = KEY_Held;
         if (io.mouseStates[i] == KEY_Release) io.mouseStates[i] = KEY_Off;
     }
 
-    for (int i = 0; i < GLFW_KEY_LAST + 1; i++)
+    for (int i = 0; i < TexGuiKey_NamedKey_COUNT; i++)
     {
         if (io.keyStates[i] == KEY_Press) io.keyStates[i] = KEY_Held;
         if (io.keyStates[i] == KEY_Release) io.keyStates[i] = KEY_Off;

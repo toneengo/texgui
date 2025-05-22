@@ -509,15 +509,6 @@ void VulkanContext::setPxRange(float _pxRange)
     vkUpdateDescriptorSets(device, 1, &bufferWrite, 0, nullptr);
 }
 
-void VulkanContext::initFromGlfwWindow(GLFWwindow* window)
-{
-    glfwGetWindowContentScale(window, &windowScale, nullptr);
-    glfwGetWindowSize(window, &windowSize.x, &windowSize.y);
-    windowSize.x *= windowScale;
-    windowSize.y *= windowScale; 
-    Base.bounds.size = windowSize;
-}
-
 void VulkanContext::setScreenSize(int width, int height)
 {
     windowSize.x = width;
