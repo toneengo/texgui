@@ -17,9 +17,6 @@
 #include "texgui_math.hpp"
 #include "texgui_settings.hpp"
 
-#undef VMA_IMPLEMENTATION
-#include "vk_mem_alloc.h"
-
 #include <vulkan/vulkan_core.h>
 
 NAMESPACE_BEGIN(TexGui);

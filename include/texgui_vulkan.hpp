@@ -4,6 +4,7 @@
 #include "context.hpp"
 #include "types.h"
 #include <vulkan/vulkan_core.h>
+#include <vk_mem_alloc.h>
 
 NAMESPACE_BEGIN(TexGui);
 

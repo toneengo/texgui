@@ -229,8 +229,8 @@ void TexGui_ImplGlfw_MouseButtonCallback(GLFWwindow* window, int button, int act
         bd.PrevUserCallbackMousebutton(window, button, action, mods);
 
     std::lock_guard<std::mutex> lock(TGInputLock);
-    if (action == GLFW_RELEASE) io.submitMouseButton(button, KEY_Release);
-    else if (io.getMouseButtonState(button) == KEY_Off) io.submitMouseButton(button, KEY_Press);
+    if (action == GLFW_RELEASE) io.submitMouseButton(button + 1, KEY_Release);
+    else if (io.getMouseButtonState(button + 1) == KEY_Off) io.submitMouseButton(button + 1, KEY_Press);
 };
 
 void TexGui_ImplGlfw_CharCallback(GLFWwindow* window, unsigned int codepoint)
@@ -263,7 +263,7 @@ void TexGui_ImplGlfw_FramebufferSizeCallback(GLFWwindow* window, int width, int 
 bool initGlfwCallbacks(GLFWwindow* window)
 {
     auto& bd = *(ImplGlfw_Data*)GTexGui->backendData;
-    assert(!bd.InstalledCallbacks);
+    assert(GTexGui && !bd.InstalledCallbacks);
     //bd.PrevUserCallbackWindowFocus = glfwSetWindowFocusCallback(window, TexGui_ImplGlfw_WindowFocusCallback);
     //bd.PrevUserCallbackCursorEnter = glfwSetCursorEnterCallback(window, TexGui_ImplGlfw_CursorEnterCallback);
     bd.PrevUserCallbackScroll = glfwSetScrollCallback(window, TexGui_ImplGlfw_ScrollCallback);
@@ -280,9 +280,9 @@ bool initGlfwCallbacks(GLFWwindow* window)
 
 bool TexGui::initGlfw(GLFWwindow* window)
 {
-    initGlfwCallbacks(window);
     assert(GTexGui && !GTexGui->initialised);
     GTexGui->backendData = new ImplGlfw_Data(); 
+    initGlfwCallbacks(window);
     glfwGetWindowContentScale(window, &GTexGui->contentScale, nullptr);
     glfwGetWindowSize(window, &GTexGui->framebufferSize.x, &GTexGui->framebufferSize.y);
 

@@ -8,6 +8,12 @@ if (WIN32)
     endif()
 endif(WIN32)
 
+if( EXISTS $ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake )
+    message(STATUS "Found $ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake; using it!")
+    set(CMAKE_TOOLCHAIN_FILE $ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake
+        CACHE STRING "Vcpkg toolchain file")
+endif()
+
 set(CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -29,6 +35,8 @@ find_package(glfw3 CONFIG REQUIRED)
 find_package(Freetype REQUIRED)
 find_package(glslang REQUIRED)
 find_package(Vulkan REQUIRED)
+find_package(VulkanMemoryAllocator CONFIG REQUIRED)
+find_package(SDL3 CONFIG REQUIRED)
 
 set(MSDF_ATLAS_NO_ARTERY_FONT ON)
 set(MSDF_ATLAS_USE_SKIA OFF)
@@ -40,6 +48,7 @@ endif()
 add_subdirectory(msdf-atlas-gen)
 add_subdirectory(VulkanMemoryAllocator)
 
+#TODO: make a target for each backend instead of linking every single library at once
 foreach(TARGET texgui)
     set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${PROJECT}")
     add_dependencies(${TARGET} msdf-atlas-gen)
@@ -57,6 +66,8 @@ foreach(TARGET texgui)
     target_link_libraries(${TARGET} PUBLIC msdf-atlas-gen::msdf-atlas-gen)
     target_link_libraries(${TARGET} PUBLIC msdfgen::msdfgen-core)
     target_link_libraries(${TARGET} PUBLIC msdfgen::msdfgen-ext)
+    target_link_libraries(${TARGET} PUBLIC SDL3::SDL3)
+    find_package(SDL3 CONFIG REQUIRED)
 
     target_include_directories(${TARGET} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
     target_include_directories(${TARGET} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include/")

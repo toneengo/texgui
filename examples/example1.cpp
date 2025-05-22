@@ -1,8 +1,8 @@
 #include "texgui.h"
 #include "texgui_opengl.hpp"
 #include "glad/gl.h"
-#include "GLFW/glfw3.h"
 
+#include "texgui_glfw.hpp"
 #include "stdio.h"
 
 #include "stb_image.h"
@@ -124,8 +124,9 @@ void main() {
     TexGui::Defaults::Font::Size = 20;
     TexGui::Defaults::Font::MsdfPxRange = 2;
 
-    TexGui::initGlfw(window);
+    TexGui::init();
     TexGui::initOpenGL();
+    TexGui::initGlfw(window);
     TexGui::loadFont("resources/fonts/PixelOperator.ttf");
     TexGui::loadTextures("resources/sprites");
 

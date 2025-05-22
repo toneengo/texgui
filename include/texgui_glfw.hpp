@@ -3,7 +3,7 @@
 #include "texgui.h"
 #include "context.hpp"
 #include "types.h"
-#include "GLFW/GLFW3.h"
+#include "GLFW/glfw3.h"
 
 NAMESPACE_BEGIN(TexGui);
 bool initGlfw(GLFWwindow* window);
