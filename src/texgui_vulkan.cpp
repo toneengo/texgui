@@ -1,5 +1,4 @@
 #include "types.h"
-#include "GLFW/glfw3.h"
 
 #include "texgui.h"
 #include "texgui_vulkan.hpp"
