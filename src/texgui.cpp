@@ -1,5 +1,6 @@
 #include "texgui.h"
 #include "context.hpp"
+#include "input.hpp"
 #include "types.h"
 #include <cassert>
 #include <cstring>
@@ -30,7 +31,7 @@ const RenderData& getRenderData()
     return TGRenderData;
 }
 
-Math::ivec2 _getScreenSize()
+TexGui::Math::ivec2 _getScreenSize()
 {
     return GTexGui->framebufferSize;
 }
@@ -72,7 +73,7 @@ void TexGui::loadFont(const char* font_path)
     Texture output;
     int width = 0, height = 0;
     bool success = false;
-    font_px = 32;
+    font_px = 100.f;
     // Initialize instance of FreeType library
     if (msdfgen::FreetypeHandle *ft = msdfgen::initializeFreetype()) {
         // Load font file
@@ -97,7 +98,7 @@ void TexGui::loadFont(const char* font_path)
             // setDimensions or setDimensionsConstraint to find the best value
             packer.setDimensionsConstraint(DimensionsConstraint::SQUARE);
             // setScale for a fixed size or setMinimumScale to use the largest that fits
-            packer.setScale(100.0);
+            packer.setScale(font_px);
             // setPixelRange or setUnitRange
             packer.setPixelRange(TexGui::Defaults::Font::MsdfPxRange);
             packer.setMiterLimit(4.0);
@@ -271,7 +272,7 @@ Texture* TexGui::customTexture(unsigned int texID, Math::ibox pixelBounds)
     return &m_custom_texs.emplace_back(texID, pixelBounds, size, yth, xth, yth, xth);
 }
 
-Math::ivec2 TexGui::getTexSize(Texture* tex)
+TexGui::Math::ivec2 TexGui::getTexSize(Texture* tex)
 {
     return tex->bounds.wh;
 }
@@ -284,18 +285,22 @@ struct InputFrame
 
     int& lmb = mouseStates[0];
 
-    Math::fvec2 cursorPos;
-    Math::fvec2 mouseRelativeMotion;
-    Math::fvec2 scroll;
+    TexGui::Math::fvec2 cursorPos;
+    TexGui::Math::fvec2 mouseRelativeMotion;
+    TexGui::Math::fvec2 scroll;
 
-    unsigned int character;
+    //unsigned int character;
+    char text[TEXGUI_TEXT_BUF_SIZE];
 
     //int& backspace = keyStates[TexGuiKey_Backspace];
 };
 
 InputFrame inputFrame;
 
-inline static void clearInput()
+// There are two input states, the one in GTexGui and inputFrame.
+// updateInput() is called in TexGui::clear().
+// GTexGui->io is submittetd to inputFrame, then cleared.
+inline static void updateInput()
 {
     auto& io = GTexGui->io;
     GTexGui->editingText.store(TexGui_editingText);
@@ -303,6 +308,7 @@ inline static void clearInput()
 
     std::lock_guard<std::mutex> lock(TGInputLock);
 
+    //we don't clear this one
     inputFrame.mods = io.mods;
 
     inputFrame.cursorPos = io.cursorPos;
@@ -329,15 +335,9 @@ inline static void clearInput()
         if (io.keyStates[i] == KEY_Release) io.keyStates[i] = KEY_Off;
     }
 
-    if (!io.charQueue.empty())
-    {
-        inputFrame.character = io.charQueue.front();
-        io.charQueue.pop();
-    }
-    else
-    {
-        inputFrame.character = 0;
-    }
+    strcpy(inputFrame.text, io.text);
+
+    io.text[0] = '\0';
 }
 
 void TexGui::clear()
@@ -349,7 +349,7 @@ void TexGui::clear()
     }
 
     TGRenderData.clear();
-    clearInput();
+    updateInput();
 }
 
 void TexGui::clear(RenderData& rs)
@@ -361,7 +361,7 @@ void TexGui::clear(RenderData& rs)
     }
 
     TGRenderData.clear();
-    clearInput();
+    updateInput();
 }
 
 inline void setBit(unsigned int& dest, const unsigned int flag, bool on)
@@ -374,7 +374,8 @@ inline bool getBit(const unsigned int dest, const unsigned int flag)
     return dest & flag;
 }
 
-using namespace Math;
+using namespace TexGui::Math;
+
 uint32_t getBoxState(uint32_t& state, fbox box)
 {
     auto& io = inputFrame;
@@ -494,7 +495,7 @@ bool Container::Button(const char* text, Texture* texture, Container* out)
 
     rs->drawTexture(bounds, tex, state, _PX, SLICE_9, scissorBox);
 
-    vec2 pos = state & STATE_PRESS 
+    TexGui::Math::vec2 pos = state & STATE_PRESS 
                        ? bounds.pos + Defaults::Button::POffset
                        : bounds.pos;
     fbox innerBounds = {pos, bounds.size};
@@ -612,7 +613,7 @@ Container Container::ScrollPanel(const char* name, Texture* texture, Texture* ba
 
 void Container::Image(Texture* texture, int scale)
 {
-    ivec2 tsize = ivec2(texture->bounds.width, texture->bounds.height) * scale;
+    Math::ivec2 tsize = Math::ivec2(texture->bounds.width, texture->bounds.height) * scale;
 
     fbox sized = fbox(bounds.pos, fvec2(tsize));
     fbox arranged = Arrange(this, sized);
@@ -753,18 +754,22 @@ Container Container::Stack(float padding)
     return stack;
 }
 
-static bool textInputUpdate(TextInputState& tstate, unsigned int* c, CharacterFilter filter)
+//true = dont write text, false = write text
+static bool textInputUpdate(TextInputState& tstate, char** c, CharacterFilter filter)
 {
     auto& io = inputFrame;
-    *c = 0;
-
+    *c = io.text;
     if (!(tstate.state & STATE_ACTIVE)) return false;
 
+    /*
+    //#TODO: character filter. below code is using old text impl
     if (io.character != 0 && (filter == nullptr || filter(io.character)))
     {
         *c = io.character;
         return false;
     }
+    */
+
     if (io.keyStates[TexGuiKey_Backspace] == KEY_Press || io.keyStates[TexGuiKey_Backspace] == KEY_Repeat)
     {
         return true;
@@ -775,23 +780,55 @@ static bool textInputUpdate(TextInputState& tstate, unsigned int* c, CharacterFi
 void renderTextInput(RenderData* rs, const char* name, fbox bounds, fbox scissor, TextInputState& tstate, const char* text, int32_t len)
 {
     static Texture* inputtex = &m_tex_map[Defaults::TextInput::Texture];
+    static Texture* textcursor = &m_tex_map[Defaults::TextInput::TextCursor];
 
     rs->drawTexture(bounds, inputtex, tstate.state, _PX, SLICE_9, scissor);
     float offsetx = 0;
     fvec4 padding = Defaults::TextInput::Padding;
     fvec4 color = Defaults::Font::Color;
-    rs->drawText(
+
+    float startx = bounds.x + offsetx + padding.left;
+    float starty = bounds.y + bounds.height / 2;
+
+    int cursor_pos = tstate.cursor_pos;
+
+    //#TODO: size
+    int size = Defaults::Font::Size;
+    auto characters = rs->drawText(
         !getBit(tstate.state, STATE_ACTIVE) && len == 0
         ? name : text,
-        {bounds.x + offsetx + padding.left, bounds.y + bounds.height / 2},
+        {startx, starty},
         Defaults::Font::Color,
-        Defaults::Font::Size,
+        size,
         CENTER_Y
     );
+
+    if (!(tstate.state & STATE_ACTIVE) || cursor_pos > len) return;
+
+    TexGui::Math::fbox textCursorQuad;
+
+    textCursorQuad.width = textcursor->bounds.width * _PX;
+    textCursorQuad.height = float(size);
+    if (cursor_pos == 0)
+    {
+        textCursorQuad.x = startx - textcursor->bounds.width;
+        textCursorQuad.y = starty - Defaults::Font::Size / 2.f;
+    }
+    else
+    {
+        auto lastChar = characters[cursor_pos - 1].ch.rect;
+        //#TODO we shouldnt care about font/atlas size here in the shader ffs why did i do this
+        textCursorQuad.x = lastChar.x - textcursor->bounds.width + lastChar.width / font_px;
+        //#TODO starty is wrong if we do multiline textinputs
+        textCursorQuad.y = starty - Defaults::Font::Size / 2.f;
+    }
+    rs->drawTexture(textCursorQuad, textcursor, tstate.state, _PX, SLICE_9, bounds);
 }
 
 void Container::TextInput(const char* name, std::string& buf, CharacterFilter filter)
 {
+    return;
+    /*
     if (!GTexGui->textInputs.contains(name))
     {
         GTexGui->textInputs.insert({name, {}});
@@ -800,18 +837,26 @@ void Container::TextInput(const char* name, std::string& buf, CharacterFilter fi
     auto& tstate = GTexGui->textInputs[name];
     getBoxState(tstate.state, bounds);
 
+    //#TODO: variable cursor pos
+    tstate.cursor_pos = buf.size();
+
     if (tstate.state & STATE_ACTIVE)
         TexGui_editingText = true;
     
-    unsigned int c;
-    if (textInputUpdate(tstate, &c, filter))
+    char* textsrc = "\0";
+    if (textInputUpdate(tstate, &textsrc, filter))
     {
-        if (buf.size() > 0) buf.pop_back();
+        if (buf.size() > 0)
+        {
+            buf.pop_back();
+            tstate.cursor_pos--;
+        }
     }
-    else if (c)
-        buf.push_back(c);
+    buf += textsrc;
+    tstate.cursor_pos += strlen(textsrc);
     
-    renderTextInput(rs, name, bounds, scissorBox, tstate, buf.c_str(), buf.size());
+    renderTextInput(rs, name, bounds, scissorBox, tstate, buf.c_str(), buf.size(), tstate.cursor_pos);
+    */
 }
 
 void Container::TextInput(const char* name, char* buf, uint32_t bufsize, CharacterFilter filter)
@@ -831,21 +876,73 @@ void Container::TextInput(const char* name, char* buf, uint32_t bufsize, Charact
 
     int32_t tlen = strlen(buf);
     
-    unsigned int c;
+    //left takes priority
+    bool left = io.keyStates[TexGuiKey_LeftArrow] & (KEY_Press | KEY_Repeat);
+    bool right = io.keyStates[TexGuiKey_RightArrow] & (KEY_Press | KEY_Repeat);
+    int dir = left ? -1 : right ? 1 : 0;
+    char* c;
+
+    if (dir != 0)
+    {
+        tstate.cursor_pos = clamp(tstate.cursor_pos + dir, 0, tlen);
+
+        if (io.mods &
+        #ifdef __APPLE__
+            TexGuiMod_Alt
+        #else
+            TexGuiMod_Ctrl
+        #endif
+            )
+        {
+            while (tstate.cursor_pos > 0 && tstate.cursor_pos < tlen)
+            {
+                const char& curr = buf[tstate.cursor_pos];
+                const char& next = buf[tstate.cursor_pos + dir];
+                //#TODO: more delimiters
+                if (curr != ' ' && curr != '.' && (next == ' ' || next == '.')) 
+                {
+                    if (dir > 0) tstate.cursor_pos++;
+                    break;
+                }
+
+                tstate.cursor_pos += dir;
+            }
+        }
+    }
+
     if (textInputUpdate(tstate, &c, filter))
     {
-        if (tlen > 0)
+        //#TODO: this is just backspace, we want more deletion later
+        if (tstate.cursor_pos > 0)
         {
-            // Backspace
-            tlen -= 1;
-            buf[tlen] = '\0';
+            if (tstate.cursor_pos != tlen)
+            {
+                char tail[tlen - tstate.cursor_pos + 1]; // + 1 to include the null
+                strcpy(tail, buf + tstate.cursor_pos);
+                buf[tstate.cursor_pos - 1] = '\0';
+                strcat(buf, tail);
+            }
+            else
+                buf[tstate.cursor_pos - 1] = '\0';
+
+            tstate.cursor_pos--;
+            tlen--;
         }
     }
     else if (c && tlen < bufsize - 1)
     {
-        buf[tlen] = io.character;
-        buf[tlen + 1] = '\0';
-        tlen += 1;
+        if (tstate.cursor_pos != tlen)
+        {
+            char tail[tlen - tstate.cursor_pos + 1];
+            strcpy(tail, buf + tstate.cursor_pos);
+            strcpy(buf + tstate.cursor_pos, io.text);
+            strcat(buf, tail);
+        }
+        else
+            strcpy(buf + tstate.cursor_pos, io.text);
+
+        tstate.cursor_pos += strlen(io.text);
+        tlen += strlen(io.text);
     }
     renderTextInput(rs, name, bounds, scissorBox, tstate, buf, tlen);
 }
@@ -853,7 +950,7 @@ void Container::TextInput(const char* name, char* buf, uint32_t bufsize, Charact
 static void renderTooltip(Paragraph text, RenderData* rs);
 
 // Bump the line of text
-static void bumpline(float& x, float& y, float w, Math::fbox& bounds, int32_t scale)
+static void bumpline(float& x, float& y, float w, TexGui::Math::fbox& bounds, int32_t scale)
 {
     if (x + w > bounds.x + bounds.width)
     {
@@ -924,9 +1021,9 @@ fvec2 TexGui::calculateTextBounds(Paragraph text, int32_t scale, float maxWidth)
 
 #define TTUL Defaults::Tooltip::UnderlineSize
 
-static bool writeText(Paragraph text, int32_t scale, Math::fbox bounds, float& x, float& y, RenderData* rs, bool checkHover = false, int32_t zLayer = 0, uint32_t flags = 0, TextDecl parameters = {});
+static bool writeText(Paragraph text, int32_t scale, TexGui::Math::fbox bounds, float& x, float& y, RenderData* rs, bool checkHover = false, int32_t zLayer = 0, uint32_t flags = 0, TextDecl parameters = {});
 
-inline static void drawChunk(TextSegment s, RenderData* rs, Math::fbox bounds, float& x, float& y, int32_t scale, uint32_t flags, int32_t zLayer, bool& hovered, bool checkHover, uint32_t& placeholderIdx, TextDecl parameters)
+inline static void drawChunk(TextSegment s, RenderData* rs, TexGui::Math::fbox bounds, float& x, float& y, int32_t scale, uint32_t flags, int32_t zLayer, bool& hovered, bool checkHover, uint32_t& placeholderIdx, TextDecl parameters)
     {
         static const auto underline = [](auto* rs, float x, float y, float w, int32_t scale, uint32_t flags, int32_t zLayer)
         {
@@ -1005,7 +1102,7 @@ inline static void drawChunk(TextSegment s, RenderData* rs, Math::fbox bounds, f
         
     }
 
-static bool writeText(Paragraph text, int32_t scale, Math::fbox bounds, float& x, float& y, RenderData* rs, bool checkHover, int32_t zLayer, uint32_t flags, TextDecl parameters)
+static bool writeText(Paragraph text, int32_t scale, TexGui::Math::fbox bounds, float& x, float& y, RenderData* rs, bool checkHover, int32_t zLayer, uint32_t flags, TextDecl parameters)
 {
     bool hovered = false;
     // Index into the amount of placeholders we've substituted
@@ -1154,7 +1251,7 @@ void Container::Column(Container* out, const float* heights, uint32_t n, float w
         else
             height = heights[i];
         
-        out[i] = withBounds({bounds.pos + vec2{x, y}, {width, height}});
+        out[i] = withBounds({bounds.pos + TexGui::Math::vec2{x, y}, {width, height}});
 
         y += height + spacing;
     }
@@ -1394,7 +1491,7 @@ TexGui::TextDecl::TextDecl(std::initializer_list<TextChunk> s) :
 
 Texture* IconSheet::getIcon(uint32_t x, uint32_t y)
 {
-    ibox bounds = { ivec2(x, y + 1) * ivec2(iw, ih), ivec2(iw, ih) };
+    ibox bounds = { Math::ivec2(x, y + 1) * Math::ivec2(iw, ih), Math::ivec2(iw, ih) };
     return &m_custom_texs.emplace_back(glID, bounds, Math::ivec2{w, h}, 0, 0, 0, 0);
 }
 
@@ -1409,7 +1506,7 @@ float TexGui::computeTextWidth(const char* text, size_t numchars)
     return total;
 }
 
-int RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len, int32_t zLayer)
+std::span<RenderData::Object> RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len, int32_t zLayer)
 {
     auto& objects = zLayer > 0 ? this->objects2 : this->objects;
     auto& commands = zLayer > 0 ? this->commands2 : this->commands;
@@ -1433,40 +1530,21 @@ int RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& c
     float currx = pos.x;
 
     //const CharInfo& hyphen = m_char_map['-'];
+    //#TODO: unicode
     for (int idx = 0; idx < numchars; idx++)
     {
         const auto& info = glyphs[m_char_map[text[idx]]];
-        /*
-        if (flags & WRAPPED && currx + (info.advance + hyphen.advance) * scale > width)
-        {
-            if (text[idx] != ' ' && (idx > 0 && text[idx - 1] != ' '))
-            {
-                Character h = {
-                    .rect = fbox(
-                        currx + hyphen.bearing.x * scale + m_widget_pos.x,
-                        pos.y - hyphen.bearing.y * scale + font_height * scale + m_widget_pos.y,
-                        hyphen.size.x * scale,
-                        hyphen.size.y * scale
-                    ),
-                    .col = col,
-                    .layer = hyphen.layer,
-                    .scale = scale,
-                };
-                objects.push_back(h);
-                numcopy++;
-            }
-            currx = 0;
-            pos.y += line_height;
-        }
-        */
-        if (!info.isWhitespace())
-        {
-            int x, y, w, h;
-            info.getBoxRect(x, y, w, h);
-            double l, b, r, t;
-            info.getQuadPlaneBounds(l, b, r, t);
+        int x, y, w, h;
+        info.getBoxRect(x, y, w, h);
+        double l, b, r, t;
+        info.getQuadPlaneBounds(l, b, r, t);
 
-            Character c = {
+        if (info.isWhitespace())
+        {
+            w = info.getAdvance() * font_px;
+        }
+        objects.emplace_back(
+            Character{
                 .rect = fbox(
                     currx + l * size,
                     pos.y - b * size,
@@ -1476,17 +1554,13 @@ int RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& c
                 .texBounds = fbox(x, y, w, h),
                 .colour = col,
                 .size = size
-            };
-
-            objects.push_back(c);
-        }
-        else
-            numcopy--;
-        currx += font_px * info.getAdvance() * size / font_px;
+            }
+        );
+        currx += info.getAdvance() * size;
     }
 
-    commands.push_back({Command::CHARACTER, uint32_t(numcopy), flags});
-    return currx;
+    commands.push_back({Command::CHARACTER, uint32_t(numchars), flags});
+    return std::span<RenderData::Object>(objects.end() - numchars, numchars);
 }
 
 void RenderData::drawTexture(fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, const fbox& bounds, int32_t zLayer )
@@ -1498,7 +1572,7 @@ void RenderData::drawTexture(fbox rect, Texture* e, int state, int pixel_size, u
 
     if (!e) return;
 
-    ivec2 framebufferSize = GTexGui->framebufferSize;
+    Math::ivec2 framebufferSize = GTexGui->framebufferSize;
     rect.x -= framebufferSize.x / 2.f;
     rect.y = framebufferSize.y / 2.f - rect.y - rect.height;
 

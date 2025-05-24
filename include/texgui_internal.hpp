@@ -5,7 +5,6 @@
 #include "texgui.h"
 #include "context.hpp"
 #include "types.h"
-#include "SDL3/SDL.h"
 #include <queue>
 #include <mutex>
 #include <unordered_map>
@@ -31,7 +30,8 @@ struct WindowState
 
 struct TextInputState 
 {
-    Math::fvec2 select_pos;
+    //Math::fvec2 select_pos;
+    int cursor_pos = 0;
     bool selecting = false;
     uint32_t state = 0;
 };
@@ -45,13 +45,14 @@ struct ScrollPanelState
 enum KeyState : int
 {
     KEY_Off = 0,
-    KEY_Press = 1,
-    KEY_Held = 2,
-    KEY_Release = 3,
-    KEY_Repeat = 4,
+    KEY_Press = 0x0001,
+    KEY_Held = 0x0002,
+    KEY_Release = 0x0004,
+    KEY_Repeat = 0x0008,
 };
 
 #define TEXGUI_MOUSE_BUTTON_COUNT 64
+#define TEXGUI_TEXT_BUF_SIZE 1000000
 struct InputData {
     int keyStates[TexGuiKey_NamedKey_COUNT];
     int mouseStates[TEXGUI_MOUSE_BUTTON_COUNT];
@@ -63,7 +64,8 @@ struct InputData {
     Math::fvec2 mouseRelativeMotion;
     Math::fvec2 scroll;
     Math::ivec2 scrollDiscrete;
-    std::queue<unsigned int> charQueue;
+
+    char text[TEXGUI_TEXT_BUF_SIZE];
 
     bool firstMouse = false;
 
@@ -87,8 +89,12 @@ struct InputData {
         return mouseStates[button];
     }
 
-    InputData() { memset(keyStates, KEY_Off, sizeof(int)*(TexGuiKey_NamedKey_COUNT));
-                  memset(mouseStates, KEY_Off, sizeof(int)*(TEXGUI_MOUSE_BUTTON_COUNT)); }
+    InputData()
+    {
+        memset(keyStates, KEY_Off, sizeof(int)*(TexGuiKey_NamedKey_COUNT));
+        memset(mouseStates, KEY_Off, sizeof(int)*(TEXGUI_MOUSE_BUTTON_COUNT));
+        memset(text, 0, sizeof(char) * TEXGUI_TEXT_BUF_SIZE);
+    }
 };
 
 struct TexGuiContext

@@ -50,6 +50,7 @@ namespace Button {
 
 namespace TextInput {
     inline std::string Texture = "textinput";
+    inline std::string TextCursor = "textcursor";
     inline Math::fvec4 Padding(8);
 }
 

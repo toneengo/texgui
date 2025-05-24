@@ -1,4 +1,5 @@
 #include "texgui_sdl3.hpp"
+#include "texgui.h"
 #include "texgui_internal.hpp"
 #include <cassert>
 
@@ -186,6 +187,39 @@ TexGuiKey TexGui_ImplSDL3_KeyEventToTexGuiKey(SDL_Keycode keycode, SDL_Scancode 
     return TexGuiKey_None;
 }
 
+static int TexGui_ImplSDL3_ModToTexGuiMod(SDL_Keymod sdlMod)
+{
+    int mod = 0;
+    if (sdlMod & SDL_KMOD_LSHIFT)
+        mod |= TexGuiMod_LeftShift;
+    if (sdlMod & SDL_KMOD_RSHIFT)
+        mod |= TexGuiMod_RightShift;
+    if (sdlMod & SDL_KMOD_LEVEL5)
+        mod |= TexGuiMod_Level5;
+    if (sdlMod & SDL_KMOD_LCTRL)
+        mod |= TexGuiMod_LeftCtrl;
+    if (sdlMod & SDL_KMOD_RCTRL)
+        mod |= TexGuiMod_RightCtrl;
+    if (sdlMod & SDL_KMOD_LALT)
+        mod |= TexGuiMod_LeftAlt;
+    if (sdlMod & SDL_KMOD_RALT)
+        mod |= TexGuiMod_RightAlt;
+    if (sdlMod & SDL_KMOD_LGUI)
+        mod |= TexGuiMod_LeftSuper;
+    if (sdlMod & SDL_KMOD_RGUI)
+        mod |= TexGuiMod_RightSuper;
+    if (sdlMod & SDL_KMOD_NUM)
+        mod |= TexGuiMod_Num;
+    if (sdlMod & SDL_KMOD_CAPS)
+        mod |= TexGuiMod_Caps;
+    if (sdlMod & SDL_KMOD_MODE)
+        mod |= TexGuiMod_Mode;
+    if (sdlMod & SDL_KMOD_SCROLL)
+        mod |= TexGuiMod_Scroll;
+
+    return mod;
+}
+
 bool TexGui::initSDL3(SDL_Window* window)
 {
     assert(GTexGui && !GTexGui->initialised);
@@ -200,6 +234,20 @@ bool TexGui::initSDL3(SDL_Window* window)
     Base.rs = &TGRenderData;
     GTexGui->initialised = true;
     return true;
+}
+
+//text is submitted into input frame via a char* queue
+//#TODO if we exceed TEXGUI_TEXT_BUF_SIZE characters we die but 1000000 should be good enough for now
+
+//only copying and pasting text is supported
+//we have to call sdl functions on main thread so this is why it is here
+//#TODO only works on pc with keyboard for now, idk how it works iwth joystick yet
+static inline void submit_clipboard()
+{
+    auto& io = GTexGui->io;
+    char* clipboard = SDL_GetClipboardText();
+    strcat(io.text, clipboard);
+    SDL_free(clipboard);
 }
 
 void TexGui::processEvent_SDL3(const SDL_Event& event)
@@ -219,11 +267,25 @@ void TexGui::processEvent_SDL3(const SDL_Event& event)
     switch (event.type)
     {
         case SDL_EVENT_KEY_DOWN:
+            if (event.key.key == SDLK_V && event.key.mod &
+                #ifdef __APPLE__
+                SDL_KMOD_GUI
+                #else
+                SDL_KMOD_CTRL
+                #endif
+            )
+            {
+                submit_clipboard();
+            };
+
+            io.mods = TexGui_ImplSDL3_ModToTexGuiMod(event.key.mod);
             tgkey = TexGui_ImplSDL3_KeyEventToTexGuiKey(event.key.key, event.key.scancode);
+
             if (io.getKeyState(tgkey) == KEY_Off) io.submitKey(tgkey, KEY_Press);
             else if (event.key.repeat) io.submitKey(tgkey, KEY_Repeat);
             break;
         case SDL_EVENT_KEY_UP:
+            io.mods = TexGui_ImplSDL3_ModToTexGuiMod(event.key.mod);
             tgkey = TexGui_ImplSDL3_KeyEventToTexGuiKey(event.key.key, event.key.scancode);
             io.submitKey(tgkey, KEY_Release);
             break;
@@ -241,8 +303,7 @@ void TexGui::processEvent_SDL3(const SDL_Event& event)
             io.mouseRelativeMotion += Math::fvec2(event.motion.xrel, event.motion.yrel);
             break;
         case SDL_EVENT_TEXT_INPUT:
-            for (const char* c = event.text.text; *c != '\0'; c++)
-                io.charQueue.push(*c);
+            strcat(io.text, event.text.text);
             break;
         default:
             break;

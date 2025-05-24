@@ -39,5 +39,6 @@ struct Texture
 
 inline int line_height = 0;
 inline int font_height = 0;
+//atlas size
 inline float font_px = 0;
 NAMESPACE_END(TexGui);

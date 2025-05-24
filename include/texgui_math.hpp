@@ -403,6 +403,12 @@ typedef box<float> fbox;
 typedef box<int>   ibox;
 typedef box<bool>  bbox;
 
+template <typename T>
+inline T clamp(T val, T minVal, T maxVal)
+{
+    return val > maxVal ? maxVal : (val < minVal ? minVal : val);
+}
+
 }
 
 }

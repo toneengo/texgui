@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <unordered_map>
 #include <vector>
+#include <span>
 #include "texgui_math.hpp"
 #include "texgui_settings.hpp"
 
@@ -302,6 +303,49 @@ class RenderData
     friend class GLContext;
     friend class VulkanContext;
 public:
+    struct alignas(16) Character
+    {
+        Math::fbox rect; //xpos, ypos, width, height
+        Math::fbox texBounds;
+        Math::fvec4 colour = Math::fvec4(1.0);
+        int size;
+    };
+
+    struct alignas(16) Quad
+    {
+        Math::fbox rect; //xpos, ypos, width, height
+        Math::fbox texBounds; //xpos, ypos, width, height
+        Math::fvec4 colour = Math::fvec4(1.0);
+        int pixelSize;
+    };
+
+    //#TODO: make each widget its own render pass so we dont have to do this
+    struct alignas(16) Object
+    {
+        Object()
+        {
+        }
+
+        Object(const Object& o)
+        {
+            *this = o;
+        }
+
+        Object(Character c)
+        {
+            ch = c;
+        }
+        Object(Quad q)
+        {
+            quad = q;
+        }
+
+        union {
+            Character ch;
+            Quad quad;
+        };
+    };
+
     RenderData()
     {
         Base = TexGui::Base;
@@ -315,7 +359,8 @@ public:
 
     void drawQuad(const Math::fbox& rect, const Math::fvec4& col, int32_t zLayer = 0);
     void drawTexture(Math::fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, const Math::fbox& bounds, int32_t zLayer = 0);
-    int drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len = -1, int32_t zLayer = 0);
+    //returns Character array
+    std::span<Object> drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len = -1, int32_t zLayer = 0);
     //void scissor(int x, int y, int width, int height);
     void scissor(Math::fbox bounds);
     void descissor();
@@ -351,53 +396,6 @@ public:
         copy(commands2, other.commands2, sizeof(Command));
     }
 
-private:
-
-    int prevObjCount = 0;
-    int prevComCount = 0;
-    // Renderable objects
-    struct alignas(16) Character
-    {
-        Math::fbox rect; //xpos, ypos, width, height
-        Math::fbox texBounds;
-        Math::fvec4 colour = Math::fvec4(1.0);
-        int size;
-    };
-
-    struct alignas(16) Quad
-    {
-        Math::fbox rect; //xpos, ypos, width, height
-        Math::fbox texBounds; //xpos, ypos, width, height
-        Math::fvec4 colour = Math::fvec4(1.0);
-        int pixelSize;
-    };
-
-    struct alignas(16) Object
-    {
-        Object()
-        {
-        }
-
-        Object(const Object& o)
-        {
-            *this = o;
-        }
-
-        Object(Character c)
-        {
-            ch = c;
-        }
-        Object(Quad q)
-        {
-            quad = q;
-        }
-
-        union {
-            Character ch;
-            Quad quad;
-        };
-    };
-
     struct Command
     {
         enum {
@@ -412,6 +410,11 @@ private:
         int state = 0;
     };
 
+    private:
+    int prevObjCount = 0;
+    int prevComCount = 0;
+    // Renderable objects
+    
     std::vector<Object> objects;
     std::vector<Command> commands;
 
@@ -516,32 +519,35 @@ enum TexGuiKey : int
     // - This is mirroring the data also written to io.MouseDown[], io.MouseWheel, in a format allowing them to be accessed via standard key API.
     TexGuiKey_MouseLeft, TexGuiKey_MouseRight, TexGuiKey_MouseMiddle, TexGuiKey_MouseX1, TexGuiKey_MouseX2, TexGuiKey_MouseWheelX, TexGuiKey_MouseWheelY,
 
-    // [Internal] Reserved for mod storage
-    TexGuiKey_ReservedForModCtrl, TexGuiKey_ReservedForModShift, TexGuiKey_ReservedForModAlt, TexGuiKey_ReservedForModSuper,
     TexGuiKey_NamedKey_END,
 
-    // Keyboard Modifiers (explicitly submitted by backend via AddKeyEvent() calls)
-    // - This is mirroring the data also written to io.KeyCtrl, io.KeyShift, io.KeyAlt, io.KeySuper, in a format allowing
-    //   them to be accessed via standard key API, allowing calls such as IsKeyPressed(), IsKeyReleased(), querying duration etc.
-    // - Code polling every key (e.g. an interface to detect a key press for input mapping) might want to ignore those
-    //   and prefer using the real keys (e.g. TexGuiKey_LeftCtrl, TexGuiKey_RightCtrl instead of TexGuiMod_Ctrl).
-    // - In theory the value of keyboard modifiers should be roughly equivalent to a logical or of the equivalent left/right keys.
-    //   In practice: it's complicated; mods are often provided from different sources. Keyboard layout, IME, sticky keys and
-    //   backends tend to interfere and break that equivalence. The safer decision is to relay that ambiguity down to the end-user...
-    // - On macOS, we swap Cmd(Super) and Ctrl keys at the time of the io.AddKeyEvent() call.
-    TexGuiMod_None                   = 0,
-    TexGuiMod_Ctrl                   = 1 << 12, // Ctrl (non-macOS), Cmd (macOS)
-    TexGuiMod_Shift                  = 1 << 13, // Shift
-    TexGuiMod_Alt                    = 1 << 14, // Option/Menu
-    TexGuiMod_Super                  = 1 << 15, // Windows/Super (non-macOS), Ctrl (macOS)
-    TexGuiMod_Mask_                  = 0xF000,  // 4-bits
-
-    // [Internal] If you need to iterate all keys (for e.g. an input mapper) you may use TexGuiKey_NamedKey_BEGIN..TexGuiKey_NamedKey_END.
     //TexGuiKey_NamedKey_COUNT         = TexGuiKey_NamedKey_END - TexGuiKey_NamedKey_BEGIN,
     TexGuiKey_NamedKey_COUNT         = TexGuiKey_NamedKey_END,
     //TexGuiKey_KeysData_SIZE        = TexGuiKey_NamedKey_COUNT,  // Size of KeysData[]: only hold named keys
     //TexGuiKey_KeysData_OFFSET      = TexGuiKey_NamedKey_BEGIN,  // Accesses to io.KeysData[] must use (key - TexGuiKey_NamedKey_BEGIN) index.
 
+};
+
+enum TexGuiMod : uint16_t
+{
+    TexGuiMod_None = 0x0000u,
+    TexGuiMod_LeftShift = 0x0001u,
+    TexGuiMod_RightShift = 0x0002u,
+    TexGuiMod_Level5 = 0x0004u,
+    TexGuiMod_LeftCtrl = 0x0040u,
+    TexGuiMod_RightCtrl = 0x0080u,
+    TexGuiMod_LeftAlt = 0x0100u,
+    TexGuiMod_RightAlt = 0x0200u,
+    TexGuiMod_LeftSuper = 0x0400u,
+    TexGuiMod_RightSuper = 0x0800u,
+    TexGuiMod_Num = 0x1000u,
+    TexGuiMod_Caps = 0x2000u,
+    TexGuiMod_Mode = 0x4000u,
+    TexGuiMod_Scroll = 0x8000u,
+    TexGuiMod_Ctrl = (TexGuiMod_LeftCtrl | TexGuiMod_RightCtrl),
+    TexGuiMod_Shift = (TexGuiMod_LeftShift | TexGuiMod_RightShift),
+    TexGuiMod_Alt = (TexGuiMod_LeftAlt | TexGuiMod_RightAlt),
+    TexGuiMod_Super = (TexGuiMod_LeftSuper | TexGuiMod_RightSuper),
 };
 
 NAMESPACE_END(TexGui);

@@ -172,8 +172,6 @@ void main() {
         checkBoxCon[0].RadioButton(&selected2, 1);
         checkBoxCon[1].Align(TexGui::ALIGN_CENTER_Y).Text("value c");
 
-        static std::string input;
-        box0[3].TextInput("std::string input...", input);
         box0[4].TextInput("char input...", charbuf, 128);
 
         auto box1 = row[1].ScrollPanel("panel1", TexGui::texByName("box2"));
