@@ -711,6 +711,7 @@ void VulkanContext::renderFromRD(const RenderData& data)
     {
         renderFromRD(child);
     }
+    children.clear();
 
     if (data.objects.size() < 1) return;
 
@@ -900,6 +901,7 @@ Math::ivec2 VulkanContext::getTextureSize(uint32_t texID)
 
 void VulkanContext::newFrame()
 {
+    //#TODO: wrong if more than one image count, can delete buffers while theyre being used by another frame
     currentFrame++;
     if (currentFrame == imageCount) currentFrame = 0;
     vkResetDescriptorPool(device, frameDescriptorPools[currentFrame], 0);

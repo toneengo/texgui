@@ -357,6 +357,14 @@ public:
         Base.scissorBox = Math::fbox(0, 0, 8192, 8192);
     }
 
+    //just in case?
+    ~RenderData()
+    {
+        objects.clear();
+        commands.clear();
+        children.clear();
+    }
+
     Container drawTooltip(Math::fvec2 size);
 
     void drawQuad(const Math::fbox& rect, const Math::fvec4& col, int32_t zLayer = 0);
@@ -402,10 +410,7 @@ public:
     };
 
     private:
-    int prevObjCount = 0;
-    int prevComCount = 0;
     // Renderable objects
-    
     std::vector<Object> objects;
     std::vector<Command> commands;
 };

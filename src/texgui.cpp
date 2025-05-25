@@ -558,7 +558,7 @@ void Container::CheckBox(bool* val)
     static Texture* texture = &m_tex_map[Defaults::CheckBox::Texture];
 
     auto& io = inputFrame;
-    if (io.lmb == KEY_Release && bounds.contains(io.cursorPos)) *val = !*val;
+    if (io.lmb == KEY_Release && bounds.contains(io.cursorPos) && parentState & STATE_HOVER) *val = !*val;
 
     if (texture == nullptr) return;
     renderData->drawTexture(bounds, texture, *val ? STATE_ACTIVE : 0, 2, SLICE_9, scissorBox);
@@ -569,7 +569,7 @@ void Container::RadioButton(uint32_t* selected, uint32_t id)
     static Texture* texture = &m_tex_map[Defaults::RadioButton::Texture];
 
     auto& io = inputFrame;
-    if (io.lmb == KEY_Release && bounds.contains(io.cursorPos)) *selected = id;
+    if (io.lmb == KEY_Release && bounds.contains(io.cursorPos) && parentState & STATE_HOVER) *selected = id;
 
     if (texture == nullptr) return;
     renderData->drawTexture(bounds, texture, *selected == id ? STATE_ACTIVE : 0, 2, SLICE_9, scissorBox);
