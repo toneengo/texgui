@@ -14,12 +14,11 @@ NAMESPACE_BEGIN(TexGui);
 
 inline std::mutex TGInputLock;
 
-inline RenderData TGRenderData;
-inline RenderData TGSyncedRenderData;
 struct WindowState
 {
     Math::fbox box;
-    Math::fbox initial_box;
+
+    int32_t order = 0;
 
     uint32_t state = 0;
     bool moving = false;

@@ -31,10 +31,11 @@ enum ContainerFlags : uint32_t
 
 enum ContainerState : uint8_t 
 {
-    STATE_NONE   = 0b00000001,
-    STATE_ACTIVE = 0b00000010,
-    STATE_HOVER  = 0b00000100,
-    STATE_PRESS  = 0b00001000,
+    STATE_NONE   = 0x0,
+    STATE_ACTIVE = 0x01,
+    STATE_HOVER  = 0x04,
+    STATE_PRESS  = 0x08,
+    STATE_ALL    = 0xff
 };
 
 enum {

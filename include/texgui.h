@@ -134,8 +134,6 @@ struct TextSegment
     static TextSegment FromChunkFast(TextChunk chunk);
 };
 
-
-
 // initialiser lists can't be implicitly converted to spans until c++26 so just make our own span type.
 struct TextDecl
 {
@@ -162,7 +160,8 @@ class Container
 public:
     using ArrangeFunc = Math::fbox(*)(Container* parent, Math::fbox in);
         
-    RenderData* rs;
+    RenderData* renderData;
+    uint32_t parentState = STATE_ALL;
     Math::fbox bounds;
     Math::fbox scissorBox = {-1, -1, -1, -1};
 
@@ -252,6 +251,7 @@ private:
         copy.bounds = bounds;
         copy.parent = this;
         copy.arrange = arrange;
+        copy.parentState = parentState;
         return copy;
     }
 
@@ -269,7 +269,6 @@ struct IconSheet
 inline Container Base;
 
 void newFrame();
-void render();
 void render(const RenderData& rs);
 RenderData* newRenderData();
 
@@ -279,7 +278,6 @@ void loadFont(const char* font);
 void loadTextures(const char* dir);
 IconSheet loadIcons(const char* dir, int32_t iconWidth, int32_t iconHeight);
 void clear();
-void clear(RenderData& rs);
 
 struct Texture;
 
@@ -346,21 +344,25 @@ public:
         };
     };
 
+    bool ordered = false;
+    int32_t priority = -1;
+    std::vector<RenderData> children;
+
+    Container Base;
     RenderData()
     {
         Base = TexGui::Base;
-        Base.rs = this;
+        Base.renderData = this;
         Base.bounds = Math::fbox(0, 0, 8192, 8192);
         Base.scissorBox = Math::fbox(0, 0, 8192, 8192);
     }
-    Container Base;
 
     Container drawTooltip(Math::fvec2 size);
 
     void drawQuad(const Math::fbox& rect, const Math::fvec4& col, int32_t zLayer = 0);
     void drawTexture(Math::fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, const Math::fbox& bounds, int32_t zLayer = 0);
     //returns Character array
-    std::span<Object> drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len = -1, int32_t zLayer = 0);
+    std::span<Object> drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len = -1);
     //void scissor(int x, int y, int width, int height);
     void scissor(Math::fbox bounds);
     void descissor();
@@ -368,32 +370,21 @@ public:
     void clear() {
         objects.clear();
         commands.clear();
-
-        objects2.clear();
-        commands2.clear();
+        children.clear();
+        ordered = false;
     }
 
     void swap(RenderData& other) {
         objects.swap(other.objects);
         commands.swap(other.commands);
-
-        objects2.swap(other.objects2);
-        commands2.swap(other.commands2);
+        children.swap(other.children);
+        std::swap(ordered, other.ordered);
+        std::swap(priority, other.priority);
     }
 
     void copy(const RenderData& other)
     {
-        static auto copy = [](auto& a, auto& other, size_t sz)
-        {
-            size_t n = other.size();
-            a.resize(n);
-            memcpy(a.data(), other.data(), sz * n);
-        };
-
-        copy(objects, other.objects, sizeof(Object));
-        copy(objects2, other.objects2, sizeof(Object));
-        copy(commands, other.commands, sizeof(Command));
-        copy(commands2, other.commands2, sizeof(Command));
+        abort();
     }
 
     struct Command
@@ -417,10 +408,6 @@ public:
     
     std::vector<Object> objects;
     std::vector<Command> commands;
-
-    // This is a lazy approach until we have some proper draw ordering/z filtering etc
-    std::vector<Object> objects2;
-    std::vector<Command> commands2;
 };
 
 Math::fvec2 calculateTextBounds(Paragraph text, int32_t scale, float maxWidth);

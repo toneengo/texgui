@@ -72,4 +72,5 @@ protected:
 };
 
 bool initOpenGL();
+void renderOpenGL(const RenderData& data);
 NAMESPACE_END(TexGui);

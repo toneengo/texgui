@@ -129,7 +129,6 @@ void GLContext::renderFromRD(const RenderData& data) {
 
     // Later we can do better Z ordering or something. Idk what the best approach will be without having to sort everything :thinking:
     ogl_renderFromRD(data.objects, data.commands);
-    ogl_renderFromRD(data.objects2, data.commands2);
 }
     
 int tc(int x, int y)
@@ -233,8 +232,16 @@ void TexGui::createShader(Shader* shader, const std::string& vertexShader, const
 }
 
 extern void _setRenderCtx(NoApiContext* ptr);
+GLContext* ctx;
 bool TexGui::initOpenGL()
 {
-    _setRenderCtx(new GLContext());
+
+    ctx = new GLContext();
+    _setRenderCtx((NoApiContext*)ctx);
     return true;
 } 
+
+void TexGui::renderOpenGL(const RenderData& data)
+{
+    ctx->renderFromRD(data);
+}

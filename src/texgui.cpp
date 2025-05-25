@@ -26,11 +26,6 @@ void _setRenderCtx(NoApiContext* ptr)
     GTexGui->renderCtx = ptr;
 }
 
-const RenderData& getRenderData()
-{
-    return TGRenderData;
-}
-
 TexGui::Math::ivec2 _getScreenSize()
 {
     return GTexGui->framebufferSize;
@@ -39,21 +34,6 @@ TexGui::Math::ivec2 _getScreenSize()
 void TexGui::newFrame()
 {
     GTexGui->renderCtx->newFrame();
-}
-void TexGui::render()
-{
-    if (Defaults::Settings::Async)
-    {
-        GTexGui->renderCtx->renderFromRD(TGRenderData);
-        return;
-    }
-
-    GTexGui->renderCtx->renderFromRD(TGSyncedRenderData);
-}
-
-void TexGui::render(const RenderData& data)
-{
-    GTexGui->renderCtx->renderFromRD(data);
 }
 
 RenderData* TexGui::newRenderData()
@@ -332,6 +312,7 @@ inline static void updateInput()
     for (int i = 0; i < TexGuiKey_NamedKey_COUNT; i++)
     {
         if (io.keyStates[i] == KEY_Press) io.keyStates[i] = KEY_Held;
+        if (io.keyStates[i] == KEY_Repeat) io.keyStates[i] = KEY_Held;
         if (io.keyStates[i] == KEY_Release) io.keyStates[i] = KEY_Off;
     }
 
@@ -342,25 +323,6 @@ inline static void updateInput()
 
 void TexGui::clear()
 {
-    if (!Defaults::Settings::Async)
-    {
-        TGSyncedRenderData.clear();
-        TGSyncedRenderData.swap(TGRenderData);
-    }
-
-    TGRenderData.clear();
-    updateInput();
-}
-
-void TexGui::clear(RenderData& rs)
-{
-    if (!Defaults::Settings::Async)
-    {
-        TGSyncedRenderData.clear();
-        TGSyncedRenderData.swap(TGRenderData);
-    }
-
-    TGRenderData.clear();
     updateInput();
 }
 
@@ -376,7 +338,7 @@ inline bool getBit(const unsigned int dest, const unsigned int flag)
 
 using namespace TexGui::Math;
 
-uint32_t getBoxState(uint32_t& state, fbox box)
+uint32_t getBoxState(uint32_t& state, fbox box, uint32_t parentState)
 {
     auto& io = inputFrame;
     if (box.contains(io.cursorPos))
@@ -391,13 +353,22 @@ uint32_t getBoxState(uint32_t& state, fbox box)
         if (io.lmb == KEY_Release)
             setBit(state, STATE_PRESS, 0);
 
+        // if parent state is not active, it cant be active
+        // if parent state is not hover, it cant be hover 
+        if (!(parentState & STATE_ACTIVE))
+            setBit(state, STATE_ACTIVE, 0);
+        if (!(parentState & STATE_HOVER))
+            setBit(state, STATE_HOVER, 0);
+        if (!(parentState & STATE_PRESS))
+            setBit(state, STATE_PRESS, 0);
+
         return state;
     }
 
     setBit(state, STATE_HOVER, 0);
     setBit(state, STATE_PRESS, 0);
 
-    if (io.lmb == KEY_Press)
+    if (io.lmb == KEY_Press || !(parentState & STATE_ACTIVE))
         setBit(state, STATE_ACTIVE, 0);
 
     return state;
@@ -416,7 +387,6 @@ fbox AlignBox(fbox bounds, fbox child, uint32_t f)
     return child;
 }
 
-
 #define _PX Defaults::PixelSize
 extern std::unordered_map<std::string, Texture> m_tex_map;
 Container Container::Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags, Texture* texture)
@@ -424,9 +394,13 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
     auto& io = inputFrame;
     if (!GTexGui->windows.contains(name))
     {
-        GTexGui->windows.insert({name, {
+        for (auto& entry : GTexGui->windows)
+        {
+            entry.second.order++;
+        }
+
+        GTexGui->windows.insert({name, WindowState{
             .box = {xpos, ypos, width, height},
-            .initial_box = {xpos, ypos, width, height},
         }});
     }
 
@@ -436,48 +410,79 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
 
     if (flags & CAPTURE_INPUT && wstate.box.contains(io.cursorPos)) CapturingMouse = true;
 
-    if (flags & LOCKED)
+    //if there is a window over the window being clicked, set state to 0
+    getBoxState(wstate.state, wstate.box, STATE_ALL);
+
+    if (wstate.order > 0 && wstate.state != STATE_NONE && wstate.box.contains(io.cursorPos))
     {
-        wstate.box = AlignBox(Base.bounds, wstate.initial_box, flags);
-    }
-    else
-    {
-        getBoxState(wstate.state, wstate.box);
-        
-        if (io.lmb != KEY_Held)
+        for (auto& entry : GTexGui->windows)
         {
-            wstate.moving = false;
-            wstate.resizing = false;
+            if (entry.second.order >= wstate.order) continue;
+            if (entry.second.box.contains(io.cursorPos)) {
+                wstate.state = STATE_NONE;
+                break;
+            }
+        }
+    }
+
+    //bring focused window to the front
+    if (wstate.state & STATE_ACTIVE && wstate.order != 0)
+    {
+        int order = wstate.order;
+        for (auto& entry : GTexGui->windows)
+        {
+            if (entry.second.order < order) entry.second.order++;
         }
 
-        if (fbox(wstate.box.x, wstate.box.y, wstate.box.width, texture->top * _PX).contains(io.cursorPos) && io.lmb == KEY_Held)
-            wstate.moving = true;
-
-        if (flags & RESIZABLE && fbox(wstate.box.x + wstate.box.width - texture->right * _PX,
-                 wstate.box.y + wstate.box.height - texture->bottom * _PX,
-                 texture->right * _PX, texture->bottom * _PX).contains(io.cursorPos) && io.lmb == KEY_Held)
-            wstate.resizing = true;
-
-        if (wstate.moving)
-            wstate.box.pos += io.mouseRelativeMotion;
-        else if (wstate.resizing)
-            wstate.box.size += io.mouseRelativeMotion;
+        wstate.order = 0;
     }
+
+    if (flags & LOCKED)
+    {
+        wstate.box = {xpos, ypos, width, height};
+        wstate.box = AlignBox(Base.bounds, wstate.box, flags);
+    }
+    
+    if (flags & LOCKED || io.lmb != KEY_Held || !(wstate.state & STATE_ACTIVE))
+    {
+        wstate.moving = false;
+        wstate.resizing = false;
+    }
+    else if (fbox(wstate.box.x, wstate.box.y, wstate.box.width, texture->top * _PX).contains(io.cursorPos) && io.lmb == KEY_Held)
+        wstate.moving = true;
+    else if (flags & RESIZABLE && fbox(wstate.box.x + wstate.box.width - texture->right * _PX,
+             wstate.box.y + wstate.box.height - texture->bottom * _PX,
+             texture->right * _PX, texture->bottom * _PX).contains(io.cursorPos) && io.lmb == KEY_Held)
+        wstate.resizing = true;
+
+    if (wstate.moving)
+        wstate.box.pos += io.mouseRelativeMotion;
+    else if (wstate.resizing)
+        wstate.box.size += io.mouseRelativeMotion;
 
     fvec4 padding = Defaults::Window::Padding;
     padding.top = texture->top * _PX;
 
-    rs->drawTexture(wstate.box, texture, wstate.state, _PX, SLICE_9, scissorBox);
-
-    if (!(flags & HIDE_TITLE)) 
-        rs->drawText(name, {wstate.box.x + padding.left, wstate.box.y + texture->top * _PX / 2},
-                 Defaults::Font::Color, Defaults::Font::Size, CENTER_Y);
-
-    fbox internal = fbox::pad(wstate.box, padding);
+        fbox internal = fbox::pad(wstate.box, padding);
 
     buttonStates = &wstate.buttonStates;
-    return withBounds(internal);
 
+    renderData->ordered = true;
+    parentState = wstate.state;
+
+    Container child = withBounds(internal);
+    child.renderData = &renderData->children.emplace_back();
+
+    //lowest order will be rendered last.
+    child.renderData->priority = -wstate.order;
+    child.renderData->drawTexture(wstate.box, texture, wstate.state, _PX, SLICE_9, scissorBox);
+
+    if (!(flags & HIDE_TITLE)) 
+        child.renderData->drawText(name, {wstate.box.x + padding.left, wstate.box.y + texture->top * _PX / 2},
+                 Defaults::Font::Color, Defaults::Font::Size, CENTER_Y);
+
+
+    return child;
 }
 
 bool Container::Button(const char* text, Texture* texture, Container* out)
@@ -488,12 +493,16 @@ bool Container::Button(const char* text, Texture* texture, Container* out)
     }
 
     uint32_t& state = buttonStates->at(text);
-    getBoxState(state, bounds);
+    getBoxState(state, bounds, parentState);
 
+    if (!(parentState & STATE_ACTIVE))
+        setBit(state, STATE_ACTIVE, 0);
+    if (!(parentState & STATE_HOVER))
+        setBit(state, STATE_HOVER, 0);
     static Texture* defaultTex = &m_tex_map[Defaults::Button::Texture];
     auto* tex = texture ? texture : defaultTex;
 
-    rs->drawTexture(bounds, tex, state, _PX, SLICE_9, scissorBox);
+    renderData->drawTexture(bounds, tex, state, _PX, SLICE_9, scissorBox);
 
     TexGui::Math::vec2 pos = state & STATE_PRESS 
                        ? bounds.pos + Defaults::Button::POffset
@@ -505,7 +514,7 @@ bool Container::Button(const char* text, Texture* texture, Container* out)
     else
     {
         innerBounds.pos += bounds.size / 2;
-        rs->drawText(text, innerBounds, Defaults::Font::Color, Defaults::Font::Size, CENTER_X | CENTER_Y);
+        renderData->drawText(text, innerBounds, Defaults::Font::Color, Defaults::Font::Size, CENTER_X | CENTER_Y);
     }
 
     auto& io = inputFrame;
@@ -526,7 +535,7 @@ Container Container::Box(float xpos, float ypos, float width, float height, Text
     fbox boxBounds(bounds.x + xpos, bounds.y + ypos, width, height);
     if (texture != nullptr)
     {
-        rs->drawTexture(boxBounds, texture, 0, 2, SLICE_9, scissorBox);
+        renderData->drawTexture(boxBounds, texture, 0, 2, SLICE_9, scissorBox);
     }
 
     fbox internal = fbox::pad(boxBounds, Defaults::Box::Padding);
@@ -541,7 +550,7 @@ void Container::CheckBox(bool* val)
     if (io.lmb == KEY_Release && bounds.contains(io.cursorPos)) *val = !*val;
 
     if (texture == nullptr) return;
-    rs->drawTexture(bounds, texture, *val ? STATE_ACTIVE : 0, 2, SLICE_9, scissorBox);
+    renderData->drawTexture(bounds, texture, *val ? STATE_ACTIVE : 0, 2, SLICE_9, scissorBox);
 }
 
 void Container::RadioButton(uint32_t* selected, uint32_t id)
@@ -552,7 +561,7 @@ void Container::RadioButton(uint32_t* selected, uint32_t id)
     if (io.lmb == KEY_Release && bounds.contains(io.cursorPos)) *selected = id;
 
     if (texture == nullptr) return;
-    rs->drawTexture(bounds, texture, *selected == id ? STATE_ACTIVE : 0, 2, SLICE_9, scissorBox);
+    renderData->drawTexture(bounds, texture, *selected == id ? STATE_ACTIVE : 0, 2, SLICE_9, scissorBox);
 
 }
 
@@ -600,11 +609,11 @@ Container Container::ScrollPanel(const char* name, Texture* texture, Texture* ba
                 padding.right,
                 barh};
 
-    rs->drawTexture(bounds, texture, 0, _PX, 0, bounds);
+    renderData->drawTexture(bounds, texture, 0, _PX, 0, bounds);
     if (bartex)
-        rs->drawTexture(bar, bartex, 0, 2, SLICE_9, bounds);
+        renderData->drawTexture(bar, bartex, 0, 2, SLICE_9, bounds);
     else
-        rs->drawQuad(bar, {1,1,1,1});
+        renderData->drawQuad(bar, {1,1,1,1});
 
     sp.bounds.y += spstate.contentPos.y;
 
@@ -618,7 +627,7 @@ void Container::Image(Texture* texture, int scale)
     fbox sized = fbox(bounds.pos, fvec2(tsize));
     fbox arranged = Arrange(this, sized);
 
-    rs->drawTexture(arranged, texture, STATE_NONE, scale, 0, scissorBox);
+    renderData->drawTexture(arranged, texture, STATE_NONE, scale, 0, scissorBox);
 }
 
 fbox Container::Arrange(Container* o, fbox child)
@@ -646,15 +655,14 @@ Container Container::ListItem(uint32_t* selected, uint32_t id)
             return fbox(0,0,0,0);
         }
 
-        auto state = STATE_NONE;
+        uint32_t state = STATE_NONE;
         if (listItem->listItem.selected != nullptr)
         {
             auto& io = inputFrame;
 
-            bool hovered = listItem->scissorBox.contains(io.cursorPos) 
-                        && bounds.contains(io.cursorPos);
-            state = hovered ? STATE_HOVER : STATE_NONE;
-            if (io.lmb == KEY_Release && hovered)
+            // can always be active
+            getBoxState(state, bounds, listItem->parentState);
+            if (io.lmb == KEY_Press && state & STATE_HOVER)
                 *(listItem->listItem.selected) = listItem->listItem.id;
 
             if (*(listItem->listItem.selected) == listItem->listItem.id)
@@ -665,7 +673,7 @@ Container Container::ListItem(uint32_t* selected, uint32_t id)
             state = listItem->listItem.id ? STATE_ACTIVE : STATE_NONE;
         }
 
-        listItem->rs->drawTexture(bounds, tex, state, _PX, SLICE_9, listItem->scissorBox);
+        listItem->renderData->drawTexture(bounds, tex, state, _PX, SLICE_9, listItem->scissorBox);
 
         // The child is positioned by the list item's parent
         return fbox::pad(bounds, Defaults::ListItem::Padding);
@@ -726,6 +734,7 @@ Container Container::Grid()
     grid.grid = { 0, 0, 0, 0 };
     return grid;
 }
+
 void Container::Divider(float padding)
 {
     float width = 2;
@@ -733,7 +742,7 @@ void Container::Divider(float padding)
     fbox line = {
         ln.x, ln.y + padding, ln.width, width,
     };
-    rs->drawQuad(line, fvec4(1,1,1,0.5), 1);
+    renderData->drawQuad(line, fvec4(1,1,1,0.5), 1);
 }
 
 Container Container::Stack(float padding)
@@ -777,12 +786,12 @@ static bool textInputUpdate(TextInputState& tstate, char** c, CharacterFilter fi
     return false;
 }
 
-void renderTextInput(RenderData* rs, const char* name, fbox bounds, fbox scissor, TextInputState& tstate, const char* text, int32_t len)
+void renderTextInput(RenderData* renderData, const char* name, fbox bounds, fbox scissor, TextInputState& tstate, const char* text, int32_t len)
 {
     static Texture* inputtex = &m_tex_map[Defaults::TextInput::Texture];
     static Texture* textcursor = &m_tex_map[Defaults::TextInput::TextCursor];
 
-    rs->drawTexture(bounds, inputtex, tstate.state, _PX, SLICE_9, scissor);
+    renderData->drawTexture(bounds, inputtex, tstate.state, _PX, SLICE_9, scissor);
     float offsetx = 0;
     fvec4 padding = Defaults::TextInput::Padding;
     fvec4 color = Defaults::Font::Color;
@@ -794,7 +803,7 @@ void renderTextInput(RenderData* rs, const char* name, fbox bounds, fbox scissor
 
     //#TODO: size
     int size = Defaults::Font::Size;
-    auto characters = rs->drawText(
+    auto characters = renderData->drawText(
         !getBit(tstate.state, STATE_ACTIVE) && len == 0
         ? name : text,
         {startx, starty},
@@ -817,12 +826,11 @@ void renderTextInput(RenderData* rs, const char* name, fbox bounds, fbox scissor
     else
     {
         auto lastChar = characters[cursor_pos - 1].ch.rect;
-        //#TODO we shouldnt care about font/atlas size here in the shader ffs why did i do this
-        textCursorQuad.x = lastChar.x - textcursor->bounds.width + lastChar.width / font_px;
+        textCursorQuad.x = lastChar.x - textcursor->bounds.width + lastChar.width;
         //#TODO starty is wrong if we do multiline textinputs
         textCursorQuad.y = starty - Defaults::Font::Size / 2.f;
     }
-    rs->drawTexture(textCursorQuad, textcursor, tstate.state, _PX, SLICE_9, bounds);
+    renderData->drawTexture(textCursorQuad, textcursor, tstate.state, _PX, SLICE_9, bounds);
 }
 
 void Container::TextInput(const char* name, std::string& buf, CharacterFilter filter)
@@ -835,7 +843,7 @@ void Container::TextInput(const char* name, std::string& buf, CharacterFilter fi
     }
     
     auto& tstate = GTexGui->textInputs[name];
-    getBoxState(tstate.state, bounds);
+    etBoxState(tstate.state, bounds);
 
     //#TODO: variable cursor pos
     tstate.cursor_pos = buf.size();
@@ -855,7 +863,7 @@ void Container::TextInput(const char* name, std::string& buf, CharacterFilter fi
     buf += textsrc;
     tstate.cursor_pos += strlen(textsrc);
     
-    renderTextInput(rs, name, bounds, scissorBox, tstate, buf.c_str(), buf.size(), tstate.cursor_pos);
+    renderTextInput(renderData, name, bounds, scissorBox, tstate, buf.c_str(), buf.size(), tstate.cursor_pos);
     */
 }
 
@@ -869,7 +877,7 @@ void Container::TextInput(const char* name, char* buf, uint32_t bufsize, Charact
     }
     
     auto& tstate = GTexGui->textInputs[name];
-    getBoxState(tstate.state, bounds);
+    getBoxState(tstate.state, bounds, parentState);
 
     if (tstate.state & STATE_ACTIVE)
         TexGui_editingText = true;
@@ -944,10 +952,10 @@ void Container::TextInput(const char* name, char* buf, uint32_t bufsize, Charact
         tstate.cursor_pos += strlen(io.text);
         tlen += strlen(io.text);
     }
-    renderTextInput(rs, name, bounds, scissorBox, tstate, buf, tlen);
+    renderTextInput(renderData, name, bounds, scissorBox, tstate, buf, tlen);
 }
 
-static void renderTooltip(Paragraph text, RenderData* rs);
+static void renderTooltip(Paragraph text, RenderData* renderData);
 
 // Bump the line of text
 static void bumpline(float& x, float& y, float w, TexGui::Math::fbox& bounds, int32_t scale)
@@ -1021,16 +1029,16 @@ fvec2 TexGui::calculateTextBounds(Paragraph text, int32_t scale, float maxWidth)
 
 #define TTUL Defaults::Tooltip::UnderlineSize
 
-static bool writeText(Paragraph text, int32_t scale, TexGui::Math::fbox bounds, float& x, float& y, RenderData* rs, bool checkHover = false, int32_t zLayer = 0, uint32_t flags = 0, TextDecl parameters = {});
+static bool writeText(Paragraph text, int32_t scale, TexGui::Math::fbox bounds, float& x, float& y, RenderData* renderData, bool checkHover = false, int32_t zLayer = 0, uint32_t flags = 0, TextDecl parameters = {});
 
-inline static void drawChunk(TextSegment s, RenderData* rs, TexGui::Math::fbox bounds, float& x, float& y, int32_t scale, uint32_t flags, int32_t zLayer, bool& hovered, bool checkHover, uint32_t& placeholderIdx, TextDecl parameters)
+inline static void drawChunk(TextSegment s, RenderData* renderData, TexGui::Math::fbox bounds, float& x, float& y, int32_t scale, uint32_t flags, int32_t zLayer, bool& hovered, bool checkHover, uint32_t& placeholderIdx, TextDecl parameters)
     {
-        static const auto underline = [](auto* rs, float x, float y, float w, int32_t scale, uint32_t flags, int32_t zLayer)
+        static const auto underline = [](auto* renderData, float x, float y, float w, int32_t scale, uint32_t flags, int32_t zLayer)
         {
             if (flags & UNDERLINE)
             {
                 fbox ul = fbox(fvec2(x - TTUL.x, y + scale / 2.0 - 2), fvec2(w + TTUL.x * 2, TTUL.y));
-                rs->drawQuad(ul, fvec4(1,1,1,0.3), zLayer);
+                renderData->drawQuad(ul, fvec4(1,1,1,0.3), zLayer);
             }
         };
 
@@ -1045,11 +1053,11 @@ inline static void drawChunk(TextSegment s, RenderData* rs, TexGui::Math::fbox b
 
                 fbox bounds = fbox(x, y - scale / 2.0, segwidth, scale);
 
-                underline(rs, x, y, segwidth, scale, flags, zLayer);
+                underline(renderData, x, y, segwidth, scale, flags, zLayer);
 
-                rs->drawText(s.word.data, {x, y}, {1,1,1,1}, scale, CENTER_Y, s.word.len, zLayer);
+                renderData->drawText(s.word.data, {x, y}, {1,1,1,1}, scale, CENTER_Y, s.word.len);
 
-                // if (checkHover) rs->drawQuad(bounds, fvec4(1, 0, 0, 1));
+                // if (checkHover) renderData->drawQuad(bounds, fvec4(1, 0, 0, 1));
                 hovered |= checkHover && !hovered && bounds.contains(io.cursorPos);
                 x += segwidth;
             }
@@ -1065,12 +1073,12 @@ inline static void drawChunk(TextSegment s, RenderData* rs, TexGui::Math::fbox b
 
                 fbox bounds = { x, y - tsize.y / 2, tsize.x, tsize.y };
 
-                underline(rs, x, y, tsize.x, scale, flags, zLayer);
+                underline(renderData, x, y, tsize.x, scale, flags, zLayer);
 
                 //#TODO: pass in container here
-                rs->drawTexture(bounds, icon, 0, _PX, 0, {0,0,8192,8192}, zLayer);
+                renderData->drawTexture(bounds, icon, 0, _PX, 0, {0,0,8192,8192}, zLayer);
 
-                // if (checkHover) rs->drawQuad(bounds, fvec4(1, 0, 0, 1));
+                // if (checkHover) renderData->drawQuad(bounds, fvec4(1, 0, 0, 1));
                 hovered |= checkHover && !hovered && fbox::margin(bounds, Defaults::Tooltip::HoverPadding).contains(io.cursorPos);
                 x += tsize.x;
             }
@@ -1086,15 +1094,15 @@ inline static void drawChunk(TextSegment s, RenderData* rs, TexGui::Math::fbox b
                 // Render the base text of the tooltip. Do a coarse bounds check
                 // so we don't check if each word is hovered if we don't need to
                 bool check = bounds.contains(io.cursorPos);
-                bool hoverTT = writeText(s.tooltip.base, scale, bounds, x, y, rs, check, zLayer, UNDERLINE);
-                if (hoverTT) renderTooltip(s.tooltip.tooltip, rs);
+                bool hoverTT = writeText(s.tooltip.base, scale, bounds, x, y, renderData, check, zLayer, UNDERLINE);
+                if (hoverTT) renderTooltip(s.tooltip.tooltip, renderData);
             }
             break;
         case TextSegment::PLACEHOLDER:
             {
                 assert(placeholderIdx < parameters.count);
                 bool blah = false;
-                drawChunk(TextSegment::FromChunkFast(parameters.data[placeholderIdx]), rs, bounds, x, y, scale, flags, zLayer, blah, false, placeholderIdx, {});
+                drawChunk(TextSegment::FromChunkFast(parameters.data[placeholderIdx]), renderData, bounds, x, y, scale, flags, zLayer, blah, false, placeholderIdx, {});
                 placeholderIdx++;
             }
             break;
@@ -1102,7 +1110,7 @@ inline static void drawChunk(TextSegment s, RenderData* rs, TexGui::Math::fbox b
         
     }
 
-static bool writeText(Paragraph text, int32_t scale, TexGui::Math::fbox bounds, float& x, float& y, RenderData* rs, bool checkHover, int32_t zLayer, uint32_t flags, TextDecl parameters)
+static bool writeText(Paragraph text, int32_t scale, TexGui::Math::fbox bounds, float& x, float& y, RenderData* renderData, bool checkHover, int32_t zLayer, uint32_t flags, TextDecl parameters)
 {
     bool hovered = false;
     // Index into the amount of placeholders we've substituted
@@ -1110,7 +1118,7 @@ static bool writeText(Paragraph text, int32_t scale, TexGui::Math::fbox bounds, 
 
     for (int32_t i = 0; i < text.count; i++) 
     {
-        drawChunk(text.data[i], rs, bounds, x, y, scale, flags, zLayer, hovered, checkHover, placeholderIdx, parameters);
+        drawChunk(text.data[i], renderData, bounds, x, y, scale, flags, zLayer, hovered, checkHover, placeholderIdx, parameters);
     }
     return hovered;
 }
@@ -1129,16 +1137,16 @@ Container RenderData::drawTooltip(fvec2 size)
     return this->Base.Box(bounds.x, bounds.y, bounds.w, bounds.h, tex);
 }
 
-static void renderTooltip(Paragraph text, RenderData* rs)
+static void renderTooltip(Paragraph text, RenderData* renderData)
 {
     int scale = Defaults::Tooltip::TextScale;
 
     fvec2 textBounds = calculateTextBounds(text, scale, Defaults::Tooltip::MaxWidth);
 
-    Container s = rs->drawTooltip(textBounds);
+    Container s = renderData->drawTooltip(textBounds);
 
     float x = s.bounds.x, y = s.bounds.y;
-    writeText(text, Defaults::Tooltip::TextScale, s.bounds, x, y, rs, false, 1);
+    writeText(text, Defaults::Tooltip::TextScale, s.bounds, x, y, renderData, false, 1);
 }
 
 void Container::Text(Paragraph text, int32_t scale, TextDecl parameters)
@@ -1153,7 +1161,7 @@ void Container::Text(Paragraph text, int32_t scale, TextDecl parameters)
     textBounds = Arrange(this, textBounds);
     textBounds.y += + scale / 2.0f;
 
-    writeText(text, scale, bounds, textBounds.x, textBounds.y, rs, false, 0, 0, parameters);
+    writeText(text, scale, bounds, textBounds.x, textBounds.y, renderData, false, 0, 0, parameters);
 }
 
 void Container::Text(const char* text, int32_t scale, TextDecl parameters)
@@ -1171,7 +1179,7 @@ void Container::Text(const char* text, int32_t scale, TextDecl parameters)
     textBounds = Arrange(this, textBounds);
     textBounds.y += + scale / 2.0f;
 
-    writeText(p, scale, bounds, textBounds.x, textBounds.y, rs, false, 0, 0, parameters);
+    writeText(p, scale, bounds, textBounds.x, textBounds.y, renderData, false, 0, 0, parameters);
 }
 
 void Container::Row(Container* out, const float* widths, uint32_t n, float height, uint32_t flags)
@@ -1506,10 +1514,10 @@ float TexGui::computeTextWidth(const char* text, size_t numchars)
     return total;
 }
 
-std::span<RenderData::Object> RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len, int32_t zLayer)
+std::span<RenderData::Object> RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len)
 {
-    auto& objects = zLayer > 0 ? this->objects2 : this->objects;
-    auto& commands = zLayer > 0 ? this->commands2 : this->commands;
+    auto& objects =  this->objects;
+    auto& commands = this->commands;
 
     size_t numchars = len == -1 ? strlen(text) : len;
     size_t numcopy = numchars;
@@ -1548,8 +1556,8 @@ std::span<RenderData::Object> RenderData::drawText(const char* text, Math::fvec2
                 .rect = fbox(
                     currx + l * size,
                     pos.y - b * size,
-                    w * size,
-                    h * size
+                    w * size / font_px,
+                    h * size / font_px
                 ),
                 .texBounds = fbox(x, y, w, h),
                 .colour = col,
@@ -1567,8 +1575,8 @@ void RenderData::drawTexture(fbox rect, Texture* e, int state, int pixel_size, u
 {
     if (bounds.width < 1 || bounds.height < 1) return;
 
-    auto& objects = zLayer > 0 ? this->objects2 : this->objects;
-    auto& commands = zLayer > 0 ? this->commands2 : this->commands;
+    auto& objects = this->objects;
+    auto& commands = this->commands;
 
     if (!e) return;
 

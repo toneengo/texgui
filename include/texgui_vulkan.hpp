@@ -98,10 +98,7 @@ protected:
     std::vector<VkDescriptorPool> frameDescriptorPools;
     uint32_t currentFrame = 0;
 
-    VkDescriptorSet windowSizeDescriptorSet;
     VkDescriptorSetLayout windowSizeDescriptorSetLayout;
-    VkBuffer windowSizeBuffer = 0;
-    VmaAllocation windowSizeBufferAllocation = 0;
 
     VkDescriptorSet pxRangeDescriptorSet;
     VkDescriptorSetLayout pxRangeDescriptorSetLayout;
@@ -113,10 +110,7 @@ protected:
     VkBuffer imageBuffer = 0;
     VmaAllocation imageBufferAllocation = 0;
 
-    VkDescriptorSet storageDescriptorSet = VK_NULL_HANDLE;
     VkDescriptorSetLayout storageDescriptorSetLayout;
-    std::vector<VkBuffer> storageBuffer;
-    std::vector<VmaAllocation> storageBufferAllocation;
 
     VkPipeline quadPipeline;
     VkPipeline textPipeline;

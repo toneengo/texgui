@@ -231,7 +231,6 @@ bool TexGui::initSDL3(SDL_Window* window)
 
     if (GTexGui->renderCtx != nullptr) GTexGui->renderCtx->setScreenSize(GTexGui->framebufferSize.x, GTexGui->framebufferSize.y);
     Base.bounds.size = GTexGui->framebufferSize;
-    Base.rs = &TGRenderData;
     GTexGui->initialised = true;
     return true;
 }

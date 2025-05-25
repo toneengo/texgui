@@ -159,7 +159,7 @@ void main() {
     uv = vec2(texBounds.x / pushConstants.atlasWidth, texBounds.y / pushConstants.atlasHeight) +
          uv * (vec2(texBounds.z / pushConstants.atlasWidth, texBounds.w / pushConstants.atlasHeight));
 
-    vec2 size = rect.zw / round(vec2(screenSz.x/2.0, screenSz.y/2.0)) / FONT_PX;
+    vec2 size = rect.zw / round(vec2(screenSz.x/2.0, screenSz.y/2.0));
     pos = quad[gl_VertexIndex] * size + rect.xy / round(vec2(screenSz.x/2.0, screenSz.y/2.0));
     pos.y *= -1;
 
