@@ -27,6 +27,11 @@ enum ContainerFlags : uint32_t
 
     CAPTURE_INPUT = 0x80000,
     RESIZABLE = 0x100000,
+
+    BACK = 0x400000,
+    FRONT = 0x800000,
+
+    FORCED_ORDER = BACK | FRONT
 };
 
 enum ContainerState : uint8_t 

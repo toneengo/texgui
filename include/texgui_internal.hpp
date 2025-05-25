@@ -24,6 +24,9 @@ struct WindowState
     bool moving = false;
     bool resizing = false;
 
+    bool visible = false;
+    bool prevVisible = false;
+
     std::unordered_map<std::string, uint32_t> buttonStates;
 };
 

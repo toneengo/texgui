@@ -324,6 +324,11 @@ inline static void updateInput()
 void TexGui::clear()
 {
     updateInput();
+    for (auto& win : GTexGui->windows)
+    {
+        win.second.prevVisible = win.second.visible;
+        win.second.visible = false;
+    }
 }
 
 inline void setBit(unsigned int& dest, const unsigned int flag, bool on)
@@ -408,16 +413,22 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
     if (!texture) texture = wintex;
     WindowState& wstate = GTexGui->windows[name];
 
+    wstate.visible = true;
+
+    if (flags & BACK)
+        wstate.order = INT_MAX;
+    if (flags & FRONT)
+        wstate.order = -1;
+
     if (flags & CAPTURE_INPUT && wstate.box.contains(io.cursorPos)) CapturingMouse = true;
 
     //if there is a window over the window being clicked, set state to 0
     getBoxState(wstate.state, wstate.box, STATE_ALL);
-
     if (wstate.order > 0 && wstate.state != STATE_NONE && wstate.box.contains(io.cursorPos))
     {
         for (auto& entry : GTexGui->windows)
         {
-            if (entry.second.order >= wstate.order) continue;
+            if (!entry.second.prevVisible || entry.second.order >= wstate.order) continue;
             if (entry.second.box.contains(io.cursorPos)) {
                 wstate.state = STATE_NONE;
                 break;
@@ -425,13 +436,13 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
         }
     }
 
-    //bring focused window to the front
-    if (wstate.state & STATE_ACTIVE && wstate.order != 0)
+    //bring focused window to the front (0), if it doesnt have a FRONT or BACK flag
+    if (!(flags & FORCED_ORDER) && wstate.state & STATE_ACTIVE && wstate.order > 0)
     {
         int order = wstate.order;
         for (auto& entry : GTexGui->windows)
         {
-            if (entry.second.order < order) entry.second.order++;
+            if (entry.second.order < order && entry.second.order > -1) entry.second.order++;
         }
 
         wstate.order = 0;
