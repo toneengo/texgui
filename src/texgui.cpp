@@ -633,6 +633,7 @@ Container Container::ScrollPanel(const char* name, Texture* texture, Texture* ba
 
 void Container::Image(Texture* texture, int scale)
 {
+    if (!texture) return;
     Math::ivec2 tsize = Math::ivec2(texture->bounds.width, texture->bounds.height) * scale;
 
     fbox sized = fbox(bounds.pos, fvec2(tsize));
@@ -650,7 +651,7 @@ fbox Container::Arrange(Container* o, fbox child)
 }
 
 // Arranges the list item based on the thing that is put inside it.
-Container Container::ListItem(uint32_t* selected, uint32_t id)
+Container Container::ListItem(uint32_t* selected, uint32_t id, Texture* texture)
 {
     static auto arrange = [](Container* listItem, fbox child)
     {
@@ -659,7 +660,6 @@ Container Container::ListItem(uint32_t* selected, uint32_t id)
         // Get the parent to arrange the list item
         bounds = Arrange(listItem->parent, bounds);
         
-        static Texture* tex = &m_tex_map[Defaults::ListItem::Texture];
 
         if (!listItem->scissorBox.contains(bounds))
         {
@@ -684,13 +684,15 @@ Container Container::ListItem(uint32_t* selected, uint32_t id)
             state = listItem->listItem.id ? STATE_ACTIVE : STATE_NONE;
         }
 
-        listItem->renderData->drawTexture(bounds, tex, state, _PX, SLICE_9, listItem->scissorBox);
+        listItem->renderData->drawTexture(bounds, listItem->texture, state, _PX, SLICE_9, listItem->scissorBox);
 
         // The child is positioned by the list item's parent
         return fbox::pad(bounds, Defaults::ListItem::Padding);
     };
     // Add padding to the contents of the list item
+    static Texture* tex = &m_tex_map[Defaults::ListItem::Texture];
     Container listItem = withBounds(fbox::pad(bounds, Defaults::ListItem::Padding), arrange);
+    listItem.texture = !texture ? tex : texture;
     listItem.listItem = { selected, id };
     return listItem;
 }

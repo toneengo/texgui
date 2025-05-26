@@ -185,7 +185,7 @@ public:
 
     // Similar to radio buttons - the id of the selected one is stored in the *selected pointer.
     // If you don't want them to be clickable - set selected to nullptr, and 0 or 1 for whether it is active in id
-    Container ListItem(uint32_t* selected, uint32_t id);
+    Container ListItem(uint32_t* selected, uint32_t id, Texture* texture = nullptr);
 
     // Arranges children in a bento-grid layout.
     Container Grid();
@@ -212,6 +212,8 @@ public:
 
 private:
     std::unordered_map<std::string, uint32_t>* buttonStates;
+
+    Texture* texture = nullptr;
 
     Container* parent;
     ArrangeFunc arrange;
