@@ -1,6 +1,7 @@
 #include "texgui_sdl3.hpp"
 #include "texgui.h"
 #include "texgui_internal.hpp"
+#include <SDL3/SDL_mouse.h>
 #include <cassert>
 
 using namespace TexGui;
@@ -229,7 +230,7 @@ bool TexGui::initSDL3(SDL_Window* window)
     SDL_GetWindowSize(window, &GTexGui->framebufferSize.x, &GTexGui->framebufferSize.y);
     GTexGui->contentScale = SDL_GetWindowDisplayScale(window);
 
-    if (GTexGui->renderCtx != nullptr) GTexGui->renderCtx->setScreenSize(GTexGui->framebufferSize.x, GTexGui->framebufferSize.y);
+    if (GTexGui->rendererFns.framebufferSizeCallback) GTexGui->rendererFns.framebufferSizeCallback(GTexGui->framebufferSize.x, GTexGui->framebufferSize.y);
     Base.bounds.size = GTexGui->framebufferSize;
     GTexGui->initialised = true;
     return true;
@@ -273,9 +274,7 @@ void TexGui::processEvent_SDL3(const SDL_Event& event)
                 SDL_KMOD_CTRL
                 #endif
             )
-            {
                 submit_clipboard();
-            };
 
             io.mods = TexGui_ImplSDL3_ModToTexGuiMod(event.key.mod);
             tgkey = TexGui_ImplSDL3_KeyEventToTexGuiKey(event.key.key, event.key.scancode);
@@ -289,6 +288,11 @@ void TexGui::processEvent_SDL3(const SDL_Event& event)
             io.submitKey(tgkey, KEY_Release);
             break;
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
+            #ifdef __linux__
+            if (event.button.button == SDL_BUTTON_MIDDLE)
+                submit_clipboard();
+            #endif
+
             io.submitMouseButton(event.button.button, KEY_Press);
             break;
         case SDL_EVENT_MOUSE_BUTTON_UP:
@@ -312,7 +316,7 @@ void TexGui::processEvent_SDL3(const SDL_Event& event)
     switch (event.type)
     {
         case SDL_EVENT_WINDOW_RESIZED:
-            GTexGui->renderCtx->setScreenSize(event.window.data1, event.window.data2);
+            GTexGui->rendererFns.framebufferSizeCallback(event.window.data1, event.window.data2);
             GTexGui->framebufferSize = {event.window.data1, event.window.data2};
             break;
         default:

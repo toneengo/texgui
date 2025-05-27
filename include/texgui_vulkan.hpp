@@ -1,13 +1,12 @@
 #pragma once
 
 #include "texgui.h"
-#include "context.hpp"
-#include "types.h"
 #include <vulkan/vulkan_core.h>
 #include <vk_mem_alloc.h>
 
 NAMESPACE_BEGIN(TexGui);
 
+struct Texture;
 //ONLY DYNAMIC RENDERING IS SUPPORTED
 //This is copied from Dear ImGui
 struct VulkanInitInfo
@@ -26,7 +25,8 @@ struct VulkanInitInfo
 
     // (Optional)
     VkPipelineCache                 PipelineCache;
-    uint32_t                        Subpass;
+    //uint32_t                        Subpass;
+    // Render passes are not supported.
 
     // (Optional) Set to create internal descriptor pool instead of using DescriptorPool
     uint32_t                        DescriptorPoolSize;
@@ -37,89 +37,15 @@ struct VulkanInitInfo
     VkPipelineRenderingCreateInfo PipelineRenderingCreateInfo;
 
     // (Optional) Allocation, Debugging
-    /*
-    const VkAllocationCallbacks*    Allocator;
-    void                            (*CheckVkResultFn)(VkResult err);
-    VkDeviceSize                    MinAllocationSize;          // Minimum allocation size. Set to 1024*1024 to satisfy zealous best practices validation layer and waste a little memory.
-                                                                // */
+    VkAllocationCallbacks*    allocationCallbacks = nullptr;
+    void                            (*CheckVkResultFn)(VkResult err) = nullptr;
+    VkDeviceSize                    MinAllocationSize = 1024*1024;          // Minimum allocation size. Set to 1024*1024 to satisfy zealous best practices validation layer and waste a little memory.
 
     //#TODO: GET rid of this
     VmaAllocator Allocator;
 };
 
-class VulkanContext : public NoApiContext
-{
-public:
-    VulkanContext(const VulkanInitInfo& info);
-    ~VulkanContext();
-
-    void setScreenSize(int width, int height);
-    void renderFromRD(const RenderData& data);
-    uint32_t createTexture(void* data, int width, int height);
-    Math::ivec2 getTextureSize(uint32_t texID);
-    void setPxRange(float _pxRange);
-    void clean();
-    void newFrame();
-
-    uint32_t createTexture(VkImageView imageView, Math::fbox bounds);
-protected:
-
-    struct Buf {
-        VkBuffer buffer;
-        VmaAllocation allocation;
-        VmaAllocationInfo info;
-    } buffer;
-    uint32_t textureCount = 0;
-    VkShaderModule createShaderModule(int stage, const std::string& filePath);
-    VkDevice                    device;
-    VkPhysicalDevice            physicalDevice;
-
-    VkInstance                  instance;
-    VkDebugUtilsMessengerEXT    debugMessenger;
-    VkQueue                     graphicsQueue;
-    uint32_t                    graphicsQueueFamily;
-
-    //command buffer for immediate commands
-    VkCommandPool   immCommandPool;
-    VkCommandBuffer immCommandBuffer;
-    VkFence         immCommandFence;
-
-    VkSampler linearSampler;
-    VkSampler nearestSampler;
-
-    VmaAllocator allocator;
-    bool needResize = true;
-    float windowScale;
-    Math::ivec2 windowSize;
-
-    VkDescriptorPool globalDescriptorPool;
-
-    uint32_t imageCount;
-    std::vector<VkDescriptorPool> frameDescriptorPools;
-    uint32_t currentFrame = 0;
-
-    VkDescriptorSetLayout windowSizeDescriptorSetLayout;
-
-    VkDescriptorSet pxRangeDescriptorSet;
-    VkDescriptorSetLayout pxRangeDescriptorSetLayout;
-    VkBuffer pxRangeBuffer = 0;
-    VmaAllocation pxRangeBufferAllocation = 0;
-
-    VkDescriptorSet imageDescriptorSet = VK_NULL_HANDLE;
-    VkDescriptorSetLayout imageDescriptorSetLayout;
-    VkBuffer imageBuffer = 0;
-    VmaAllocation imageBufferAllocation = 0;
-
-    VkDescriptorSetLayout storageDescriptorSetLayout;
-
-    VkPipeline quadPipeline;
-    VkPipeline textPipeline;
-    VkPipelineLayout quadPipelineLayout = VK_NULL_HANDLE;
-
-};
-
 bool initVulkan(TexGui::VulkanInitInfo& info);
-void renderVulkan(const TexGui::RenderData& data, VkCommandBuffer cmd);
-
+void renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& data);
 Texture* customTexture(VkImageView imageView, Math::ibox bounds, Math::ivec2 atlasSize = {0, 0});
 NAMESPACE_END(TexGui);

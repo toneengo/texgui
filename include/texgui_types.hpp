@@ -3,16 +3,24 @@
 #include "texgui.h"
 #include <stdint.h>
 #include <vector>
+#include "msdf-atlas-gen/msdf-atlas-gen.h"
 
 NAMESPACE_BEGIN(TexGui);
 
 // font information
-struct CharInfo
+struct Font
 {
-    int layer;
-    Math::uivec2 size;
-    Math::ivec2 bearing;
-    unsigned int advance;
+    std::unordered_map<uint32_t, const msdf_atlas::GlyphGeometry*> codepointToGlyph;
+    std::vector<msdf_atlas::GlyphGeometry> glyphs;
+
+    //data for the renderer
+    uint32_t textureIndex;
+
+    //#TODO: remove these. Shader shouldnt need to know atlas width/height
+    uint32_t atlasWidth;
+    uint32_t atlasHeight;
+    float msdfPxRange;
+    uint32_t baseFontSize;
 };
 
 struct Texture
@@ -37,8 +45,4 @@ struct Texture
     unsigned int active = -1;
 };
 
-inline int line_height = 0;
-inline int font_height = 0;
-//atlas size
-inline float font_px = 0;
 NAMESPACE_END(TexGui);

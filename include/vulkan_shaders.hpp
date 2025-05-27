@@ -32,6 +32,35 @@ layout (set = 1, binding = 0) uniform screenSzBuf {
 };
 )#";
 
+inline const std::string VK_VERT = VK_VERSION_HEADER + VK_BUFFERS + R"#(
+#version 450 core
+layout(location = 0) in vec2 aPos;
+layout(location = 1) in vec2 aUV;
+layout(location = 2) in vec4 aColor;
+layout(push_constant) uniform uPushConstant { vec2 uScale; vec2 uTranslate; } pc;
+
+out gl_PerVertex { vec4 gl_Position; };
+layout(location = 0) out struct { vec4 Color; vec2 UV; } Out;
+
+void main()
+{
+    Out.Color = aColor;
+    Out.UV = aUV;
+    gl_Position = vec4(aPos * pc.uScale + pc.uTranslate, 0, 1);
+}
+)#";
+
+inline const std::string VK_FRAG = VK_VERSION_HEADER + VK_BUFFERS + R"#(
+#version 450 core
+layout(location = 0) out vec4 fColor;
+layout(set=0, binding=0) uniform sampler2D sTexture;
+layout(location = 0) in struct { vec4 Color; vec2 UV; } In;
+void main()
+{
+    fColor = In.Color * texture(sTexture, In.UV.st);
+}
+)#";
+
 inline const std::string VK_QUADVERT = VK_VERSION_HEADER + VK_BUFFERS + R"#(
 layout (std430, set = 0, binding = 0) readonly buffer objectBuf {
     Quad quads[];
@@ -39,6 +68,7 @@ layout (std430, set = 0, binding = 0) readonly buffer objectBuf {
 
 layout (location = 0) out vec2 uv;
 layout (location = 1) out vec2 pos;
+layout (location = 2) out vec4 col;
 
 const ivec2 quad[6] = ivec2[6](
     ivec2(0, 0),
@@ -57,6 +87,8 @@ layout( push_constant ) uniform constants
     int texID;
     int atlasWidth;
     int atlasHeight;
+    float pxRange;
+    int fontPx;
 } pushConstants;
 
 void main() {
@@ -72,6 +104,8 @@ void main() {
     pos = quad[gl_VertexIndex] * size + rect.xy / round(vec2(screenSz.x/2.0, screenSz.y/2.0));
     pos.y *= -1;
 
+    col = quads[pushConstants.index + gl_InstanceIndex].colour;
+
     gl_Position = vec4(pos, 0.0, 1.0);
 }
 )#";
@@ -84,8 +118,9 @@ layout (location = 0) out vec4 frag;
 
 layout (location = 0) in vec2 uv;
 layout (location = 1) in vec2 pos;
+layout (location = 2) in vec4 col;
 
-layout (set = 3, binding = 0) uniform sampler2D samplers[];
+layout (set = 2, binding = 0) uniform sampler2D samplers[];
 
 layout( push_constant ) uniform constants
 {	
@@ -107,7 +142,7 @@ bool contains(vec4 box, vec2 p)
 }
 
 void main() {
-    frag = texture(samplers[nonuniformEXT(pushConstants.texID)], uv);
+    frag = texture(samplers[nonuniformEXT(pushConstants.texID)], uv) * col;
     if (!contains(pushConstants.bounds, pos) || frag.a < 0.1)
         frag.a = 0.0;
 }
@@ -132,10 +167,6 @@ const ivec2 quad[6] = ivec2[6](
     ivec2(1, 0)
 ); 
 
-layout (set = 2, binding = 0) uniform ScreenPxRange {
-    float pxRange;
-};
-
 layout( push_constant ) uniform constants
 {	
     vec4 bounds;
@@ -143,10 +174,11 @@ layout( push_constant ) uniform constants
     int texID;
     int atlasWidth;
     int atlasHeight;
+    float pxRange;
+    int fontPx;
 } pushConstants;
 
 void main() {
-    const int FONT_PX = 100;
     vec4 rect = text[pushConstants.index + gl_InstanceIndex].rect;
     colour = text[pushConstants.index + gl_InstanceIndex].colour;
     vec4 texBounds = text[pushConstants.index + gl_InstanceIndex].texBounds;
@@ -163,7 +195,7 @@ void main() {
     pos = quad[gl_VertexIndex] * size + rect.xy / round(vec2(screenSz.x/2.0, screenSz.y/2.0));
     pos.y *= -1;
 
-    screenPxRange = max(text[pushConstants.index + gl_InstanceIndex].size / FONT_PX * pxRange, 1);
+    screenPxRange = max(text[pushConstants.index + gl_InstanceIndex].size / pushConstants.fontPx * pushConstants.pxRange, 1);
 
     gl_Position = vec4(pos, 0.0, 1.0);
 }
@@ -180,7 +212,7 @@ layout (location = 1) in vec2 pos;
 layout (location = 2) flat in vec4 colour;
 layout (location = 3) flat in float screenPxRange;
 
-layout (set = 3, binding = 0) uniform sampler2D samplers[];
+layout (set = 2, binding = 0) uniform sampler2D samplers[];
 
 layout( push_constant ) uniform constants
 {	
@@ -189,6 +221,8 @@ layout( push_constant ) uniform constants
     int texID;
     int atlasWidth;
     int atlasHeight;
+    float pxRange;
+    int fontPx;
 } pushConstants;
 
 float median(float r, float g, float b) {

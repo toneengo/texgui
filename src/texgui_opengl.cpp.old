@@ -231,7 +231,6 @@ void TexGui::createShader(Shader* shader, const std::string& vertexShader, const
     glDeleteShader(fsh);
 }
 
-extern void _setRenderCtx(NoApiContext* ptr);
 GLContext* ctx;
 bool TexGui::initOpenGL()
 {

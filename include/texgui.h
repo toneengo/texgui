@@ -12,6 +12,7 @@
 #include <cstring>
 #include <string>
 #include <cstdint>
+#include <cassert>
 #include <unordered_map>
 #include <vector>
 #include <span>
@@ -29,6 +30,7 @@ inline bool CapturingMouse = false;
 class RenderData;
 
 struct Texture;
+struct Font;
 struct TextSegment;
 struct Paragraph
 {
@@ -151,6 +153,48 @@ struct TextDecl
 };
     
 using CharacterFilter = bool(*)(unsigned int c);
+// very basic shared ptr that is good enough for  what we do
+/*
+template<typename T>
+class TexGuiSharedPtr
+{
+public:
+    TexGuiSharedPtr(uint32_t count)
+    {
+        ptr = new T[count];
+        refcount = new uint32_t(1);
+    }
+
+    TexGuiSharedPtr(const TexGuiSharedPtr& other)
+    {
+        ptr = other.ptr;
+        refcount = other.refcount;
+        *refcount++;
+    }
+
+    void operator=(const TexGuiSharedPtr& other)
+    {
+        ptr = other.ptr;
+        refcount = other.refcount;
+        *refcount++;
+    }
+
+    ~TexGuiSharedPtr()
+    {
+        *refcount--;
+        if (refcount == 0)
+        {
+            delete [] ptr;
+            delete refcount;
+        }
+    }
+    T * const get() { return ptr; }
+        
+private:
+    T* ptr;
+    uint32_t* refcount;
+};
+*/
 
 class Container
 {
@@ -159,7 +203,8 @@ class Container
 
 public:
     using ArrangeFunc = Math::fbox(*)(Container* parent, Math::fbox in);
-        
+
+    //#TODO: these should be private
     RenderData* renderData;
     uint32_t parentState = STATE_ALL;
     Math::fbox bounds;
@@ -174,7 +219,6 @@ public:
     Container Slider(const char* name, Texture* texture = nullptr, Texture* bartex = nullptr);
     void      Image(Texture* texture, int scale = Defaults::PixelSize);
 
-    void      TextInput(const char* name, std::string& buf, CharacterFilter filter = nullptr);
     void      TextInput(const char* name, char* buf, uint32_t bufsize, CharacterFilter filter = nullptr);
     void      Text(Paragraph text, int32_t scale = 0, TextDecl parameters = {});
     void      Text(const char* text, int32_t scale = 0, TextDecl parameters = {});
@@ -182,6 +226,7 @@ public:
     Container Align(uint32_t flags = 0, Math::fvec4 padding = Math::fvec4(0,0,0,0));
 
     void      Divider(float padding = 0);
+    void      Line(float x1, float y1, float x2, float y2, Math::fvec4 color, float lineWidth);
 
     // Similar to radio buttons - the id of the selected one is stored in the *selected pointer.
     // If you don't want them to be clickable - set selected to nullptr, and 0 or 1 for whether it is active in id
@@ -191,7 +236,21 @@ public:
     Container Grid();
     // Arranges children in a vertical stack.
     Container Stack(float padding = -1);
-        
+
+    //for widgets that have multiple child containers
+    /*
+    class ContainerArray 
+    {
+    private:
+        TexGuiSharedPtr<Container> data;
+        int size = 0;
+    public:
+        ContainerArray(uint32_t _size) : data(_size), size(_size) {}
+        Container& operator[](uint32_t idx) { assert(idx < size); return data.get()[idx]; }
+    };
+    ContainerArray Row(std::initializer_list<float> widths, float height = 0, uint32_t flags = 0);
+    */
+   
     void Row(Container* out, const float* widths, uint32_t n, float height, uint32_t flags = 0);
     template <uint32_t N>
     std::array<Container, N> Row(const float (&widths)[N], float height = 0, uint32_t flags = 0)
@@ -276,7 +335,7 @@ RenderData* newRenderData();
 
 //"official" one
 const RenderData& getRenderData();
-void loadFont(const char* font);
+uint32_t loadFont(const char* font, int baseFontSize, float msdfPxRange = 2);
 void loadTextures(const char* dir);
 IconSheet loadIcons(const char* dir, int32_t iconWidth, int32_t iconHeight);
 void clear();
@@ -286,11 +345,9 @@ struct Texture;
 // Get a specific texture that was read by loadTextures
 Texture* texByName(const char* name);
 // Prepare a reference to a texture already present in an OpenGL 2D texture object.
-Texture* customTexture(unsigned int glTexID, Math::ibox pixelBounds);
-// Prepare a reference to a texture already present in a Vulkan image.
-Texture* customTexture(VkImageView imageView, VkSampler sampler, Math::ibox pixelBounds);
+//Texture* customTexture(unsigned int glTexID, Math::ibox pixelBounds);
 
-Math::ivec2 getTexSize(Texture* tex);
+Math::ivec2 getTextureSize(Texture* tex);
 
 std::vector<TextSegment> cacheText(TextDecl text);
 // Caches text into a buffer. Returns -1 on failure (if there's not enough buffer space), or the amount otherwise
@@ -369,8 +426,8 @@ public:
 
     Container drawTooltip(Math::fvec2 size);
 
-    void drawQuad(const Math::fbox& rect, const Math::fvec4& col, int32_t zLayer = 0);
-    void drawTexture(Math::fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, const Math::fbox& bounds, int32_t zLayer = 0);
+    void drawQuad(Math::fbox rect, const Math::fvec4& col);
+    void drawTexture(Math::fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, const Math::fbox& bounds);
     //returns Character array
     std::span<Object> drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len = -1);
     //void scissor(int x, int y, int width, int height);
@@ -401,24 +458,32 @@ public:
     {
         enum {
             QUAD,
+            TEXTURE,
             CHARACTER,
         } type;
 
         uint32_t number;
-        uint32_t flags = 0;
-        Texture * texture;
-        Math::fbox scissorBox;
-        int state = 0;
+        Math::fbox scissor = {0, 0, 65535, 65535};
+        union {
+            struct {
+                Texture * texture;
+                int state = 0;
+            } texture;
+            struct {
+            } quad;
+            struct {
+                Font * font;
+            } character;
+        };
     };
 
-    private:
     // Renderable objects
     std::vector<Object> objects;
     std::vector<Command> commands;
 };
 
 Math::fvec2 calculateTextBounds(Paragraph text, int32_t scale, float maxWidth);
-Math::fvec2 calculateTextBounds(const char* text, float maxWidth, int32_t scale = Defaults::Font::Size);
+Math::fvec2 calculateTextBounds(const char* text, float maxWidth, int32_t scale = Defaults::Text::Size);
 
 //This is copied from Dear ImGui. Thank you Ocornut
 enum TexGuiKey : int

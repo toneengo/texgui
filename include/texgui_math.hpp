@@ -244,6 +244,21 @@ struct vec4
     //#TODO: other initialisers. likely dont need them though. need to finish vec3 first
 };
 
+template <typename T>
+struct mat4
+{
+    T data[16];
+    // 0 1 2 3
+    // 4 5 6 7 ...
+
+    T* operator[](int idx)
+    {
+        //returns pointer which is array of size 4
+        return &data[idx * 4];
+    }
+};
+
+typedef mat4<float> fmat4;
 typedef vec4<bool> bvec4;
 
 typedef vec4<float> fvec4;

@@ -1,29 +1,22 @@
 #include "texgui.h"
-#include "context.hpp"
-#include "input.hpp"
-#include "types.h"
+#include "texgui_types.hpp"
 #include <cassert>
 #include <cstring>
 #include <cmath>
 #include <mutex>
 #include <list>
-#include <queue>
 #include <filesystem>
 #include <vulkan/vulkan_core.h>
 #include "stb_image.h"
 #include "msdf-atlas-gen/msdf-atlas-gen.h"
 #include "texgui_internal.hpp"
+#include "msdf-atlas-gen/GlyphGeometry.h"
 
 using namespace TexGui;
 
 void TexGui::init()
 {
     GTexGui = new TexGuiContext();
-}
-
-void _setRenderCtx(NoApiContext* ptr)
-{
-    GTexGui->renderCtx = ptr;
 }
 
 TexGui::Math::ivec2 _getScreenSize()
@@ -33,7 +26,7 @@ TexGui::Math::ivec2 _getScreenSize()
 
 void TexGui::newFrame()
 {
-    GTexGui->renderCtx->newFrame();
+    GTexGui->rendererFns.newFrame();
 }
 
 RenderData* TexGui::newRenderData()
@@ -46,112 +39,117 @@ RenderData* TexGui::newRenderData()
 #endif
 
 using namespace msdf_atlas;
-std::vector<GlyphGeometry> glyphs;
-std::unordered_map<uint32_t, uint32_t> m_char_map;
-void TexGui::loadFont(const char* font_path)
+
+uint32_t TexGui::loadFont(const char* font_path, int baseFontSize, float msdfPxRange)
 {
+    std::string fontName = font_path;
+    fontName.erase(0, fontName.find_last_of('/') + 1);
+    fontName.erase(fontName.begin() + fontName.find_last_of('.'), fontName.end());
+    printf("FONT NAME: %s\n", fontName.c_str());
+
     Texture output;
     int width = 0, height = 0;
     bool success = false;
-    font_px = 100.f;
     // Initialize instance of FreeType library
-    if (msdfgen::FreetypeHandle *ft = msdfgen::initializeFreetype()) {
-        // Load font file
-        if (msdfgen::FontHandle *font = msdfgen::loadFont(ft, font_path)) {
-            // Storage for glyph geometry and their coordinates in the atlas
-            // FontGeometry is a helper class that loads a set of glyphs from a single font.
-            // It can also be used to get additional font metrics, kerning information, etc.
-            FontGeometry fontGeometry(&glyphs);
-            // Load a set of character glyphs:
-            // The second argument can be ignored unless you mix different font sizes in one atlas.
-            // In the last argument, you can specify a charset other than ASCII.
-            // To load specific glyph indices, use loadGlyphs instead.
-            fontGeometry.loadCharset(font, 1.0, Charset::ASCII);
 
-            // Apply MSDF edge coloring. See edge-coloring.h for other coloring strategies.
-            const double maxCornerAngle = M_PI / 4.0;
-            for (GlyphGeometry &glyph : glyphs)
-                glyph.edgeColoring(&msdfgen::edgeColoringSimple, maxCornerAngle, 0);
-            // TightAtlasPacker class computes the layout of the atlas.
-            TightAtlasPacker packer;
-            // Set atlas parameters:
-            // setDimensions or setDimensionsConstraint to find the best value
-            packer.setDimensionsConstraint(DimensionsConstraint::SQUARE);
-            // setScale for a fixed size or setMinimumScale to use the largest that fits
-            packer.setScale(font_px);
-            // setPixelRange or setUnitRange
-            packer.setPixelRange(TexGui::Defaults::Font::MsdfPxRange);
-            packer.setMiterLimit(4.0);
-            // Compute atlas layout - pack glyphs
-            packer.pack(glyphs.data(), glyphs.size());
-            // Get final atlas dimensions
-            packer.getDimensions(width, height);
-            // The ImmediateAtlasGenerator class facilitates the generation of the atlas bitmap.
-            ImmediateAtlasGenerator<
-                float, // pixel type of buffer for individual glyphs depends on generator function
-                3, // number of atlas color channels
-                msdfGenerator, // function to generate bitmaps for individual glyphs
-                BitmapAtlasStorage<byte, 3> // class that stores the atlas bitmap
-                // For example, a custom atlas storage class that stores it in VRAM can be used.
-            > generator(width, height);
-            // GeneratorAttributes can be modified to change the generator's default settings.
-            GeneratorAttributes attributes;
-            generator.setAttributes(attributes);
-            generator.setThreadCount(4);
-            // Generate atlas bitmap
-            generator.generate(glyphs.data(), glyphs.size());
-            // The atlas bitmap can now be retrieved via atlasStorage as a BitmapConstRef.
-            // The glyphs array (or fontGeometry) contains positioning data for typesetting text.
-            msdfgen::BitmapConstRef<byte, 3> ref = generator.atlasStorage();
+    std::vector<GlyphGeometry>& glyphs = GTexGui->fonts[fontName].glyphs;
 
-            unsigned char* rgba = new unsigned char[width * height * 4];
-            for (int r = 0; r < height; r++)
-            {
-                for (int c = 0; c < width; c++)
-                {
-                    int index = (r * width) + c;
-                    rgba[index * 4] = *((unsigned char*)(ref.pixels) + (index * 3));
-                    rgba[index * 4 + 1] = *((unsigned char*)(ref.pixels) + (index * 3 + 1));
-                    rgba[index * 4 + 2] = *((unsigned char*)(ref.pixels) + (index * 3 + 2));
-                    rgba[index * 4 + 3] = 255;
-                }
-            }
-            uint32_t texID = GTexGui->renderCtx->createTexture((void*)rgba, width, height);
-            GTexGui->renderCtx->setPxRange(TexGui::Defaults::Font::MsdfPxRange);
-            GTexGui->renderCtx->setFontAtlas(texID, width, height);
+    msdfgen::FreetypeHandle *ft = msdfgen::initializeFreetype();
+    assert(ft);
 
-            delete []rgba;
+    msdfgen::FontHandle *font = msdfgen::loadFont(ft, font_path);
+    assert(font);
 
-            // Cleanup
-            msdfgen::destroyFont(font);
+    // Copied from msdf-gen-atlas example
+
+    // Storage for glyph geometry and their coordinates in the atlas
+    // FontGeometry is a helper class that loads a set of glyphs from a single font.
+    // It can also be used to get additional font metrics, kerning information, etc.
+    FontGeometry fontGeometry(&glyphs);
+    // Load a set of character glyphs:
+    // The second argument can be ignored unless you mix different font sizes in one atlas.
+    // In the last argument, you can specify a charset other than ASCII.
+    // To load specific glyph indices, use loadGlyphs instead.
+    fontGeometry.loadCharset(font, 1.0, Charset::ASCII);
+
+    // Apply MSDF edge coloring. See edge-coloring.h for other coloring strategies.
+    const double maxCornerAngle = M_PI / 4.0;
+    for (GlyphGeometry &glyph : glyphs)
+        glyph.edgeColoring(&msdfgen::edgeColoringSimple, maxCornerAngle, 0);
+    // TightAtlasPacker class computes the layout of the atlas.
+    TightAtlasPacker packer;
+    // Set atlas parameters:
+    // setDimensions or setDimensionsConstraint to find the best value
+    packer.setDimensionsConstraint(DimensionsConstraint::SQUARE);
+    // setScale for a fixed size or setMinimumScale to use the largest that fits
+    packer.setScale(baseFontSize);
+    // setPixelRange or setUnitRange
+    packer.setPixelRange(msdfPxRange);
+    packer.setMiterLimit(4.0);
+    // Compute atlas layout - pack glyphs
+    packer.pack(glyphs.data(), glyphs.size());
+    // Get final atlas dimensions
+    packer.getDimensions(width, height);
+    // The ImmediateAtlasGenerator class facilitates the generation of the atlas bitmap.
+    ImmediateAtlasGenerator<
+        float, // pixel type of buffer for individual glyphs depends on generator function
+        3, // number of atlas color channels
+        msdfGenerator, // function to generate bitmaps for individual glyphs
+        BitmapAtlasStorage<byte, 3> // class that stores the atlas bitmap
+        // For example, a custom atlas storage class that stores it in VRAM can be used.
+    > generator(width, height);
+    // GeneratorAttributes can be modified to change the generator's default settings.
+    GeneratorAttributes attributes;
+    generator.setAttributes(attributes);
+    generator.setThreadCount(4);
+    // Generate atlas bitmap
+    generator.generate(glyphs.data(), glyphs.size());
+    // The atlas bitmap can now be retrieved via atlasStorage as a BitmapConstRef.
+    // The glyphs array (or fontGeometry) contains positioning data for typesetting text.
+    msdfgen::BitmapConstRef<byte, 3> ref = generator.atlasStorage();
+
+    // Transform into RGBA
+    unsigned char* rgba = new unsigned char[width * height * 4];
+    for (int r = 0; r < height; r++)
+    {
+        for (int c = 0; c < width; c++)
+        {
+            int index = (r * width) + c;
+            rgba[index * 4] = *((unsigned char*)(ref.pixels) + (index * 3));
+            rgba[index * 4 + 1] = *((unsigned char*)(ref.pixels) + (index * 3 + 1));
+            rgba[index * 4 + 2] = *((unsigned char*)(ref.pixels) + (index * 3 + 2));
+            rgba[index * 4 + 3] = 255;
         }
-        msdfgen::deinitializeFreetype(ft);
     }
 
-    int i = 0;
-    for (auto& glyph : glyphs)
+    GTexGui->fonts[fontName].textureIndex = GTexGui->rendererFns.createTexture((void*)rgba, width, height);
+    GTexGui->fonts[fontName].msdfPxRange = msdfPxRange;
+    GTexGui->fonts[fontName].baseFontSize = baseFontSize;
+    GTexGui->fonts[fontName].atlasWidth = width;
+    GTexGui->fonts[fontName].atlasHeight = height;
+
+    delete [] rgba;
+
+    // Cleanup
+    msdfgen::destroyFont(font);
+    msdfgen::deinitializeFreetype(ft);
+
+    for (const auto& glyph : glyphs)
     {
-        m_char_map[glyph.getCodepoint()] = i;
-        i++;
+        GTexGui->fonts[fontName].codepointToGlyph[glyph.getCodepoint()] = &glyph;
     }
 }
 
-std::unordered_map<std::string, TexGui::Texture> m_tex_map;
 void TexGui::loadTextures(const char* dir)
 {
-    auto ctx = GTexGui->renderCtx;
     std::vector<std::filesystem::directory_entry> files;
     for (const auto& f : std::filesystem::recursive_directory_iterator(dir))
-    {
         files.push_back(f);
-    }
 
     for (auto& f : files)
     {
         if (!f.is_regular_file())
-        {
             continue;
-        }
 
         std::string pstr = f.path().string();
         std::string fstr = f.path().filename().string();
@@ -171,9 +169,9 @@ void TexGui::loadTextures(const char* dir)
             continue;
         }
         
-        if (m_tex_map.contains(fstr))
+        if (GTexGui->textures.contains(fstr))
         {
-            if (m_tex_map[fstr].bounds.w != width || m_tex_map[fstr].bounds.h != height)
+            if (GTexGui->textures[fstr].bounds.w != width || GTexGui->textures[fstr].bounds.h != height)
             {
                 printf("Texture variant dimension mismatch: %s", pstr.c_str());
                 continue;
@@ -181,7 +179,7 @@ void TexGui::loadTextures(const char* dir)
         }
         else
         {
-            Texture& t = m_tex_map[fstr];
+            Texture& t = GTexGui->textures[fstr];
             t.bounds.x = 0; 
             t.bounds.y = height; 
             t.bounds.w = width; 
@@ -197,22 +195,16 @@ void TexGui::loadTextures(const char* dir)
 
         }
 
-        Texture& t = m_tex_map[fstr];
+        Texture& t = GTexGui->textures[fstr];
 
         if (pstr.ends_with(".hover.png"))
-        {
-            t.hover = ctx->createTexture(pixels, width, height);
-        }
+            t.hover = GTexGui->rendererFns.createTexture(pixels, width, height);
         else if (pstr.ends_with(".press.png"))
-        {
-            t.press = ctx->createTexture(pixels, width, height);
-        }
+            t.press = GTexGui->rendererFns.createTexture(pixels, width, height);
         else if (pstr.ends_with(".active.png"))
-        {
-            t.active = ctx->createTexture(pixels, width, height);
-        }
+            t.active = GTexGui->rendererFns.createTexture(pixels, width, height);
         else
-            t.id = ctx->createTexture(pixels, width, height);
+            t.id = GTexGui->rendererFns.createTexture(pixels, width, height);
 
         stbi_image_free(pixels);
     }
@@ -226,13 +218,11 @@ IconSheet TexGui::loadIcons(const char* dir, int32_t iconWidth, int32_t iconHeig
     unsigned char* pixels = stbi_load(dir, &width, &height, &channels, 4);
     assert(pixels != nullptr);
     
-    uint32_t texID = GTexGui->renderCtx->createTexture(pixels, width, height);
+    uint32_t texID = GTexGui->rendererFns.createTexture(pixels, width, height);
     stbi_image_free(pixels);
 
     return { texID, iconWidth, iconHeight, width, height };
 }
-
-extern std::unordered_map<std::string, TexGui::Texture> m_tex_map;
 
 // We just need pointer stability, we aren't gonna be iterating it so using list :P
 // This is a heap alloc per entry which is a bit of a pain so should change since we barely use heap at all otherwise #TODO
@@ -240,19 +230,21 @@ static std::list<Texture> m_custom_texs;
 
 Texture* TexGui::texByName(const char* name)
 {
-    if (!m_tex_map.contains(name)) return nullptr;
-    return &m_tex_map[name];
+    if (!GTexGui->textures.contains(name)) return nullptr;
+    return &GTexGui->textures[name];
 }
 
+/*
 Texture* TexGui::customTexture(unsigned int texID, Math::ibox pixelBounds)
 {
     float xth = pixelBounds.w / 3.f;
     float yth = pixelBounds.h / 3.f;
-    auto size = GTexGui->renderCtx->getTextureSize(texID);
+    auto size = GTexGui->rendererFns.getTextureSize(texID);
     return &m_custom_texs.emplace_back(texID, pixelBounds, size, yth, xth, yth, xth);
 }
+*/
 
-TexGui::Math::ivec2 TexGui::getTexSize(Texture* tex)
+TexGui::Math::ivec2 TexGui::getTextureSize(Texture* tex)
 {
     return tex->bounds.wh;
 }
@@ -393,7 +385,6 @@ fbox AlignBox(fbox bounds, fbox child, uint32_t f)
 }
 
 #define _PX Defaults::PixelSize
-extern std::unordered_map<std::string, Texture> m_tex_map;
 Container Container::Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags, Texture* texture)
 {
     auto& io = inputFrame;
@@ -409,7 +400,7 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
         }});
     }
 
-    static Texture* wintex = &m_tex_map[Defaults::Window::Texture];
+    static Texture* wintex = &GTexGui->textures[Defaults::Window::Texture];
     if (!texture) texture = wintex;
     WindowState& wstate = GTexGui->windows[name];
 
@@ -490,7 +481,7 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
 
     if (!(flags & HIDE_TITLE)) 
         child.renderData->drawText(name, {wstate.box.x + padding.left, wstate.box.y + texture->top * _PX / 2},
-                 Defaults::Font::Color, Defaults::Font::Size, CENTER_Y);
+                 Defaults::Text::Color, Defaults::Text::Size, CENTER_Y);
 
 
     return child;
@@ -510,7 +501,7 @@ bool Container::Button(const char* text, Texture* texture, Container* out)
         setBit(state, STATE_ACTIVE, 0);
     if (!(parentState & STATE_HOVER))
         setBit(state, STATE_HOVER, 0);
-    static Texture* defaultTex = &m_tex_map[Defaults::Button::Texture];
+    static Texture* defaultTex = &GTexGui->textures[Defaults::Button::Texture];
     auto* tex = texture ? texture : defaultTex;
 
     renderData->drawTexture(bounds, tex, state, _PX, SLICE_9, scissorBox);
@@ -525,7 +516,7 @@ bool Container::Button(const char* text, Texture* texture, Container* out)
     else
     {
         innerBounds.pos += bounds.size / 2;
-        renderData->drawText(text, innerBounds, Defaults::Font::Color, Defaults::Font::Size, CENTER_X | CENTER_Y);
+        renderData->drawText(text, innerBounds, Defaults::Text::Color, Defaults::Text::Size, CENTER_X | CENTER_Y);
     }
 
     auto& io = inputFrame;
@@ -555,7 +546,7 @@ Container Container::Box(float xpos, float ypos, float width, float height, Text
 
 void Container::CheckBox(bool* val)
 {
-    static Texture* texture = &m_tex_map[Defaults::CheckBox::Texture];
+    static Texture* texture = &GTexGui->textures[Defaults::CheckBox::Texture];
 
     auto& io = inputFrame;
     if (io.lmb == KEY_Release && bounds.contains(io.cursorPos) && parentState & STATE_HOVER) *val = !*val;
@@ -566,7 +557,7 @@ void Container::CheckBox(bool* val)
 
 void Container::RadioButton(uint32_t* selected, uint32_t id)
 {
-    static Texture* texture = &m_tex_map[Defaults::RadioButton::Texture];
+    static Texture* texture = &GTexGui->textures[Defaults::RadioButton::Texture];
 
     auto& io = inputFrame;
     if (io.lmb == KEY_Release && bounds.contains(io.cursorPos) && parentState & STATE_HOVER) *selected = id;
@@ -574,6 +565,11 @@ void Container::RadioButton(uint32_t* selected, uint32_t id)
     if (texture == nullptr) return;
     renderData->drawTexture(bounds, texture, *selected == id ? STATE_ACTIVE : 0, 2, SLICE_9, scissorBox);
 
+}
+
+void Container::Line(float x1, float y1, float x2, float y2, Math::fvec4 color, float lineWidth)
+{
+    return;
 }
 
 Container Container::ScrollPanel(const char* name, Texture* texture, Texture* bartex)
@@ -690,7 +686,7 @@ Container Container::ListItem(uint32_t* selected, uint32_t id, Texture* texture)
         return fbox::pad(bounds, Defaults::ListItem::Padding);
     };
     // Add padding to the contents of the list item
-    static Texture* tex = &m_tex_map[Defaults::ListItem::Texture];
+    static Texture* tex = &GTexGui->textures[Defaults::ListItem::Texture];
     Container listItem = withBounds(fbox::pad(bounds, Defaults::ListItem::Padding), arrange);
     listItem.texture = !texture ? tex : texture;
     listItem.listItem = { selected, id };
@@ -755,7 +751,7 @@ void Container::Divider(float padding)
     fbox line = {
         ln.x, ln.y + padding, ln.width, width,
     };
-    renderData->drawQuad(line, fvec4(1,1,1,0.5), 1);
+    renderData->drawQuad(line, fvec4(1,1,1,0.5));
 }
 
 Container Container::Stack(float padding)
@@ -801,13 +797,13 @@ static bool textInputUpdate(TextInputState& tstate, char** c, CharacterFilter fi
 
 void renderTextInput(RenderData* renderData, const char* name, fbox bounds, fbox scissor, TextInputState& tstate, const char* text, int32_t len)
 {
-    static Texture* inputtex = &m_tex_map[Defaults::TextInput::Texture];
-    static Texture* textcursor = &m_tex_map[Defaults::TextInput::TextCursor];
+    static Texture* inputtex = &GTexGui->textures[Defaults::TextInput::Texture];
+    static Texture* textcursor = &GTexGui->textures[Defaults::TextInput::TextCursor];
 
     renderData->drawTexture(bounds, inputtex, tstate.state, _PX, SLICE_9, scissor);
     float offsetx = 0;
     fvec4 padding = Defaults::TextInput::Padding;
-    fvec4 color = Defaults::Font::Color;
+    fvec4 color = Defaults::Text::Color;
 
     float startx = bounds.x + offsetx + padding.left;
     float starty = bounds.y + bounds.height / 2;
@@ -815,12 +811,12 @@ void renderTextInput(RenderData* renderData, const char* name, fbox bounds, fbox
     int cursor_pos = tstate.cursor_pos;
 
     //#TODO: size
-    int size = Defaults::Font::Size;
+    int size = Defaults::Text::Size;
     auto characters = renderData->drawText(
         !getBit(tstate.state, STATE_ACTIVE) && len == 0
         ? name : text,
         {startx, starty},
-        Defaults::Font::Color,
+        Defaults::Text::Color,
         size,
         CENTER_Y
     );
@@ -834,50 +830,16 @@ void renderTextInput(RenderData* renderData, const char* name, fbox bounds, fbox
     if (cursor_pos == 0)
     {
         textCursorQuad.x = startx - textcursor->bounds.width;
-        textCursorQuad.y = starty - Defaults::Font::Size / 2.f;
+        textCursorQuad.y = starty - Defaults::Text::Size / 2.f;
     }
     else
     {
         auto lastChar = characters[cursor_pos - 1].ch.rect;
         textCursorQuad.x = lastChar.x - textcursor->bounds.width + lastChar.width;
         //#TODO starty is wrong if we do multiline textinputs
-        textCursorQuad.y = starty - Defaults::Font::Size / 2.f;
+        textCursorQuad.y = starty - Defaults::Text::Size / 2.f;
     }
     renderData->drawTexture(textCursorQuad, textcursor, tstate.state, _PX, SLICE_9, bounds);
-}
-
-void Container::TextInput(const char* name, std::string& buf, CharacterFilter filter)
-{
-    return;
-    /*
-    if (!GTexGui->textInputs.contains(name))
-    {
-        GTexGui->textInputs.insert({name, {}});
-    }
-    
-    auto& tstate = GTexGui->textInputs[name];
-    etBoxState(tstate.state, bounds);
-
-    //#TODO: variable cursor pos
-    tstate.cursor_pos = buf.size();
-
-    if (tstate.state & STATE_ACTIVE)
-        TexGui_editingText = true;
-    
-    char* textsrc = "\0";
-    if (textInputUpdate(tstate, &textsrc, filter))
-    {
-        if (buf.size() > 0)
-        {
-            buf.pop_back();
-            tstate.cursor_pos--;
-        }
-    }
-    buf += textsrc;
-    tstate.cursor_pos += strlen(textsrc);
-    
-    renderTextInput(renderData, name, bounds, scissorBox, tstate, buf.c_str(), buf.size(), tstate.cursor_pos);
-    */
 }
 
 void Container::TextInput(const char* name, char* buf, uint32_t bufsize, CharacterFilter filter)
@@ -1042,16 +1004,16 @@ fvec2 TexGui::calculateTextBounds(Paragraph text, int32_t scale, float maxWidth)
 
 #define TTUL Defaults::Tooltip::UnderlineSize
 
-static bool writeText(Paragraph text, int32_t scale, TexGui::Math::fbox bounds, float& x, float& y, RenderData* renderData, bool checkHover = false, int32_t zLayer = 0, uint32_t flags = 0, TextDecl parameters = {});
+static bool writeText(Paragraph text, int32_t scale, TexGui::Math::fbox bounds, float& x, float& y, RenderData* renderData, bool checkHover = false, uint32_t flags = 0, TextDecl parameters = {});
 
-inline static void drawChunk(TextSegment s, RenderData* renderData, TexGui::Math::fbox bounds, float& x, float& y, int32_t scale, uint32_t flags, int32_t zLayer, bool& hovered, bool checkHover, uint32_t& placeholderIdx, TextDecl parameters)
+inline static void drawChunk(TextSegment s, RenderData* renderData, TexGui::Math::fbox bounds, float& x, float& y, int32_t scale, uint32_t flags, bool& hovered, bool checkHover, uint32_t& placeholderIdx, TextDecl parameters)
     {
-        static const auto underline = [](auto* renderData, float x, float y, float w, int32_t scale, uint32_t flags, int32_t zLayer)
+        static const auto underline = [](auto* renderData, float x, float y, float w, int32_t scale, uint32_t flags)
         {
             if (flags & UNDERLINE)
             {
                 fbox ul = fbox(fvec2(x - TTUL.x, y + scale / 2.0 - 2), fvec2(w + TTUL.x * 2, TTUL.y));
-                renderData->drawQuad(ul, fvec4(1,1,1,0.3), zLayer);
+                renderData->drawQuad(ul, fvec4(1,1,1,0.3));
             }
         };
 
@@ -1066,7 +1028,7 @@ inline static void drawChunk(TextSegment s, RenderData* renderData, TexGui::Math
 
                 fbox bounds = fbox(x, y - scale / 2.0, segwidth, scale);
 
-                underline(renderData, x, y, segwidth, scale, flags, zLayer);
+                underline(renderData, x, y, segwidth, scale, flags);
 
                 renderData->drawText(s.word.data, {x, y}, {1,1,1,1}, scale, CENTER_Y, s.word.len);
 
@@ -1086,10 +1048,10 @@ inline static void drawChunk(TextSegment s, RenderData* renderData, TexGui::Math
 
                 fbox bounds = { x, y - tsize.y / 2, tsize.x, tsize.y };
 
-                underline(renderData, x, y, tsize.x, scale, flags, zLayer);
+                underline(renderData, x, y, tsize.x, scale, flags);
 
                 //#TODO: pass in container here
-                renderData->drawTexture(bounds, icon, 0, _PX, 0, {0,0,8192,8192}, zLayer);
+                renderData->drawTexture(bounds, icon, 0, _PX, 0, {0,0,8192,8192});
 
                 // if (checkHover) renderData->drawQuad(bounds, fvec4(1, 0, 0, 1));
                 hovered |= checkHover && !hovered && fbox::margin(bounds, Defaults::Tooltip::HoverPadding).contains(io.cursorPos);
@@ -1107,7 +1069,7 @@ inline static void drawChunk(TextSegment s, RenderData* renderData, TexGui::Math
                 // Render the base text of the tooltip. Do a coarse bounds check
                 // so we don't check if each word is hovered if we don't need to
                 bool check = bounds.contains(io.cursorPos);
-                bool hoverTT = writeText(s.tooltip.base, scale, bounds, x, y, renderData, check, zLayer, UNDERLINE);
+                bool hoverTT = writeText(s.tooltip.base, scale, bounds, x, y, renderData, check, UNDERLINE);
                 if (hoverTT) renderTooltip(s.tooltip.tooltip, renderData);
             }
             break;
@@ -1115,7 +1077,7 @@ inline static void drawChunk(TextSegment s, RenderData* renderData, TexGui::Math
             {
                 assert(placeholderIdx < parameters.count);
                 bool blah = false;
-                drawChunk(TextSegment::FromChunkFast(parameters.data[placeholderIdx]), renderData, bounds, x, y, scale, flags, zLayer, blah, false, placeholderIdx, {});
+                drawChunk(TextSegment::FromChunkFast(parameters.data[placeholderIdx]), renderData, bounds, x, y, scale, flags, blah, false, placeholderIdx, {});
                 placeholderIdx++;
             }
             break;
@@ -1123,7 +1085,7 @@ inline static void drawChunk(TextSegment s, RenderData* renderData, TexGui::Math
         
     }
 
-static bool writeText(Paragraph text, int32_t scale, TexGui::Math::fbox bounds, float& x, float& y, RenderData* renderData, bool checkHover, int32_t zLayer, uint32_t flags, TextDecl parameters)
+static bool writeText(Paragraph text, int32_t scale, TexGui::Math::fbox bounds, float& x, float& y, RenderData* renderData, bool checkHover, uint32_t flags, TextDecl parameters)
 {
     bool hovered = false;
     // Index into the amount of placeholders we've substituted
@@ -1131,7 +1093,7 @@ static bool writeText(Paragraph text, int32_t scale, TexGui::Math::fbox bounds, 
 
     for (int32_t i = 0; i < text.count; i++) 
     {
-        drawChunk(text.data[i], renderData, bounds, x, y, scale, flags, zLayer, hovered, checkHover, placeholderIdx, parameters);
+        drawChunk(text.data[i], renderData, bounds, x, y, scale, flags, hovered, checkHover, placeholderIdx, parameters);
     }
     return hovered;
 }
@@ -1139,7 +1101,7 @@ static bool writeText(Paragraph text, int32_t scale, TexGui::Math::fbox bounds, 
 Container RenderData::drawTooltip(fvec2 size)
 {
     auto& io = inputFrame;
-    static Texture* tex = &m_tex_map[Defaults::Tooltip::Texture];
+    static Texture* tex = &GTexGui->textures[Defaults::Tooltip::Texture];
     
     fbox bounds = {
         io.cursorPos + Defaults::Tooltip::MouseOffset, 
@@ -1164,7 +1126,7 @@ static void renderTooltip(Paragraph text, RenderData* renderData)
 
 void Container::Text(Paragraph text, int32_t scale, TextDecl parameters)
 {
-    if (scale == 0) scale = Defaults::Font::Size;
+    if (scale == 0) scale = Defaults::Text::Size;
 
     fbox textBounds = {
         { bounds.x, bounds.y },
@@ -1174,12 +1136,12 @@ void Container::Text(Paragraph text, int32_t scale, TextDecl parameters)
     textBounds = Arrange(this, textBounds);
     textBounds.y += + scale / 2.0f;
 
-    writeText(text, scale, bounds, textBounds.x, textBounds.y, renderData, false, 0, 0, parameters);
+    writeText(text, scale, bounds, textBounds.x, textBounds.y, renderData, false, 0, parameters);
 }
 
 void Container::Text(const char* text, int32_t scale, TextDecl parameters)
 {
-    if (scale == 0) scale = Defaults::Font::Size;
+    if (scale == 0) scale = Defaults::Text::Size;
     auto ts = TextSegment::FromChunkFast(TextChunk(text));
     auto p = Paragraph(&ts, 1);
 
@@ -1188,12 +1150,19 @@ void Container::Text(const char* text, int32_t scale, TextDecl parameters)
         calculateTextBounds(p, scale, bounds.width)
     };
 
-    if (scale == 0) scale = Defaults::Font::Size;
+    if (scale == 0) scale = Defaults::Text::Size;
     textBounds = Arrange(this, textBounds);
     textBounds.y += + scale / 2.0f;
 
-    writeText(p, scale, bounds, textBounds.x, textBounds.y, renderData, false, 0, 0, parameters);
+    writeText(p, scale, bounds, textBounds.x, textBounds.y, renderData, false, 0, parameters);
 }
+
+/*
+Container::ContainerArray Container::Row(std::initializer_list<float> widths, float height, uint32_t flags)
+{
+    return {};
+}
+*/
 
 void Container::Row(Container* out, const float* widths, uint32_t n, float height, uint32_t flags)
 {
@@ -1516,13 +1485,12 @@ Texture* IconSheet::getIcon(uint32_t x, uint32_t y)
     return &m_custom_texs.emplace_back(glID, bounds, Math::ivec2{w, h}, 0, 0, 0, 0);
 }
 
-#include "msdf-atlas-gen/msdf-atlas-gen.h"
 float TexGui::computeTextWidth(const char* text, size_t numchars)
 {
     float total = 0;
     for (size_t i = 0; i < numchars; i++)
     {
-        total += glyphs[m_char_map[text[i]]].getAdvance();
+        total += GTexGui->fonts[Defaults::Text::Font].codepointToGlyph[text[i]]->getAdvance();
     }
     return total;
 }
@@ -1535,11 +1503,14 @@ std::span<RenderData::Object> RenderData::drawText(const char* text, Math::fvec2
     size_t numchars = len == -1 ? strlen(text) : len;
     size_t numcopy = numchars;
 
-    const auto& a = glyphs[m_char_map['a']];
+    auto& font = GTexGui->fonts[Defaults::Text::Font];
+    //#TODO: this sucks .what if a is a differnet size in another font
+    const auto& a = font.codepointToGlyph['a'];
+
     if (flags & CENTER_Y)
     {
         double l, b, r, t;
-        a.getQuadPlaneBounds(l, b, r, t);
+        a->getQuadPlaneBounds(l, b, r, t);
         pos.y += (size - (t * size)) / 2;
     }
 
@@ -1554,37 +1525,43 @@ std::span<RenderData::Object> RenderData::drawText(const char* text, Math::fvec2
     //#TODO: unicode
     for (int idx = 0; idx < numchars; idx++)
     {
-        const auto& info = glyphs[m_char_map[text[idx]]];
+        const auto& info = GTexGui->fonts[Defaults::Text::Font].codepointToGlyph[text[idx]];
         int x, y, w, h;
-        info.getBoxRect(x, y, w, h);
+        info->getBoxRect(x, y, w, h);
         double l, b, r, t;
-        info.getQuadPlaneBounds(l, b, r, t);
+        info->getQuadPlaneBounds(l, b, r, t);
 
-        if (info.isWhitespace())
+        if (info->isWhitespace())
         {
-            w = info.getAdvance() * font_px;
+            w = info->getAdvance() * font.baseFontSize;
         }
         objects.emplace_back(
             Character{
                 .rect = fbox(
                     currx + l * size,
                     pos.y - b * size,
-                    w * size / font_px,
-                    h * size / font_px
+                    w * size / float(font.baseFontSize),
+                    h * size / float(font.baseFontSize)
                 ),
                 .texBounds = fbox(x, y, w, h),
                 .colour = col,
                 .size = size
             }
         );
-        currx += info.getAdvance() * size;
+        currx += info->getAdvance() * size;
     }
 
-    commands.push_back({Command::CHARACTER, uint32_t(numchars), flags});
+    commands.emplace_back(Command{
+        .type = Command::CHARACTER,
+        .number = uint32_t(numchars),
+        .character = {
+            .font = &font
+        }
+    });
     return std::span<RenderData::Object>(objects.end() - numchars, numchars);
 }
 
-void RenderData::drawTexture(fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, const fbox& bounds, int32_t zLayer )
+void RenderData::drawTexture(fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, const fbox& bounds)
 {
     if (bounds.width < 1 || bounds.height < 1) return;
 
@@ -1599,68 +1576,101 @@ void RenderData::drawTexture(fbox rect, Texture* e, int state, int pixel_size, u
 
     Quad quad;
     quad.pixelSize = pixel_size;
-    if (flags & SLICE_9)
+    if (!(flags & SLICE_9))
     {
-        for (int y = 0; y < 3; y++)
-        {
-            for (int x = 0; x < 3; x++)
-            {
-                quad.rect = rect;
-                quad.texBounds = e->bounds;
-                if (x == 0)
-                {
-                    quad.rect.width = e->left * pixel_size;
-                    quad.texBounds.width = e->left;
-                }
-                else if (x == 1)
-                {
-                    quad.rect.x += e->left * pixel_size;
-                    quad.rect.width -= (e->left + e->right) * pixel_size;
-                    quad.texBounds.x += e->left;
-                    quad.texBounds.width -= e->left + e->right;
-                }
-                else if (x == 2)
-                {
-                    quad.rect.x += quad.rect.width - e->right * pixel_size;
-                    quad.rect.width = e->right * pixel_size;
-                    quad.texBounds.x += quad.texBounds.width - e->right; 
-                    quad.texBounds.width = e->right;
-                }
-
-                if (y == 0)
-                {
-                    quad.rect.height = e->bottom * pixel_size;
-                    quad.texBounds.height = e->bottom;
-                }
-                else if (y == 1)
-                {
-                    quad.rect.y += e->bottom * pixel_size;
-                    quad.rect.height -= (e->top + e->bottom) * pixel_size;
-                    quad.texBounds.y -= e->bottom;
-                    quad.texBounds.height -= e->top + e->bottom;
-                }
-                else if (y == 2)
-                {
-                    quad.rect.y += quad.rect.height - e->top * pixel_size;
-                    quad.rect.height = e->top * pixel_size;
-                    quad.texBounds.y -= quad.texBounds.height - e->top;
-                    quad.texBounds.height = e->top;
-                }
-                objects.push_back(quad);
+        objects.push_back(Quad{
+            .rect = rect,
+            .texBounds = e->bounds,
+            .pixelSize = pixel_size
+        });
+        commands.emplace_back(Command{
+            .type = Command::TEXTURE,
+            .number = 1,
+            .texture = {
+                .texture = e,
+                .state = state
             }
-        }
-        commands.push_back({Command::QUAD, 9, flags, e, bounds, state});
+        });
         return;
     }
 
-    objects.push_back(Quad{
-        .rect = rect,
-        .texBounds = e->bounds,
-        .pixelSize = pixel_size
+    for (int y = 0; y < 3; y++)
+    {
+        for (int x = 0; x < 3; x++)
+        {
+            quad.rect = rect;
+            quad.texBounds = e->bounds;
+            if (x == 0)
+            {
+                quad.rect.width = e->left * pixel_size;
+                quad.texBounds.width = e->left;
+            }
+            else if (x == 1)
+            {
+                quad.rect.x += e->left * pixel_size;
+                quad.rect.width -= (e->left + e->right) * pixel_size;
+                quad.texBounds.x += e->left;
+                quad.texBounds.width -= e->left + e->right;
+            }
+            else if (x == 2)
+            {
+                quad.rect.x += quad.rect.width - e->right * pixel_size;
+                quad.rect.width = e->right * pixel_size;
+                quad.texBounds.x += quad.texBounds.width - e->right; 
+                quad.texBounds.width = e->right;
+            }
+
+            if (y == 0)
+            {
+                quad.rect.height = e->bottom * pixel_size;
+                quad.texBounds.height = e->bottom;
+            }
+            else if (y == 1)
+            {
+                quad.rect.y += e->bottom * pixel_size;
+                quad.rect.height -= (e->top + e->bottom) * pixel_size;
+                quad.texBounds.y -= e->bottom;
+                quad.texBounds.height -= e->top + e->bottom;
+            }
+            else if (y == 2)
+            {
+                quad.rect.y += quad.rect.height - e->top * pixel_size;
+                quad.rect.height = e->top * pixel_size;
+                quad.texBounds.y -= quad.texBounds.height - e->top;
+                quad.texBounds.height = e->top;
+            }
+            objects.push_back(quad);
+        }
+    }
+
+    commands.emplace_back(Command{
+        .type = Command::TEXTURE,
+        .number = 9,
+        .scissor = bounds,
+        .texture = {
+            .texture = e,
+            .state = state
+        }
     });
-    commands.push_back({Command::QUAD, 1, flags, e, bounds, state});
 }
 
-void RenderData::drawQuad(const Math::fbox& rect, const Math::fvec4& col, int32_t zLayer)
+void RenderData::drawQuad(Math::fbox rect, const Math::fvec4& col)
 {
+    //#TODO: white texture is just 1x1 texture which is wierd
+    //#TODO: pixel size doesnt matter right now
+    Math::ivec2 framebufferSize = GTexGui->framebufferSize;
+    rect.x -= framebufferSize.x / 2.f;
+    rect.y = framebufferSize.y / 2.f - rect.y - rect.height;
+    objects.push_back(Quad{
+        .rect = rect,
+        .texBounds = {0, 0, 1, 1},
+        .pixelSize = 1,
+        .colour = col,
+    });
+
+    commands.emplace_back(Command{
+        .type = Command::QUAD,
+        .number = 1,
+        .quad = {}
+    });
 }

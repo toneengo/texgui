@@ -3,8 +3,7 @@
 #pragma once
 
 #include "texgui.h"
-#include "context.hpp"
-#include "types.h"
+#include "texgui_types.hpp"
 #include <queue>
 #include <mutex>
 #include <unordered_map>
@@ -105,10 +104,22 @@ struct TexGuiContext
     std::atomic<bool> editingText = false;
     float contentScale = 1.f;
     void* backendData = nullptr;
+    struct {
+        uint32_t (*createTexture)(void* data, int width, int height);
+        void (*framebufferSizeCallback)(int width, int height);
+        void (*renderClean)();
+        void (*newFrame)();
+    } rendererFns;
+    void* rendererData = nullptr;
+
     std::unordered_map<std::string, WindowState> windows;
     std::unordered_map<std::string, TextInputState> textInputs;
     std::unordered_map<std::string, ScrollPanelState> scrollPanels;
-    NoApiContext* renderCtx = nullptr;
+
+    //#TODO: separate rasterized and msdf font atlases 
+    std::unordered_map<std::string, TexGui::Font> fonts;
+    std::unordered_map<std::string, TexGui::Texture> textures;
+
     InputData io;
     bool initialised = false;
 };

@@ -1,8 +1,7 @@
 #pragma once
 
 #include "texgui.h"
-#include "context.hpp"
-#include "types.h"
+#include "texgui_types.hpp"
 #include "SDL3/SDL.h"
 
 NAMESPACE_BEGIN(TexGui);

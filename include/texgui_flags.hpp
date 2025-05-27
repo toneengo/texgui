@@ -10,7 +10,6 @@ enum ContainerFlags : uint32_t
     CENTER_Y = 0x04,
     SLICE_9  = 0x08,
     SLICE_3  = 0x10,
-    BLUR     = 0x40,
     WRAPPED  = 0x80,
 
     ALIGN_NONE = 0x100,
@@ -32,6 +31,11 @@ enum ContainerFlags : uint32_t
     FRONT = 0x800000,
 
     FORCED_ORDER = BACK | FRONT
+};
+
+enum RenderFlags : uint32_t
+{
+    COLQUAD = 0x0,
 };
 
 enum ContainerState : uint8_t 
