@@ -226,7 +226,7 @@ public:
     Container Align(uint32_t flags = 0, Math::fvec4 padding = Math::fvec4(0,0,0,0));
 
     void      Divider(float padding = 0);
-    void      Line(float x1, float y1, float x2, float y2, Math::fvec4 color, float lineWidth);
+    void      Line(float x1, float y1, float x2, float y2, Math::fvec4 color, float lineWidth = 1.f);
 
     // Similar to radio buttons - the id of the selected one is stored in the *selected pointer.
     // If you don't want them to be clickable - set selected to nullptr, and 0 or 1 for whether it is active in id
@@ -357,8 +357,6 @@ float computeTextWidth(const char* text, size_t numchars);
 
 class RenderData
 {
-    friend class GLContext;
-    friend class VulkanContext;
 public:
     struct alignas(16) Character
     {
@@ -426,6 +424,7 @@ public:
 
     Container drawTooltip(Math::fvec2 size);
 
+    void addLine(float x1, float y1, float x2, float y2, const Math::fvec4& col, float lineWidth);
     void drawQuad(Math::fbox rect, const Math::fvec4& col);
     void drawTexture(Math::fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, const Math::fbox& bounds);
     //returns Character array
@@ -438,6 +437,8 @@ public:
         objects.clear();
         commands.clear();
         children.clear();
+        vertices.clear();
+        indices.clear();
         ordered = false;
     }
 
@@ -445,6 +446,8 @@ public:
         objects.swap(other.objects);
         commands.swap(other.commands);
         children.swap(other.children);
+        vertices.swap(other.vertices);
+        indices.swap(other.indices);
         std::swap(ordered, other.ordered);
         std::swap(priority, other.priority);
     }
@@ -477,9 +480,24 @@ public:
         };
     };
 
+    struct TexGuiVertex
+    {
+        Math::fvec3 pos;
+        uint32_t textureIndex;
+        Math::fvec2 uv;
+        int padding[2];
+        Math::fvec4 col;
+    };
+
+    struct VCommand
+    {
+    };
     // Renderable objects
     std::vector<Object> objects;
     std::vector<Command> commands;
+    std::vector<VCommand> vcommands;
+    std::vector<TexGuiVertex> vertices;
+    std::vector<uint32_t> indices;
 };
 
 Math::fvec2 calculateTextBounds(Paragraph text, int32_t scale, float maxWidth);

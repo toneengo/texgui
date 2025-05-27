@@ -47,10 +47,9 @@ struct TexGui_ImplVulkan_Data
     //command buffer for immediate commands
     VkCommandPool   immCommandPool;
     VkCommandBuffer immCommandBuffer;
-    VkFence         immCommandFence;
 
-    VkSampler linearSampler;
-    VkSampler nearestSampler;
+    VkSampler       textureSampler;
+    VkFence         immCommandFence;
 
     VmaAllocator allocator;
     bool needResize = true;
@@ -74,7 +73,10 @@ struct TexGui_ImplVulkan_Data
 
     VkPipeline quadPipeline;
     VkPipeline textPipeline;
+    VkPipeline vertPipeline;
     VkPipelineLayout quadPipelineLayout = VK_NULL_HANDLE;
+
+    VkPipelineLayout vertPipelineLayout = VK_NULL_HANDLE;
 
     TexGui_ImplVulkan_Data(const VulkanInitInfo& init_info);
 };
@@ -185,7 +187,7 @@ static uint32_t createTexture(VkImageView imageView, Math::fbox bounds)
 {
     TexGui_ImplVulkan_Data* v = (TexGui_ImplVulkan_Data*)(GTexGui->rendererData);
     VkDescriptorImageInfo imgInfo{
-        .sampler = v->nearestSampler,
+        .sampler = v->textureSampler,
         .imageView = imageView,
         .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
     };
@@ -322,7 +324,7 @@ static uint32_t createTexture_Vulkan(void* data, int width, int height)
     vkWaitForFences(v->device, 1, &v->immCommandFence, true, 9999999999);
 
     VkDescriptorImageInfo imgInfo{
-        .sampler = v->nearestSampler,
+        .sampler = v->textureSampler,
         .imageView = iv,
         .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
     };
@@ -352,29 +354,46 @@ TexGui_ImplVulkan_Data::TexGui_ImplVulkan_Data(const VulkanInitInfo& init_info)
     windowSize = GTexGui->framebufferSize;
     device = init_info.Device;
     physicalDevice = init_info.PhysicalDevice;
-
     instance = init_info.Instance;
     //debugMessenger = info.DebugMessenger;
     graphicsQueue = init_info.Queue;
     graphicsQueueFamily = init_info.QueueFamily;
-
     allocator = init_info.Allocator;
     allocationCallbacks = init_info.allocationCallbacks;
-
     imageCount = init_info.ImageCount;
-
     renderingInfo = init_info.PipelineRenderingCreateInfo;
+    textureSampler = init_info.Sampler;
+}
 
-    //create default samplers
-    VkSamplerCreateInfo sampl = {.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
-    sampl.magFilter           = VK_FILTER_NEAREST;
-    sampl.minFilter           = VK_FILTER_NEAREST;
-    vkCreateSampler(device, &sampl, nullptr, &nearestSampler);
+static void createImmediateCommandBuffers_Vulkan()
+{
+    TexGui_ImplVulkan_Data* v = (TexGui_ImplVulkan_Data*)(GTexGui->rendererData);
+    VkCommandPoolCreateInfo commandPoolInfo = {};
+    commandPoolInfo.sType                   = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    commandPoolInfo.pNext                   = nullptr;
+    commandPoolInfo.flags                   = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    commandPoolInfo.queueFamilyIndex        = v->graphicsQueueFamily;
 
-    sampl.magFilter = VK_FILTER_LINEAR;
-    sampl.minFilter = VK_FILTER_LINEAR;
-    vkCreateSampler(device, &sampl, nullptr, &linearSampler);
+    VkFenceCreateInfo fenceInfo = {};
+    fenceInfo.sType             = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.pNext             = nullptr;
+    fenceInfo.flags             = VK_FENCE_CREATE_SIGNALED_BIT;
 
+    vkCreateFence(v->device, &fenceInfo, nullptr, &v->immCommandFence);
+
+    vkCreateCommandPool(v->device, &commandPoolInfo, nullptr, &v->immCommandPool);
+    VkCommandBufferAllocateInfo cmdAllocInfo = {};
+    cmdAllocInfo.sType                       = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    cmdAllocInfo.pNext                       = nullptr;
+    cmdAllocInfo.commandPool                 = v->immCommandPool;
+    cmdAllocInfo.commandBufferCount          = 1;
+    cmdAllocInfo.level                       = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    vkAllocateCommandBuffers(v->device, &cmdAllocInfo, &v->immCommandBuffer);
+}
+
+static void initializeDescriptors_Vulkan()
+{
+    TexGui_ImplVulkan_Data* v = (TexGui_ImplVulkan_Data*)(GTexGui->rendererData);
     {
         VkDescriptorPoolSize pool_sizes[] = {
             {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 65536},
@@ -388,11 +407,11 @@ TexGui_ImplVulkan_Data::TexGui_ImplVulkan_Data(const VulkanInitInfo& init_info)
         pool_info.poolSizeCount = sizeof(pool_sizes) / sizeof(pool_sizes[0]);
         pool_info.pPoolSizes    = pool_sizes;
 
-        vkCreateDescriptorPool(device, &pool_info, nullptr, &globalDescriptorPool);
+        vkCreateDescriptorPool(v->device, &pool_info, nullptr, &v->globalDescriptorPool);
     }
 
-    frameDescriptorPools.resize(imageCount);
-    for (int i = 0; i < imageCount; i++)
+    v->frameDescriptorPools.resize(v->imageCount);
+    for (int i = 0; i < v->imageCount; i++)
     {
         VkDescriptorPoolSize pool_sizes[] = {
             {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 64},
@@ -411,30 +430,9 @@ TexGui_ImplVulkan_Data::TexGui_ImplVulkan_Data(const VulkanInitInfo& init_info)
         pool_info.poolSizeCount = sizeof(pool_sizes) / sizeof(pool_sizes[0]);
         pool_info.pPoolSizes    = pool_sizes;
 
-        vkCreateDescriptorPool(device, &pool_info, nullptr, &frameDescriptorPools[i]);
+        vkCreateDescriptorPool(v->device, &pool_info, nullptr, &v->frameDescriptorPools[i]);
     }
 
-    VkCommandPoolCreateInfo commandPoolInfo = {};
-    commandPoolInfo.sType                   = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    commandPoolInfo.pNext                   = nullptr;
-    commandPoolInfo.flags                   = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    commandPoolInfo.queueFamilyIndex        = graphicsQueueFamily;
-
-    VkFenceCreateInfo fenceInfo = {};
-    fenceInfo.sType             = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fenceInfo.pNext             = nullptr;
-    fenceInfo.flags             = VK_FENCE_CREATE_SIGNALED_BIT;
-
-    vkCreateFence(device, &fenceInfo, nullptr, &immCommandFence);
-
-    vkCreateCommandPool(device, &commandPoolInfo, nullptr, &immCommandPool);
-    VkCommandBufferAllocateInfo cmdAllocInfo = {};
-    cmdAllocInfo.sType                       = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    cmdAllocInfo.pNext                       = nullptr;
-    cmdAllocInfo.commandPool                 = immCommandPool;
-    cmdAllocInfo.commandBufferCount          = 1;
-    cmdAllocInfo.level                       = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    vkAllocateCommandBuffers(device, &cmdAllocInfo, &immCommandBuffer);
 
     VkDescriptorSetLayoutCreateInfo set_info = {.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
     //all separate descriptor sets
@@ -469,40 +467,23 @@ TexGui_ImplVulkan_Data::TexGui_ImplVulkan_Data(const VulkanInitInfo& init_info)
 
     set_info.pBindings                       = &bindings[0];
     set_info.flags                           = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
-    vkCreateDescriptorSetLayout(device, &set_info, nullptr, &storageDescriptorSetLayout);
+    vkCreateDescriptorSetLayout(v->device, &set_info, nullptr, &v->storageDescriptorSetLayout);
 
     set_info.pBindings                       = &bindings[1];
-    vkCreateDescriptorSetLayout(device, &set_info, nullptr, &windowSizeDescriptorSetLayout);
+    vkCreateDescriptorSetLayout(v->device, &set_info, nullptr, &v->windowSizeDescriptorSetLayout);
 
     set_info.pBindings                       = &bindings[2];
-    vkCreateDescriptorSetLayout(device, &set_info, nullptr, &samplerDescriptorSetLayout);
+    vkCreateDescriptorSetLayout(v->device, &set_info, nullptr, &v->samplerDescriptorSetLayout);
 
     {
         VkDescriptorSetAllocateInfo allocInfo = {};
         allocInfo.pNext                       = VK_NULL_HANDLE;
         allocInfo.sType                       = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.descriptorPool              = globalDescriptorPool;
+        allocInfo.descriptorPool              = v->globalDescriptorPool;
         allocInfo.descriptorSetCount          = 1;
-        allocInfo.pSetLayouts                 = &samplerDescriptorSetLayout;
-        VkResult        result = vkAllocateDescriptorSets(device, &allocInfo, &samplerDescriptorSet);
+        allocInfo.pSetLayouts                 = &v->samplerDescriptorSetLayout;
+        VkResult        result = vkAllocateDescriptorSets(v->device, &allocInfo, &v->samplerDescriptorSet);
     }
-
-    VkPushConstantRange pushConstantRange = {
-        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-        .offset = 0,
-        .size = sizeof(PushConstants)
-    };
-
-    VkDescriptorSetLayout dsl[] = {storageDescriptorSetLayout, windowSizeDescriptorSetLayout, samplerDescriptorSetLayout};
-    VkPipelineLayoutCreateInfo layoutInfo{};
-    layoutInfo.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    layoutInfo.pNext                  = nullptr;
-    layoutInfo.pSetLayouts            = dsl;
-    layoutInfo.setLayoutCount         = sizeof(dsl)/sizeof(dsl[0]);
-    layoutInfo.pPushConstantRanges    = &pushConstantRange;
-    layoutInfo.pushConstantRangeCount = 1;
-    vkCreatePipelineLayout(device, &layoutInfo, nullptr, &quadPipelineLayout);
-    assert(quadPipelineLayout != VK_NULL_HANDLE);
 }
 
 // creates 1x1 white texture for coloured objects without a texture
@@ -517,6 +498,24 @@ static void createWhiteTexture_Vulkan()
 static void createPipelines_Vulkan()
 {
     TexGui_ImplVulkan_Data* v = (TexGui_ImplVulkan_Data*)(GTexGui->rendererData);
+    //create pipeline layout
+    VkPushConstantRange pushConstantRange = {
+        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+        .offset = 0,
+        .size = sizeof(PushConstants)
+    };
+
+    VkDescriptorSetLayout dsl[] = {v->storageDescriptorSetLayout, v->windowSizeDescriptorSetLayout, v->samplerDescriptorSetLayout};
+    VkPipelineLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    layoutInfo.pNext                  = nullptr;
+    layoutInfo.pSetLayouts            = dsl;
+    layoutInfo.setLayoutCount         = sizeof(dsl)/sizeof(dsl[0]);
+    layoutInfo.pPushConstantRanges    = &pushConstantRange;
+    layoutInfo.pushConstantRangeCount = 1;
+    vkCreatePipelineLayout(v->device, &layoutInfo, nullptr, &v->quadPipelineLayout);
+    assert(v->quadPipelineLayout != VK_NULL_HANDLE);
+
     VkGraphicsPipelineCreateInfo info = {};
     info.sType                        = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     std::vector<VkFormat> colorAttachmentFormats;
@@ -524,48 +523,42 @@ static void createPipelines_Vulkan()
 
     std::vector<VkPipelineShaderStageCreateInfo> quadstages;
     std::vector<VkPipelineShaderStageCreateInfo> textstages;
+    std::vector<VkPipelineShaderStageCreateInfo> vertstages;
     VkShaderModule quadvert = createShaderModule(v->device, EShLangVertex, VK_QUADVERT);
     VkShaderModule quadfrag = createShaderModule(v->device, EShLangFragment, VK_QUADFRAG);
+
     VkShaderModule textvert = createShaderModule(v->device, EShLangVertex, VK_TEXTVERT);
     VkShaderModule textfrag = createShaderModule(v->device, EShLangFragment, VK_TEXTFRAG);
-    quadstages.push_back(VkPipelineShaderStageCreateInfo{
-        .sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .pNext               = nullptr,
-        .flags               = 0,
-        .stage               = VK_SHADER_STAGE_VERTEX_BIT,
-        .module              = quadvert,
-        .pName               = "main",
-        .pSpecializationInfo = VK_NULL_HANDLE,
-    });
-    quadstages.push_back(VkPipelineShaderStageCreateInfo{
-        .sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .pNext               = nullptr,
-        .flags               = 0,
-        .stage               = VK_SHADER_STAGE_FRAGMENT_BIT,
-        .module              = quadfrag,
-        .pName               = "main",
-        .pSpecializationInfo = VK_NULL_HANDLE,
-    });
 
-    textstages.push_back(VkPipelineShaderStageCreateInfo{
-        .sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .pNext               = nullptr,
-        .flags               = 0,
-        .stage               = VK_SHADER_STAGE_VERTEX_BIT,
-        .module              = textvert,
-        .pName               = "main",
-        .pSpecializationInfo = VK_NULL_HANDLE,
-    });
-    textstages.push_back(VkPipelineShaderStageCreateInfo{
-        .sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .pNext               = nullptr,
-        .flags               = 0,
-        .stage               = VK_SHADER_STAGE_FRAGMENT_BIT,
-        .module              = textfrag,
-        .pName               = "main",
-        .pSpecializationInfo = VK_NULL_HANDLE,
-    });
+    VkShaderModule vertvert = createShaderModule(v->device, EShLangVertex, VK_VERT);
+    VkShaderModule vertfrag = createShaderModule(v->device, EShLangFragment, VK_FRAG);
 
+    VkPipelineShaderStageCreateInfo shaderStage = {.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+    shaderStage.pName = "main";
+
+    shaderStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    shaderStage.module = quadvert;
+    quadstages.push_back(shaderStage);
+
+    shaderStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    shaderStage.module = quadfrag;
+    quadstages.push_back(shaderStage);
+
+    shaderStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    shaderStage.module = textvert;
+    textstages.push_back(shaderStage);
+
+    shaderStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    shaderStage.module = textfrag;
+    textstages.push_back(shaderStage);
+
+    shaderStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    shaderStage.module = vertvert;
+    vertstages.push_back(shaderStage);
+
+    shaderStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    shaderStage.module = vertfrag;
+    vertstages.push_back(shaderStage);
 
     VkPipelineVertexInputStateCreateInfo             vertexInputState   = {.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
 
@@ -664,6 +657,59 @@ static void createPipelines_Vulkan()
         assert(false);
     }
 
+    // create general purpose vertex pipeline
+    VkVertexInputBindingDescription binding_desc[1] = {};
+    binding_desc[0].stride = sizeof(RenderData::TexGuiVertex);
+    binding_desc[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    VkVertexInputAttributeDescription attribute_desc[4] = {};
+    attribute_desc[0].location = 0;
+    attribute_desc[0].binding = binding_desc[0].binding;
+    attribute_desc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+    attribute_desc[0].offset = offsetof(RenderData::TexGuiVertex, pos);
+
+    attribute_desc[1].location = 1;
+    attribute_desc[1].binding = binding_desc[0].binding;
+    attribute_desc[1].format = VK_FORMAT_R32_UINT;
+    attribute_desc[1].offset = offsetof(RenderData::TexGuiVertex, textureIndex);
+
+    attribute_desc[2].location = 2;
+    attribute_desc[2].binding = binding_desc[0].binding;
+    attribute_desc[2].format = VK_FORMAT_R32G32_SFLOAT;
+    attribute_desc[2].offset = offsetof(RenderData::TexGuiVertex, uv);
+
+    //#TODO: use RGBA8 instead
+    attribute_desc[3].location = 3;
+    attribute_desc[3].binding = binding_desc[0].binding;
+    attribute_desc[3].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+    attribute_desc[3].offset = offsetof(RenderData::TexGuiVertex, col);
+
+    vertexInputState.vertexBindingDescriptionCount = sizeof(binding_desc)/sizeof(binding_desc[0]);
+    vertexInputState.pVertexBindingDescriptions = binding_desc;
+
+    vertexInputState.vertexAttributeDescriptionCount = sizeof(attribute_desc)/sizeof(attribute_desc[0]);
+    vertexInputState.pVertexAttributeDescriptions = attribute_desc;
+    info.pVertexInputState                 = &vertexInputState;
+
+    info.pStages = vertstages.data();
+
+    VkDescriptorSetLayout vertDsl[] = {v->samplerDescriptorSetLayout};
+
+    layoutInfo.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    layoutInfo.pNext                  = nullptr;
+    layoutInfo.pSetLayouts            = vertDsl;
+    layoutInfo.setLayoutCount         = 1;
+    layoutInfo.pPushConstantRanges    = nullptr;
+    layoutInfo.pushConstantRangeCount = 0;
+    vkCreatePipelineLayout(v->device, &layoutInfo, nullptr, &v->vertPipelineLayout);
+
+    info.layout                         = v->vertPipelineLayout;
+
+    if (vkCreateGraphicsPipelines(v->device, VK_NULL_HANDLE, 1, &info, nullptr, &v->vertPipeline) != VK_SUCCESS) {
+        printf("Failed to create pipeline\n");
+        assert(false);
+    }
+        
     vkDestroyShaderModule(v->device, quadvert, nullptr);
     vkDestroyShaderModule(v->device, quadfrag, nullptr);
     vkDestroyShaderModule(v->device, textvert, nullptr);
@@ -869,6 +915,48 @@ void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
         vkUpdateDescriptorSets(v->device, 1, &bufferWrite, 0, nullptr);
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->quadPipelineLayout, 0, 1, &objDescSet, 0, nullptr);
     }
+    // allocate vertices buffer
+    if (data.vertices.size() > 0)
+    {
+        assert(data.indices.size() > 0);
+        VkBufferCreateInfo bufferCreateInfo = {};
+        bufferCreateInfo.sType              = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferCreateInfo.pNext              = nullptr;
+        bufferCreateInfo.size               = sizeof(RenderData::TexGuiVertex) * data.vertices.size();
+        bufferCreateInfo.usage              = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+
+        VmaAllocationCreateInfo vmaallocInfo = {};
+        vmaallocInfo.usage                   = VMA_MEMORY_USAGE_CPU_TO_GPU;
+        vmaallocInfo.flags                   = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+        VmaAllocationInfo allocationInfo;
+
+        VkBuffer vertexBuf;
+        VmaAllocation vertexBufAlloc;
+        vmaCreateBuffer(v->allocator, &bufferCreateInfo, &vmaallocInfo, &vertexBuf, &vertexBufAlloc, &allocationInfo);
+
+        buffersToDestroy.push_back(vertexBuf);
+        allocationsToDestroy.push_back(vertexBufAlloc);
+
+        vmaCopyMemoryToAllocation(v->allocator, data.vertices.data(), vertexBufAlloc, 0, data.vertices.size() * sizeof(RenderData::TexGuiVertex));
+
+        VkDeviceSize vertexOffset = 0;
+        vkCmdBindVertexBuffers(cmd, 0, 1, &vertexBuf, &vertexOffset);
+
+        bufferCreateInfo.size = sizeof(uint32_t) * data.indices.size();
+        bufferCreateInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+
+        VkBuffer indexBuf;
+        VmaAllocation indexBufAlloc;
+        vmaCreateBuffer(v->allocator, &bufferCreateInfo, &vmaallocInfo, &indexBuf, &indexBufAlloc, &allocationInfo);
+        vmaCopyMemoryToAllocation(v->allocator, data.indices.data(), indexBufAlloc, 0, data.indices.size() * sizeof(uint32_t));
+
+        buffersToDestroy.push_back(indexBuf);
+        allocationsToDestroy.push_back(indexBufAlloc);
+
+        vkCmdBindIndexBuffer(cmd, indexBuf, 0, VK_INDEX_TYPE_UINT32);
+    }
+
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->quadPipelineLayout, 2, 1, &v->samplerDescriptorSet, 0, nullptr);
 
     int count = 0;
@@ -927,6 +1015,14 @@ void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
 
         count += c.number;
     }
+
+    //draw  with general purpose pipeline
+    if (data.vertices.size() > 0)
+    {
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->vertPipelineLayout, 0, 1, &v->samplerDescriptorSet, 0, nullptr);
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->vertPipeline);
+        vkCmdDrawIndexed(cmd, data.indices.size(), 1, 0, 0, 0);
+    }
 }
 
 static void newFrame_Vulkan()
@@ -961,16 +1057,18 @@ void renderClean_Vulkan()
     //#TODO: need to destroy all textures here
 }
 
-
 bool TexGui::initVulkan(VulkanInitInfo& info)
 {
     assert(!GTexGui->rendererData);
     GTexGui->rendererData = new TexGui_ImplVulkan_Data(info);
+
     GTexGui->rendererFns.createTexture = createTexture_Vulkan;
     GTexGui->rendererFns.renderClean = renderClean_Vulkan;
     GTexGui->rendererFns.framebufferSizeCallback = framebufferSizeCallback_Vulkan;
     GTexGui->rendererFns.newFrame = newFrame_Vulkan;
 
+    createImmediateCommandBuffers_Vulkan();
+    initializeDescriptors_Vulkan();
     createPipelines_Vulkan();
     createWhiteTexture_Vulkan();
     //#TODO: need to delete more stuff probably

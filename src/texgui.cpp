@@ -569,7 +569,7 @@ void Container::RadioButton(uint32_t* selected, uint32_t id)
 
 void Container::Line(float x1, float y1, float x2, float y2, Math::fvec4 color, float lineWidth)
 {
-    return;
+    renderData->addLine(bounds.x + x1, bounds.y + y1, bounds.x + x2, bounds.y + y2, color, lineWidth);
 }
 
 Container Container::ScrollPanel(const char* name, Texture* texture, Texture* bartex)
@@ -1659,7 +1659,9 @@ void RenderData::drawQuad(Math::fbox rect, const Math::fvec4& col)
     //#TODO: white texture is just 1x1 texture which is wierd
     //#TODO: pixel size doesnt matter right now
     Math::ivec2 framebufferSize = GTexGui->framebufferSize;
+    /*
     rect.x -= framebufferSize.x / 2.f;
+
     rect.y = framebufferSize.y / 2.f - rect.y - rect.height;
     objects.push_back(Quad{
         .rect = rect,
@@ -1673,4 +1675,69 @@ void RenderData::drawQuad(Math::fbox rect, const Math::fvec4& col)
         .number = 1,
         .quad = {}
     });
+    */
+
+    rect.x = rect.x / float(framebufferSize.x) * 2 - 1;
+    rect.y = rect.y / float(framebufferSize.y) * 2 - 1;
+    rect.w = rect.w / float(framebufferSize.x) * 2;
+    rect.h = rect.h / float(framebufferSize.y) * 2;
+
+    uint32_t idx = vertices.size();
+    vertices.insert(vertices.end(), {
+            TexGuiVertex{
+                .pos = {rect.x, rect.y, 0}, .textureIndex = 0, .uv = {0,0}, .col = col,
+            },
+            TexGuiVertex{
+                .pos = {rect.x + rect.w, rect.y, 0}, .textureIndex = 0, .uv = {0, 0}, .col = col,
+            },
+            TexGuiVertex{
+                .pos = {rect.x, rect.y + rect.h, 0}, .textureIndex = 0, .uv = {0, 0}, .col = col,
+            },
+            TexGuiVertex{
+                .pos = {rect.x + rect.w, rect.y + rect.h, 0}, .textureIndex = 0, .uv = {0, 0}, .col = col,
+            },
+        }
+    );
+
+    indices.insert(indices.end(), {idx, idx+1, idx+2, idx+1, idx+2, idx+3});
+}
+
+// from imgui
+#define IM_NORMALIZE2F_OVER_ZERO(VX,VY)     { float d2 = VX*VX + VY*VY; if (d2 > 0.0f) { float inv_len = 1.0/sqrt(d2); VX *= inv_len; VY *= inv_len; } } (void)0 
+
+void RenderData::addLine(float x1, float y1, float x2, float y2, const Math::fvec4& col, float lineWidth)
+{
+    Math::ivec2 framebufferSize = GTexGui->framebufferSize;
+
+    x1 = x1 / float(framebufferSize.x) * 2 - 1;
+    x2 = x2 / float(framebufferSize.x) * 2 - 1;
+    y1 = y1 / float(framebufferSize.y) * 2 - 1;
+    y2 = y2 / float(framebufferSize.y) * 2 - 1;
+
+    float dx = x2 - x1;
+    float dy = y2 - y1;
+
+    IM_NORMALIZE2F_OVER_ZERO(dx, dy);
+
+    dx *= (lineWidth / float(framebufferSize.x) * 2 * 0.5f);
+    dy *= (lineWidth / float(framebufferSize.y) * 2 * 0.5f);
+
+    uint32_t idx = vertices.size();
+    vertices.insert(vertices.end(), {
+            TexGuiVertex{
+                .pos = {x1 + dy, y1 - dx, 0}, .textureIndex = 0, .uv = {0,0}, .col = col,
+            },
+            TexGuiVertex{
+                .pos = {x2 + dy, y2 - dx, 0}, .textureIndex = 0, .uv = {0,0}, .col = col, 
+            },
+            TexGuiVertex{
+                .pos = {x2 - dy, y2 + dx, 0}, .textureIndex = 0, .uv = {0,0}, .col = col, 
+            },
+            TexGuiVertex{
+                .pos = {x1 - dy, y1 + dx, 0}, .textureIndex = 0, .uv = {0,0}, .col = col, 
+            },
+        }
+    );
+
+    indices.insert(indices.end(), {idx, idx+1, idx+2, idx, idx+2, idx+3});
 }

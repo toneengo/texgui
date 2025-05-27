@@ -22,6 +22,8 @@ struct VulkanInitInfo
     uint32_t                        MinImageCount;              // >= 2
     uint32_t                        ImageCount;                 // >= MinImageCount
     VkSampleCountFlagBits           MSAASamples;                // 0 defaults to VK_SAMPLE_COUNT_1_BIT
+                                                                //
+    VkSampler Sampler; //which sampler to use for gui textures
 
     // (Optional)
     VkPipelineCache                 PipelineCache;

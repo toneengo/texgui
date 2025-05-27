@@ -150,12 +150,22 @@ struct vec3
         };
         union { vec2<T> xy, rg; };
     };
+    vec3()
+        : x(0),
+          y(0),
+          z(0)
+    {}
+    vec3(const vec3<T>& _v)
+        : x(static_cast<T>(_v.x)),
+          y(static_cast<T>(_v.y)),
+          z(static_cast<T>(_v.z))
+    {}
 
     vec3(T _x, T _y, T _z)
         : x(static_cast<T>(_x)),
           y(static_cast<T>(_y)),
           z(static_cast<T>(_z))
-    {};
+    {}
 
     //#TODO: other initialisers. likely dont need them though
 };

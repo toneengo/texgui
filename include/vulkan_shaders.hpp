@@ -32,32 +32,38 @@ layout (set = 1, binding = 0) uniform screenSzBuf {
 };
 )#";
 
-inline const std::string VK_VERT = VK_VERSION_HEADER + VK_BUFFERS + R"#(
+inline const std::string VK_VERT = R"#(
 #version 450 core
-layout(location = 0) in vec2 aPos;
-layout(location = 1) in vec2 aUV;
-layout(location = 2) in vec4 aColor;
-layout(push_constant) uniform uPushConstant { vec2 uScale; vec2 uTranslate; } pc;
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in uint aTexID;
+layout(location = 2) in vec2 aUV;
+layout(location = 3) in vec4 aColor;
 
 out gl_PerVertex { vec4 gl_Position; };
 layout(location = 0) out struct { vec4 Color; vec2 UV; } Out;
+layout(location = 2) flat out uint texID;
 
 void main()
 {
     Out.Color = aColor;
     Out.UV = aUV;
-    gl_Position = vec4(aPos * pc.uScale + pc.uTranslate, 0, 1);
+    texID = aTexID;
+    gl_Position = vec4(aPos, 1);
 }
 )#";
 
-inline const std::string VK_FRAG = VK_VERSION_HEADER + VK_BUFFERS + R"#(
+inline const std::string VK_FRAG = R"#(
 #version 450 core
+#extension GL_EXT_nonuniform_qualifier : require
 layout(location = 0) out vec4 fColor;
-layout(set=0, binding=0) uniform sampler2D sTexture;
 layout(location = 0) in struct { vec4 Color; vec2 UV; } In;
+layout(location = 2) flat in uint texID;
+
+layout (set = 0, binding = 0) uniform sampler2D samplers[];
+
 void main()
 {
-    fColor = In.Color * texture(sTexture, In.UV.st);
+    fColor = In.Color * texture(samplers[nonuniformEXT(texID)], In.UV.st);
 }
 )#";
 
