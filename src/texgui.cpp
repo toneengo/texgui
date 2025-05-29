@@ -1,4 +1,5 @@
 #include "texgui.h"
+#include "texgui_flags.hpp"
 #include "texgui_types.hpp"
 #include <cassert>
 #include <cstring>
@@ -767,9 +768,29 @@ Container Container::Stack(float padding)
 
         return child;
     };
+
     Container stack = withBounds(bounds, arrange);
     stack.stack = {0, padding < 0 ? Defaults::Stack::Padding : padding};
     return stack;
+}
+
+Container Container::Node(float x, float y)
+{
+    static auto arrange = [](Container* align, fbox child)
+    {
+        child.x -= child.width / 2.f;
+        child.y -= child.height / 2.f;
+        fbox bounds = Arrange(align->parent, child);
+        return bounds;
+    };
+
+    //this is weird maybe there is btter way. bounds is different now 
+    //the bounds box itself is moved and not resized,
+    //the child will be slightly out of bounds sincei t is centred on top left corner of bounds
+    Container node = withBounds(bounds, arrange);
+    node.bounds.x += x;
+    node.bounds.y += y;
+    return node;
 }
 
 //true = dont write text, false = write text
@@ -1700,6 +1721,13 @@ void RenderData::drawQuad(Math::fbox rect, const Math::fvec4& col)
     );
 
     indices.insert(indices.end(), {idx, idx+1, idx+2, idx+1, idx+2, idx+3});
+    commands.emplace_back(Command{
+        .type = Command::VERTEX,
+        .number = 0,
+        .vertex = {
+            .indexCount = 6
+        }
+    });
 }
 
 // from imgui
@@ -1740,4 +1768,12 @@ void RenderData::addLine(float x1, float y1, float x2, float y2, const Math::fve
     );
 
     indices.insert(indices.end(), {idx, idx+1, idx+2, idx, idx+2, idx+3});
+
+    commands.emplace_back(Command{
+        .type = Command::VERTEX,
+        .number = 0,
+        .vertex = {
+            .indexCount = 6
+        }
+    });
 }

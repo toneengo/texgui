@@ -960,6 +960,7 @@ void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->quadPipelineLayout, 2, 1, &v->samplerDescriptorSet, 0, nullptr);
 
     int count = 0;
+    int currIndex = 0;
     for (auto& c : data.commands)
     {
         //#TODO: chaange scissor method (current method leads to gpu branching)
@@ -974,6 +975,13 @@ void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
 
         switch (c.type)
         {
+            case RenderData::Command::VERTEX:
+                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->vertPipelineLayout, 0, 1, &v->samplerDescriptorSet, 0, nullptr);
+                vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->vertPipeline);
+                vkCmdDrawIndexed(cmd, c.vertex.indexCount, 1, currIndex, 0, 0);
+                //#TODO: have firstIndex in the command itself maybe
+                currIndex += c.vertex.indexCount;
+                break;
             case RenderData::Command::QUAD:
                 vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->quadPipeline);
 
@@ -1014,14 +1022,6 @@ void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
         }
 
         count += c.number;
-    }
-
-    //draw  with general purpose pipeline
-    if (data.vertices.size() > 0)
-    {
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->vertPipelineLayout, 0, 1, &v->samplerDescriptorSet, 0, nullptr);
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->vertPipeline);
-        vkCmdDrawIndexed(cmd, data.indices.size(), 1, 0, 0, 0);
     }
 }
 

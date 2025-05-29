@@ -237,6 +237,8 @@ public:
     // Arranges children in a vertical stack.
     Container Stack(float padding = -1);
 
+    Container Node(float x, float y);
+
     //for widgets that have multiple child containers
     /*
     class ContainerArray 
@@ -461,6 +463,7 @@ public:
     {
         enum {
             QUAD,
+            VERTEX,
             TEXTURE,
             CHARACTER,
         } type;
@@ -477,6 +480,9 @@ public:
             struct {
                 Font * font;
             } character;
+            struct {
+                int indexCount;
+            } vertex;
         };
     };
 
@@ -489,13 +495,9 @@ public:
         Math::fvec4 col;
     };
 
-    struct VCommand
-    {
-    };
     // Renderable objects
     std::vector<Object> objects;
     std::vector<Command> commands;
-    std::vector<VCommand> vcommands;
     std::vector<TexGuiVertex> vertices;
     std::vector<uint32_t> indices;
 };
