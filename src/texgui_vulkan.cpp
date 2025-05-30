@@ -659,30 +659,30 @@ static void createPipelines_Vulkan()
 
     // create general purpose vertex pipeline
     VkVertexInputBindingDescription binding_desc[1] = {};
-    binding_desc[0].stride = sizeof(RenderData::TexGuiVertex);
+    binding_desc[0].stride = sizeof(RenderData::Vertex);
     binding_desc[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
     VkVertexInputAttributeDescription attribute_desc[4] = {};
     attribute_desc[0].location = 0;
     attribute_desc[0].binding = binding_desc[0].binding;
     attribute_desc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-    attribute_desc[0].offset = offsetof(RenderData::TexGuiVertex, pos);
+    attribute_desc[0].offset = offsetof(RenderData::Vertex, pos);
 
     attribute_desc[1].location = 1;
     attribute_desc[1].binding = binding_desc[0].binding;
     attribute_desc[1].format = VK_FORMAT_R32_UINT;
-    attribute_desc[1].offset = offsetof(RenderData::TexGuiVertex, textureIndex);
+    attribute_desc[1].offset = offsetof(RenderData::Vertex, textureIndex);
 
     attribute_desc[2].location = 2;
     attribute_desc[2].binding = binding_desc[0].binding;
     attribute_desc[2].format = VK_FORMAT_R32G32_SFLOAT;
-    attribute_desc[2].offset = offsetof(RenderData::TexGuiVertex, uv);
+    attribute_desc[2].offset = offsetof(RenderData::Vertex, uv);
 
     //#TODO: use RGBA8 instead
     attribute_desc[3].location = 3;
     attribute_desc[3].binding = binding_desc[0].binding;
     attribute_desc[3].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-    attribute_desc[3].offset = offsetof(RenderData::TexGuiVertex, col);
+    attribute_desc[3].offset = offsetof(RenderData::Vertex, col);
 
     vertexInputState.vertexBindingDescriptionCount = sizeof(binding_desc)/sizeof(binding_desc[0]);
     vertexInputState.pVertexBindingDescriptions = binding_desc;
@@ -805,6 +805,7 @@ void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
     scissor.extent.width  = v->windowSize.x;
     scissor.extent.height = v->windowSize.y;
     vkCmdSetScissor(cmd, 0, 1, &scissor);
+    VkDescriptorSet windowSzDescSet;
     //#TODO: more efficeint way to do this is to usue one buffer, then keep track of the counts of each RenderData's arrays
     //update window size uniform
     {
@@ -834,8 +835,6 @@ void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
             .range = sizeof(Math::ivec2)
         };
 
-        VkDescriptorSet windowSzDescSet;
-
         VkDescriptorSetAllocateInfo allocInfo = {};
         allocInfo.pNext                       = VK_NULL_HANDLE;
         allocInfo.sType                       = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -859,8 +858,8 @@ void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
 
         vkUpdateDescriptorSets(v->device, 1, &bufferWrite, 0, nullptr);
 
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->quadPipelineLayout, 1, 1, &windowSzDescSet, 0, nullptr);
     }
+    VkDescriptorSet objDescSet;
     // allocate object buffer
     {
         VkBufferCreateInfo bufferCreateInfo = {};
@@ -884,7 +883,6 @@ void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
 
         vmaCopyMemoryToAllocation(v->allocator, data.objects.data(), objBufAlloc, 0, data.objects.size() * sizeof(RenderData::Object));
 
-        VkDescriptorSet objDescSet;
         VkDescriptorSetAllocateInfo allocInfo = {};
         allocInfo.pNext                       = VK_NULL_HANDLE;
         allocInfo.sType                       = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -913,7 +911,6 @@ void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
         };
 
         vkUpdateDescriptorSets(v->device, 1, &bufferWrite, 0, nullptr);
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->quadPipelineLayout, 0, 1, &objDescSet, 0, nullptr);
     }
     // allocate vertices buffer
     if (data.vertices.size() > 0)
@@ -922,7 +919,7 @@ void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
         VkBufferCreateInfo bufferCreateInfo = {};
         bufferCreateInfo.sType              = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
         bufferCreateInfo.pNext              = nullptr;
-        bufferCreateInfo.size               = sizeof(RenderData::TexGuiVertex) * data.vertices.size();
+        bufferCreateInfo.size               = sizeof(RenderData::Vertex) * data.vertices.size();
         bufferCreateInfo.usage              = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 
         VmaAllocationCreateInfo vmaallocInfo = {};
@@ -938,7 +935,7 @@ void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
         buffersToDestroy.push_back(vertexBuf);
         allocationsToDestroy.push_back(vertexBufAlloc);
 
-        vmaCopyMemoryToAllocation(v->allocator, data.vertices.data(), vertexBufAlloc, 0, data.vertices.size() * sizeof(RenderData::TexGuiVertex));
+        vmaCopyMemoryToAllocation(v->allocator, data.vertices.data(), vertexBufAlloc, 0, data.vertices.size() * sizeof(RenderData::Vertex));
 
         VkDeviceSize vertexOffset = 0;
         vkCmdBindVertexBuffers(cmd, 0, 1, &vertexBuf, &vertexOffset);
@@ -973,6 +970,7 @@ void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
         pushConstants.bounds = sb;
         pushConstants.index = count;
 
+        //#TODO: i hate these ds bindings
         switch (c.type)
         {
             case RenderData::Command::VERTEX:
@@ -983,6 +981,9 @@ void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
                 currIndex += c.vertex.indexCount;
                 break;
             case RenderData::Command::QUAD:
+                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->quadPipelineLayout, 0, 1, &objDescSet, 0, nullptr);
+                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->quadPipelineLayout, 1, 1, &windowSzDescSet, 0, nullptr);
+                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->quadPipelineLayout, 2, 1, &v->samplerDescriptorSet, 0, nullptr);
                 vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->quadPipeline);
 
                 pushConstants.texID = v->whiteTextureID;
@@ -992,6 +993,9 @@ void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
                 vkCmdDraw(cmd, 6, c.number, 0, 0);
                 break;
             case RenderData::Command::TEXTURE:
+                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->quadPipelineLayout, 0, 1, &objDescSet, 0, nullptr);
+                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->quadPipelineLayout, 1, 1, &windowSzDescSet, 0, nullptr);
+                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->quadPipelineLayout, 2, 1, &v->samplerDescriptorSet, 0, nullptr);
                 vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->quadPipeline);
                 pushConstants.texID = c.texture.texture->id;
                 if (getBit(c.texture.state, STATE_PRESS) && c.texture.texture->press != -1)
@@ -1007,6 +1011,9 @@ void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
                 break;
             case RenderData::Command::CHARACTER:
             {
+                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->quadPipelineLayout, 0, 1, &objDescSet, 0, nullptr);
+                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->quadPipelineLayout, 1, 1, &windowSzDescSet, 0, nullptr);
+                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->quadPipelineLayout, 2, 1, &v->samplerDescriptorSet, 0, nullptr);
                 vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->textPipeline);
                 pushConstants.texID = c.character.font->textureIndex;
                 pushConstants.atlasWidth = c.character.font->atlasWidth;

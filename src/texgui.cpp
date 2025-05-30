@@ -35,6 +35,11 @@ RenderData* TexGui::newRenderData()
     return new RenderData();
 }
 
+bool TexGui::isCapturingMouse()
+{
+    return GTexGui->lastCapturingMouse;
+}
+
 #ifndef M_PI
 #define M_PI  3.14159265358979323846264  // from CRC
 #endif
@@ -290,7 +295,8 @@ inline static void updateInput()
 
     io.mouseRelativeMotion = {0, 0};
 
-    TexGui::CapturingMouse = false;
+    GTexGui->lastCapturingMouse = GTexGui->capturingMouse;
+    GTexGui->capturingMouse = false;
     io.scroll = {0, 0};
 
     memcpy(inputFrame.mouseStates, io.mouseStates, sizeof(int) * TEXGUI_MOUSE_BUTTON_COUNT);
@@ -412,7 +418,7 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
     if (flags & FRONT)
         wstate.order = -1;
 
-    if (flags & CAPTURE_INPUT && wstate.box.contains(io.cursorPos)) CapturingMouse = true;
+    if (flags & CAPTURE_INPUT && wstate.box.contains(io.cursorPos)) GTexGui->capturingMouse = true;
 
     //if there is a window over the window being clicked, set state to 0
     getBoxState(wstate.state, wstate.box, STATE_ALL);
@@ -440,7 +446,7 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
         wstate.order = 0;
     }
 
-    if (flags & LOCKED)
+    if (flags & LOCKED || !wstate.prevVisible)
     {
         wstate.box = {xpos, ypos, width, height};
         wstate.box = AlignBox(Base.bounds, wstate.box, flags);
@@ -478,10 +484,10 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
 
     //lowest order will be rendered last.
     child.renderData->priority = -wstate.order;
-    child.renderData->drawTexture(wstate.box, texture, wstate.state, _PX, SLICE_9, scissorBox);
+    child.renderData->addTexture(wstate.box, texture, wstate.state, _PX, SLICE_9, scissorBox);
 
     if (!(flags & HIDE_TITLE)) 
-        child.renderData->drawText(name, {wstate.box.x + padding.left, wstate.box.y + texture->top * _PX / 2},
+        child.renderData->addText(name, {wstate.box.x + padding.left, wstate.box.y + texture->top * _PX / 2},
                  Defaults::Text::Color, Defaults::Text::Size, CENTER_Y);
 
 
@@ -505,7 +511,7 @@ bool Container::Button(const char* text, Texture* texture, Container* out)
     static Texture* defaultTex = &GTexGui->textures[Defaults::Button::Texture];
     auto* tex = texture ? texture : defaultTex;
 
-    renderData->drawTexture(bounds, tex, state, _PX, SLICE_9, scissorBox);
+    renderData->addTexture(bounds, tex, state, _PX, SLICE_9, scissorBox);
 
     TexGui::Math::vec2 pos = state & STATE_PRESS 
                        ? bounds.pos + Defaults::Button::POffset
@@ -517,7 +523,7 @@ bool Container::Button(const char* text, Texture* texture, Container* out)
     else
     {
         innerBounds.pos += bounds.size / 2;
-        renderData->drawText(text, innerBounds, Defaults::Text::Color, Defaults::Text::Size, CENTER_X | CENTER_Y);
+        renderData->addText(text, innerBounds, Defaults::Text::Color, Defaults::Text::Size, CENTER_X | CENTER_Y);
     }
 
     auto& io = inputFrame;
@@ -528,7 +534,7 @@ bool Container::Button(const char* text, Texture* texture, Container* out)
     return state & STATE_ACTIVE && io.lmb == KEY_Release && hovered ? true : false;
 }
 
-Container Container::Box(float xpos, float ypos, float width, float height, Texture* texture)
+Container Container::Box(float xpos, float ypos, float width, float height, Math::fvec4 padding, Texture* texture)
 {
     if (width <= 1)
         width = width == 0 ? bounds.width : bounds.width * width;
@@ -538,10 +544,10 @@ Container Container::Box(float xpos, float ypos, float width, float height, Text
     fbox boxBounds(bounds.x + xpos, bounds.y + ypos, width, height);
     if (texture != nullptr)
     {
-        renderData->drawTexture(boxBounds, texture, 0, 2, SLICE_9, scissorBox);
+        renderData->addTexture(boxBounds, texture, 0, 2, SLICE_9, scissorBox);
     }
 
-    fbox internal = fbox::pad(boxBounds, Defaults::Box::Padding);
+    fbox internal = fbox::pad(boxBounds, padding);
     return withBounds(internal);
 }
 
@@ -553,7 +559,7 @@ void Container::CheckBox(bool* val)
     if (io.lmb == KEY_Release && bounds.contains(io.cursorPos) && parentState & STATE_HOVER) *val = !*val;
 
     if (texture == nullptr) return;
-    renderData->drawTexture(bounds, texture, *val ? STATE_ACTIVE : 0, 2, SLICE_9, scissorBox);
+    renderData->addTexture(bounds, texture, *val ? STATE_ACTIVE : 0, 2, SLICE_9, scissorBox);
 }
 
 void Container::RadioButton(uint32_t* selected, uint32_t id)
@@ -564,7 +570,7 @@ void Container::RadioButton(uint32_t* selected, uint32_t id)
     if (io.lmb == KEY_Release && bounds.contains(io.cursorPos) && parentState & STATE_HOVER) *selected = id;
 
     if (texture == nullptr) return;
-    renderData->drawTexture(bounds, texture, *selected == id ? STATE_ACTIVE : 0, 2, SLICE_9, scissorBox);
+    renderData->addTexture(bounds, texture, *selected == id ? STATE_ACTIVE : 0, 2, SLICE_9, scissorBox);
 
 }
 
@@ -617,11 +623,11 @@ Container Container::ScrollPanel(const char* name, Texture* texture, Texture* ba
                 padding.right,
                 barh};
 
-    renderData->drawTexture(bounds, texture, 0, _PX, 0, bounds);
+    renderData->addTexture(bounds, texture, 0, _PX, 0, bounds);
     if (bartex)
-        renderData->drawTexture(bar, bartex, 0, 2, SLICE_9, bounds);
+        renderData->addTexture(bar, bartex, 0, 2, SLICE_9, bounds);
     else
-        renderData->drawQuad(bar, {1,1,1,1});
+        renderData->addQuad(bar, {1,1,1,1});
 
     sp.bounds.y += spstate.contentPos.y;
 
@@ -636,7 +642,21 @@ void Container::Image(Texture* texture, int scale)
     fbox sized = fbox(bounds.pos, fvec2(tsize));
     fbox arranged = Arrange(this, sized);
 
-    renderData->drawTexture(arranged, texture, STATE_NONE, scale, 0, scissorBox);
+    renderData->addTexture(arranged, texture, STATE_NONE, scale, 0, scissorBox);
+}
+
+Container Container::Tooltip(Math::fvec2 size)
+{
+    auto& io = inputFrame;
+    static Texture* tex = &GTexGui->textures[Defaults::Tooltip::Texture];
+    
+    fbox box = {
+        io.cursorPos + Defaults::Tooltip::MouseOffset, 
+        size,
+    };
+    box = fbox::margin(box, Defaults::Tooltip::Padding);
+
+    return Box(box.x, box.y, box.w, box.h, Defaults::Box::Padding, tex);
 }
 
 fbox Container::Arrange(Container* o, fbox child)
@@ -681,7 +701,7 @@ Container Container::ListItem(uint32_t* selected, uint32_t id, Texture* texture)
             state = listItem->listItem.id ? STATE_ACTIVE : STATE_NONE;
         }
 
-        listItem->renderData->drawTexture(bounds, listItem->texture, state, _PX, SLICE_9, listItem->scissorBox);
+        listItem->renderData->addTexture(bounds, listItem->texture, state, _PX, SLICE_9, listItem->scissorBox);
 
         // The child is positioned by the list item's parent
         return fbox::pad(bounds, Defaults::ListItem::Padding);
@@ -752,7 +772,7 @@ void Container::Divider(float padding)
     fbox line = {
         ln.x, ln.y + padding, ln.width, width,
     };
-    renderData->drawQuad(line, fvec4(1,1,1,0.5));
+    renderData->addQuad(line, fvec4(1,1,1,0.5));
 }
 
 Container Container::Stack(float padding)
@@ -821,7 +841,7 @@ void renderTextInput(RenderData* renderData, const char* name, fbox bounds, fbox
     static Texture* inputtex = &GTexGui->textures[Defaults::TextInput::Texture];
     static Texture* textcursor = &GTexGui->textures[Defaults::TextInput::TextCursor];
 
-    renderData->drawTexture(bounds, inputtex, tstate.state, _PX, SLICE_9, scissor);
+    renderData->addTexture(bounds, inputtex, tstate.state, _PX, SLICE_9, scissor);
     float offsetx = 0;
     fvec4 padding = Defaults::TextInput::Padding;
     fvec4 color = Defaults::Text::Color;
@@ -833,7 +853,7 @@ void renderTextInput(RenderData* renderData, const char* name, fbox bounds, fbox
 
     //#TODO: size
     int size = Defaults::Text::Size;
-    auto characters = renderData->drawText(
+    auto characters = renderData->addText(
         !getBit(tstate.state, STATE_ACTIVE) && len == 0
         ? name : text,
         {startx, starty},
@@ -860,7 +880,7 @@ void renderTextInput(RenderData* renderData, const char* name, fbox bounds, fbox
         //#TODO starty is wrong if we do multiline textinputs
         textCursorQuad.y = starty - Defaults::Text::Size / 2.f;
     }
-    renderData->drawTexture(textCursorQuad, textcursor, tstate.state, _PX, SLICE_9, bounds);
+    renderData->addTexture(textCursorQuad, textcursor, tstate.state, _PX, SLICE_9, bounds);
 }
 
 void Container::TextInput(const char* name, char* buf, uint32_t bufsize, CharacterFilter filter)
@@ -1034,7 +1054,7 @@ inline static void drawChunk(TextSegment s, RenderData* renderData, TexGui::Math
             if (flags & UNDERLINE)
             {
                 fbox ul = fbox(fvec2(x - TTUL.x, y + scale / 2.0 - 2), fvec2(w + TTUL.x * 2, TTUL.y));
-                renderData->drawQuad(ul, fvec4(1,1,1,0.3));
+                renderData->addQuad(ul, fvec4(1,1,1,0.3));
             }
         };
 
@@ -1051,9 +1071,9 @@ inline static void drawChunk(TextSegment s, RenderData* renderData, TexGui::Math
 
                 underline(renderData, x, y, segwidth, scale, flags);
 
-                renderData->drawText(s.word.data, {x, y}, {1,1,1,1}, scale, CENTER_Y, s.word.len);
+                renderData->addText(s.word.data, {x, y}, {1,1,1,1}, scale, CENTER_Y, s.word.len);
 
-                // if (checkHover) renderData->drawQuad(bounds, fvec4(1, 0, 0, 1));
+                // if (checkHover) renderData->addQuad(bounds, fvec4(1, 0, 0, 1));
                 hovered |= checkHover && !hovered && bounds.contains(io.cursorPos);
                 x += segwidth;
             }
@@ -1072,9 +1092,9 @@ inline static void drawChunk(TextSegment s, RenderData* renderData, TexGui::Math
                 underline(renderData, x, y, tsize.x, scale, flags);
 
                 //#TODO: pass in container here
-                renderData->drawTexture(bounds, icon, 0, _PX, 0, {0,0,8192,8192});
+                renderData->addTexture(bounds, icon, 0, _PX, 0, {0,0,8192,8192});
 
-                // if (checkHover) renderData->drawQuad(bounds, fvec4(1, 0, 0, 1));
+                // if (checkHover) renderData->addQuad(bounds, fvec4(1, 0, 0, 1));
                 hovered |= checkHover && !hovered && fbox::margin(bounds, Defaults::Tooltip::HoverPadding).contains(io.cursorPos);
                 x += tsize.x;
             }
@@ -1130,7 +1150,7 @@ Container RenderData::drawTooltip(fvec2 size)
     };
     bounds = fbox::margin(bounds, Defaults::Tooltip::Padding);
 
-    return this->Base.Box(bounds.x, bounds.y, bounds.w, bounds.h, tex);
+    return this->Base.Box(bounds.x, bounds.y, bounds.w, bounds.h, Defaults::Box::Padding, tex);
 }
 
 static void renderTooltip(Paragraph text, RenderData* renderData)
@@ -1516,7 +1536,7 @@ float TexGui::computeTextWidth(const char* text, size_t numchars)
     return total;
 }
 
-std::span<RenderData::Object> RenderData::drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len)
+std::span<RenderData::Object> RenderData::addText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len)
 {
     auto& objects =  this->objects;
     auto& commands = this->commands;
@@ -1582,7 +1602,7 @@ std::span<RenderData::Object> RenderData::drawText(const char* text, Math::fvec2
     return std::span<RenderData::Object>(objects.end() - numchars, numchars);
 }
 
-void RenderData::drawTexture(fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, const fbox& bounds)
+void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, const fbox& bounds)
 {
     if (bounds.width < 1 || bounds.height < 1) return;
 
@@ -1675,7 +1695,7 @@ void RenderData::drawTexture(fbox rect, Texture* e, int state, int pixel_size, u
     });
 }
 
-void RenderData::drawQuad(Math::fbox rect, const Math::fvec4& col)
+void RenderData::addQuad(Math::fbox rect, const Math::fvec4& col)
 {
     //#TODO: white texture is just 1x1 texture which is wierd
     //#TODO: pixel size doesnt matter right now
@@ -1705,16 +1725,16 @@ void RenderData::drawQuad(Math::fbox rect, const Math::fvec4& col)
 
     uint32_t idx = vertices.size();
     vertices.insert(vertices.end(), {
-            TexGuiVertex{
+            Vertex{
                 .pos = {rect.x, rect.y, 0}, .textureIndex = 0, .uv = {0,0}, .col = col,
             },
-            TexGuiVertex{
+            Vertex{
                 .pos = {rect.x + rect.w, rect.y, 0}, .textureIndex = 0, .uv = {0, 0}, .col = col,
             },
-            TexGuiVertex{
+            Vertex{
                 .pos = {rect.x, rect.y + rect.h, 0}, .textureIndex = 0, .uv = {0, 0}, .col = col,
             },
-            TexGuiVertex{
+            Vertex{
                 .pos = {rect.x + rect.w, rect.y + rect.h, 0}, .textureIndex = 0, .uv = {0, 0}, .col = col,
             },
         }
@@ -1747,21 +1767,21 @@ void RenderData::addLine(float x1, float y1, float x2, float y2, const Math::fve
 
     IM_NORMALIZE2F_OVER_ZERO(dx, dy);
 
-    dx *= (lineWidth / float(framebufferSize.x) * 2 * 0.5f);
-    dy *= (lineWidth / float(framebufferSize.y) * 2 * 0.5f);
+    dx *= (lineWidth / float(framebufferSize.y) * 2 * 0.5f);
+    dy *= (lineWidth / float(framebufferSize.x) * 2 * 0.5f);
 
     uint32_t idx = vertices.size();
     vertices.insert(vertices.end(), {
-            TexGuiVertex{
+            Vertex{
                 .pos = {x1 + dy, y1 - dx, 0}, .textureIndex = 0, .uv = {0,0}, .col = col,
             },
-            TexGuiVertex{
+            Vertex{
                 .pos = {x2 + dy, y2 - dx, 0}, .textureIndex = 0, .uv = {0,0}, .col = col, 
             },
-            TexGuiVertex{
+            Vertex{
                 .pos = {x2 - dy, y2 + dx, 0}, .textureIndex = 0, .uv = {0,0}, .col = col, 
             },
-            TexGuiVertex{
+            Vertex{
                 .pos = {x1 - dy, y1 + dx, 0}, .textureIndex = 0, .uv = {0,0}, .col = col, 
             },
         }

@@ -100,6 +100,8 @@ struct InputData {
 
 struct TexGuiContext
 {
+    bool capturingMouse = false;
+    bool lastCapturingMouse = false;
     Math::ivec2 framebufferSize;
     std::atomic<bool> editingText = false;
     float contentScale = 1.f;

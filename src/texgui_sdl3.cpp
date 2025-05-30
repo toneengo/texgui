@@ -318,6 +318,7 @@ void TexGui::processEvent_SDL3(const SDL_Event& event)
         case SDL_EVENT_WINDOW_RESIZED:
             GTexGui->rendererFns.framebufferSizeCallback(event.window.data1, event.window.data2);
             GTexGui->framebufferSize = {event.window.data1, event.window.data2};
+            Base.bounds.size = GTexGui->framebufferSize;
             break;
         default:
             break;

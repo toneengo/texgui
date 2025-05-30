@@ -23,9 +23,9 @@
 
 NAMESPACE_BEGIN(TexGui);
 
-void init();
+bool isCapturingMouse();
 
-inline bool CapturingMouse = false;
+void init();
 
 class RenderData;
 
@@ -212,12 +212,13 @@ public:
 
     Container Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags = 0,  Texture* texture = nullptr);
     bool      Button(const char* text, Texture* texture = nullptr, Container* out = nullptr);
-    Container Box(float xpos, float ypos, float width, float height, Texture* texture = nullptr);
+    Container Box(float xpos, float ypos, float width, float height, Math::fvec4 padding = Defaults::Box::Padding, Texture* texture = nullptr);
     void      CheckBox(bool* val);
     void      RadioButton(uint32_t* selected, uint32_t id);
     Container ScrollPanel(const char* name, Texture* texture = nullptr, Texture* bartex = nullptr);
     Container Slider(const char* name, Texture* texture = nullptr, Texture* bartex = nullptr);
     void      Image(Texture* texture, int scale = Defaults::PixelSize);
+    Container Tooltip(Math::fvec2 size);
 
     void      TextInput(const char* name, char* buf, uint32_t bufsize, CharacterFilter filter = nullptr);
     void      Text(Paragraph text, int32_t scale = 0, TextDecl parameters = {});
@@ -427,10 +428,10 @@ public:
     Container drawTooltip(Math::fvec2 size);
 
     void addLine(float x1, float y1, float x2, float y2, const Math::fvec4& col, float lineWidth);
-    void drawQuad(Math::fbox rect, const Math::fvec4& col);
-    void drawTexture(Math::fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, const Math::fbox& bounds);
+    void addQuad(Math::fbox rect, const Math::fvec4& col);
+    void addTexture(Math::fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, const Math::fbox& bounds);
     //returns Character array
-    std::span<Object> drawText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len = -1);
+    std::span<Object> addText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len = -1);
     //void scissor(int x, int y, int width, int height);
     void scissor(Math::fbox bounds);
     void descissor();
@@ -486,19 +487,19 @@ public:
         };
     };
 
-    struct TexGuiVertex
+    struct Vertex
     {
         Math::fvec3 pos;
         uint32_t textureIndex;
         Math::fvec2 uv;
         int padding[2];
-        Math::fvec4 col;
+        Math::fvec4 col = {1.f, 1.f, 1.f, 1.f};
     };
 
     // Renderable objects
     std::vector<Object> objects;
     std::vector<Command> commands;
-    std::vector<TexGuiVertex> vertices;
+    std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
 };
 
