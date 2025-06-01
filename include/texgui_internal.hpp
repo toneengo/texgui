@@ -41,6 +41,9 @@ struct ScrollPanelState
 {
     Math::fvec2 contentPos;
     Math::fbox bounds;
+    float horizontalBarPos = 0;
+    float verticalBarPos = 0;
+    bool scrolling = false;
 };
 
 enum KeyState : int

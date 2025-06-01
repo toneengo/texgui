@@ -34,10 +34,16 @@ layout (set = 1, binding = 0) uniform screenSzBuf {
 
 inline const std::string VK_VERT = R"#(
 #version 450 core
-layout(location = 0) in vec3 aPos;
-layout(location = 1) in uint aTexID;
-layout(location = 2) in vec2 aUV;
-layout(location = 3) in vec4 aColor;
+layout(location = 0) in vec2 aPos;
+layout(location = 1) in vec2 aUV;
+layout(location = 2) in vec4 aColor;
+
+layout( push_constant ) uniform constants
+{	
+    vec2 scale;
+    vec2 translate;
+    uint texID;
+} pushConstants;
 
 out gl_PerVertex { vec4 gl_Position; };
 layout(location = 0) out struct { vec4 Color; vec2 UV; } Out;
@@ -47,8 +53,8 @@ void main()
 {
     Out.Color = aColor;
     Out.UV = aUV;
-    texID = aTexID;
-    gl_Position = vec4(aPos, 1);
+    texID = pushConstants.texID;
+    gl_Position = vec4(aPos * pushConstants.scale + pushConstants.translate, 0, 1);
 }
 )#";
 

@@ -208,7 +208,7 @@ public:
     RenderData* renderData;
     uint32_t parentState = STATE_ALL;
     Math::fbox bounds;
-    Math::fbox scissorBox = {-1, -1, -1, -1};
+    Math::fbox scissor = {-1, -1, -1, -1};
 
     Container Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags = 0,  Texture* texture = nullptr);
     bool      Button(const char* text, Texture* texture = nullptr, Container* out = nullptr);
@@ -313,6 +313,7 @@ private:
     {
         Container copy = *this;
         copy.bounds = bounds;
+        copy.scissor = scissor;
         copy.parent = this;
         copy.arrange = arrange;
         copy.parentState = parentState;
@@ -361,52 +362,10 @@ float computeTextWidth(const char* text, size_t numchars);
 class RenderData
 {
 public:
-    struct alignas(16) Character
-    {
-        Math::fbox rect; //xpos, ypos, width, height
-        Math::fbox texBounds;
-        Math::fvec4 colour = Math::fvec4(1.0);
-        int size;
-    };
-
-    struct alignas(16) Quad
-    {
-        Math::fbox rect; //xpos, ypos, width, height
-        Math::fbox texBounds; //xpos, ypos, width, height
-        Math::fvec4 colour = Math::fvec4(1.0);
-        int pixelSize;
-    };
-
-    //#TODO: make each widget its own render pass so we dont have to do this
-    struct alignas(16) Object
-    {
-        Object()
-        {
-        }
-
-        Object(const Object& o)
-        {
-            *this = o;
-        }
-
-        Object(Character c)
-        {
-            ch = c;
-        }
-        Object(Quad q)
-        {
-            quad = q;
-        }
-
-        union {
-            Character ch;
-            Quad quad;
-        };
-    };
-
     bool ordered = false;
     int32_t priority = -1;
     std::vector<RenderData> children;
+    Math::fbox scissor = {0, 0, 8192, 8192};
 
     Container Base;
     RenderData()
@@ -414,13 +373,12 @@ public:
         Base = TexGui::Base;
         Base.renderData = this;
         Base.bounds = Math::fbox(0, 0, 8192, 8192);
-        Base.scissorBox = Math::fbox(0, 0, 8192, 8192);
+        Base.scissor = Math::fbox(0, 0, 8192, 8192);
     }
 
     //just in case?
     ~RenderData()
     {
-        objects.clear();
         commands.clear();
         children.clear();
     }
@@ -429,15 +387,10 @@ public:
 
     void addLine(float x1, float y1, float x2, float y2, const Math::fvec4& col, float lineWidth);
     void addQuad(Math::fbox rect, const Math::fvec4& col);
-    void addTexture(Math::fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, const Math::fbox& bounds);
-    //returns Character array
-    std::span<Object> addText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len = -1);
-    //void scissor(int x, int y, int width, int height);
-    void scissor(Math::fbox bounds);
-    void descissor();
+    void addTexture(Math::fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, const Math::fbox& scissor);
+    void addText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len = -1);
 
     void clear() {
-        objects.clear();
         commands.clear();
         children.clear();
         vertices.clear();
@@ -446,7 +399,6 @@ public:
     }
 
     void swap(RenderData& other) {
-        objects.swap(other.objects);
         commands.swap(other.commands);
         children.swap(other.children);
         vertices.swap(other.vertices);
@@ -462,42 +414,21 @@ public:
 
     struct Command
     {
-        enum {
-            QUAD,
-            VERTEX,
-            TEXTURE,
-            CHARACTER,
-        } type;
-
-        uint32_t number;
+        uint32_t indexCount;
+        uint32_t textureIndex;
+        Math::fvec2 scale;
+        Math::fvec2 translate;
         Math::fbox scissor = {0, 0, 65535, 65535};
-        union {
-            struct {
-                Texture * texture;
-                int state = 0;
-            } texture;
-            struct {
-            } quad;
-            struct {
-                Font * font;
-            } character;
-            struct {
-                int indexCount;
-            } vertex;
-        };
     };
 
     struct Vertex
     {
-        Math::fvec3 pos;
-        uint32_t textureIndex;
+        Math::fvec2 pos;
         Math::fvec2 uv;
-        int padding[2];
         Math::fvec4 col = {1.f, 1.f, 1.f, 1.f};
     };
 
     // Renderable objects
-    std::vector<Object> objects;
     std::vector<Command> commands;
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;

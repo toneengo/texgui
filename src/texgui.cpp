@@ -452,16 +452,16 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
         wstate.box = AlignBox(Base.bounds, wstate.box, flags);
     }
     
-    if (flags & LOCKED || io.lmb != KEY_Held || !(wstate.state & STATE_ACTIVE))
+    if (flags & LOCKED || !(io.lmb & (KEY_Held | KEY_Press)) || !(wstate.state & STATE_ACTIVE))
     {
         wstate.moving = false;
         wstate.resizing = false;
     }
-    else if (fbox(wstate.box.x, wstate.box.y, wstate.box.width, texture->top * _PX).contains(io.cursorPos) && io.lmb == KEY_Held)
+    else if (fbox(wstate.box.x, wstate.box.y, wstate.box.width, texture->top * _PX).contains(io.cursorPos) && io.lmb == KEY_Press)
         wstate.moving = true;
     else if (flags & RESIZABLE && fbox(wstate.box.x + wstate.box.width - texture->right * _PX,
              wstate.box.y + wstate.box.height - texture->bottom * _PX,
-             texture->right * _PX, texture->bottom * _PX).contains(io.cursorPos) && io.lmb == KEY_Held)
+             texture->right * _PX, texture->bottom * _PX).contains(io.cursorPos) && io.lmb == KEY_Press)
         wstate.resizing = true;
 
     if (wstate.moving)
@@ -484,7 +484,7 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
 
     //lowest order will be rendered last.
     child.renderData->priority = -wstate.order;
-    child.renderData->addTexture(wstate.box, texture, wstate.state, _PX, SLICE_9, scissorBox);
+    child.renderData->addTexture(wstate.box, texture, wstate.state, _PX, SLICE_9, scissor);
 
     if (!(flags & HIDE_TITLE)) 
         child.renderData->addText(name, {wstate.box.x + padding.left, wstate.box.y + texture->top * _PX / 2},
@@ -511,7 +511,7 @@ bool Container::Button(const char* text, Texture* texture, Container* out)
     static Texture* defaultTex = &GTexGui->textures[Defaults::Button::Texture];
     auto* tex = texture ? texture : defaultTex;
 
-    renderData->addTexture(bounds, tex, state, _PX, SLICE_9, scissorBox);
+    renderData->addTexture(bounds, tex, state, _PX, SLICE_9, scissor);
 
     TexGui::Math::vec2 pos = state & STATE_PRESS 
                        ? bounds.pos + Defaults::Button::POffset
@@ -528,7 +528,7 @@ bool Container::Button(const char* text, Texture* texture, Container* out)
 
     auto& io = inputFrame;
 
-    bool hovered = scissorBox.contains(io.cursorPos) 
+    bool hovered = scissor.contains(io.cursorPos) 
                 && bounds.contains(io.cursorPos);
 
     return state & STATE_ACTIVE && io.lmb == KEY_Release && hovered ? true : false;
@@ -544,7 +544,7 @@ Container Container::Box(float xpos, float ypos, float width, float height, Math
     fbox boxBounds(bounds.x + xpos, bounds.y + ypos, width, height);
     if (texture != nullptr)
     {
-        renderData->addTexture(boxBounds, texture, 0, 2, SLICE_9, scissorBox);
+        renderData->addTexture(boxBounds, texture, 0, 2, SLICE_9, scissor);
     }
 
     fbox internal = fbox::pad(boxBounds, padding);
@@ -559,7 +559,7 @@ void Container::CheckBox(bool* val)
     if (io.lmb == KEY_Release && bounds.contains(io.cursorPos) && parentState & STATE_HOVER) *val = !*val;
 
     if (texture == nullptr) return;
-    renderData->addTexture(bounds, texture, *val ? STATE_ACTIVE : 0, 2, SLICE_9, scissorBox);
+    renderData->addTexture(bounds, texture, *val ? STATE_ACTIVE : 0, 2, SLICE_9, scissor);
 }
 
 void Container::RadioButton(uint32_t* selected, uint32_t id)
@@ -570,7 +570,7 @@ void Container::RadioButton(uint32_t* selected, uint32_t id)
     if (io.lmb == KEY_Release && bounds.contains(io.cursorPos) && parentState & STATE_HOVER) *selected = id;
 
     if (texture == nullptr) return;
-    renderData->addTexture(bounds, texture, *selected == id ? STATE_ACTIVE : 0, 2, SLICE_9, scissorBox);
+    renderData->addTexture(bounds, texture, *selected == id ? STATE_ACTIVE : 0, 2, SLICE_9, scissor);
 
 }
 
@@ -607,10 +607,13 @@ Container Container::ScrollPanel(const char* name, Texture* texture, Texture* ba
 
     Container sp = withBounds(Math::fbox::pad(bounds, padding), arrange);
     sp.scrollPanelState = &spstate;
-    sp.scissorBox = sp.bounds;
+    sp.scissor = sp.bounds;
 
-    if (sp.scissorBox.contains(io.cursorPos))
-        spstate.contentPos.y += inputFrame.scroll.y * 30;
+    if (spstate.scrolling && io.cursorPos.y >= sp.bounds.y && io.cursorPos.y < sp.bounds.y + sp.bounds.height)
+        spstate.contentPos.y -= inputFrame.mouseRelativeMotion.y * spstate.bounds.height / sp.bounds.height;
+
+    if (sp.scissor.contains(io.cursorPos))
+        spstate.contentPos.y += inputFrame.scroll.y;
 
     float height = sp.bounds.height - padding.top - padding.bottom;
     if (spstate.bounds.height + spstate.contentPos.y < height)
@@ -629,6 +632,11 @@ Container Container::ScrollPanel(const char* name, Texture* texture, Texture* ba
     else
         renderData->addQuad(bar, {1,1,1,1});
 
+    if (bar.contains(io.cursorPos) && io.lmb == KEY_Press)
+        spstate.scrolling = true;
+    else if (io.lmb != KEY_Held)
+        spstate.scrolling = false;
+
     sp.bounds.y += spstate.contentPos.y;
 
     return sp;
@@ -642,7 +650,7 @@ void Container::Image(Texture* texture, int scale)
     fbox sized = fbox(bounds.pos, fvec2(tsize));
     fbox arranged = Arrange(this, sized);
 
-    renderData->addTexture(arranged, texture, STATE_NONE, scale, 0, scissorBox);
+    renderData->addTexture(arranged, texture, STATE_NONE, scale, 0, scissor);
 }
 
 Container Container::Tooltip(Math::fvec2 size)
@@ -676,9 +684,8 @@ Container Container::ListItem(uint32_t* selected, uint32_t id, Texture* texture)
         fbox bounds = fbox::margin(child, Defaults::ListItem::Padding);
         // Get the parent to arrange the list item
         bounds = Arrange(listItem->parent, bounds);
-        
 
-        if (!listItem->scissorBox.contains(bounds))
+        if (!listItem->scissor.contains(bounds))
         {
             return fbox(0,0,0,0);
         }
@@ -701,7 +708,7 @@ Container Container::ListItem(uint32_t* selected, uint32_t id, Texture* texture)
             state = listItem->listItem.id ? STATE_ACTIVE : STATE_NONE;
         }
 
-        listItem->renderData->addTexture(bounds, listItem->texture, state, _PX, SLICE_9, listItem->scissorBox);
+        listItem->renderData->addTexture(bounds, listItem->texture, state, _PX, SLICE_9, listItem->scissor);
 
         // The child is positioned by the list item's parent
         return fbox::pad(bounds, Defaults::ListItem::Padding);
@@ -853,6 +860,7 @@ void renderTextInput(RenderData* renderData, const char* name, fbox bounds, fbox
 
     //#TODO: size
     int size = Defaults::Text::Size;
+    /*
     auto characters = renderData->addText(
         !getBit(tstate.state, STATE_ACTIVE) && len == 0
         ? name : text,
@@ -881,6 +889,7 @@ void renderTextInput(RenderData* renderData, const char* name, fbox bounds, fbox
         textCursorQuad.y = starty - Defaults::Text::Size / 2.f;
     }
     renderData->addTexture(textCursorQuad, textcursor, tstate.state, _PX, SLICE_9, bounds);
+    */
 }
 
 void Container::TextInput(const char* name, char* buf, uint32_t bufsize, CharacterFilter filter)
@@ -968,7 +977,7 @@ void Container::TextInput(const char* name, char* buf, uint32_t bufsize, Charact
         tstate.cursor_pos += strlen(io.text);
         tlen += strlen(io.text);
     }
-    renderTextInput(renderData, name, bounds, scissorBox, tstate, buf, tlen);
+    renderTextInput(renderData, name, bounds, scissor, tstate, buf, tlen);
 }
 
 static void renderTooltip(Paragraph text, RenderData* renderData);
@@ -1536,8 +1545,10 @@ float TexGui::computeTextWidth(const char* text, size_t numchars)
     return total;
 }
 
-std::span<RenderData::Object> RenderData::addText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len)
+void RenderData::addText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len)
 {
+    return;
+    /*
     auto& objects =  this->objects;
     auto& commands = this->commands;
 
@@ -1599,38 +1610,58 @@ std::span<RenderData::Object> RenderData::addText(const char* text, Math::fvec2 
             .font = &font
         }
     });
-    return std::span<RenderData::Object>(objects.end() - numchars, numchars);
+    */
 }
 
-void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, const fbox& bounds)
+static inline uint32_t getTextureIndexFromState(Texture* e, int state)
 {
-    if (bounds.width < 1 || bounds.height < 1) return;
+    return state & STATE_PRESS && e->press != -1 ? e->press :
+        state & STATE_HOVER && e->hover != -1 ? e->hover :
+        state & STATE_ACTIVE && e->active != -1 ? e->active : e->id;
+}
 
-    auto& objects = this->objects;
-    auto& commands = this->commands;
+void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, const fbox& scissor)
+{
+    if (!e || !scissor.isValid()) return;
 
-    if (!e) return;
+    uint32_t tex = getTextureIndexFromState(e, state);
 
     Math::ivec2 framebufferSize = GTexGui->framebufferSize;
-    rect.x -= framebufferSize.x / 2.f;
-    rect.y = framebufferSize.y / 2.f - rect.y - rect.height;
 
-    Quad quad;
-    quad.pixelSize = pixel_size;
+    int pixelSize = pixel_size;
     if (!(flags & SLICE_9))
     {
-        objects.push_back(Quad{
-            .rect = rect,
-            .texBounds = e->bounds,
-            .pixelSize = pixel_size
-        });
-        commands.emplace_back(Command{
-            .type = Command::TEXTURE,
-            .number = 1,
-            .texture = {
-                .texture = e,
-                .state = state
+        Math::fbox texBounds = e->bounds;
+
+        texBounds.pos /= e->size;
+        texBounds.y = 1 - texBounds.y;
+        texBounds.size /= e->size;
+
+        uint32_t idx = vertices.size();
+
+        vertices.insert(vertices.end(), {
+                Vertex{
+                    .pos = {rect.x, rect.y}, .uv = {texBounds.x, texBounds.y},
+                },
+                Vertex{
+                    .pos = {rect.x + rect.w, rect.y}, .uv = {texBounds.x + texBounds.w, texBounds.y},
+                },
+                Vertex{
+                    .pos = {rect.x, rect.y + rect.h}, .uv = {texBounds.x, texBounds.y + texBounds.h},
+                },
+                Vertex{
+                    .pos = {rect.x + rect.w, rect.y + rect.h}, .uv = {texBounds.x + texBounds.w, texBounds.y + texBounds.h},
+                },
             }
+        );
+        indices.insert(indices.end(), {idx, idx+1, idx+2, idx+1, idx+2, idx+3});
+
+        commands.emplace_back(Command{
+            .indexCount = 6,
+            .textureIndex = tex,
+            .scale = {2.f / float(framebufferSize.x), 2.f / float(framebufferSize.y)},
+            .translate = {-1.f, -1.f},
+            .scissor = scissor,
         });
         return;
     }
@@ -1639,85 +1670,85 @@ void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, ui
     {
         for (int x = 0; x < 3; x++)
         {
-            quad.rect = rect;
-            quad.texBounds = e->bounds;
+            Math::fbox slice = rect;
+            Math::fbox texBounds = e->bounds;
             if (x == 0)
             {
-                quad.rect.width = e->left * pixel_size;
-                quad.texBounds.width = e->left;
+                slice.width = e->left * pixel_size;
+                texBounds.width = e->left;
             }
             else if (x == 1)
             {
-                quad.rect.x += e->left * pixel_size;
-                quad.rect.width -= (e->left + e->right) * pixel_size;
-                quad.texBounds.x += e->left;
-                quad.texBounds.width -= e->left + e->right;
+                slice.x += e->left * pixel_size;
+                slice.width -= (e->left + e->right) * pixel_size;
+                texBounds.x += e->left;
+                texBounds.width -= e->left + e->right;
             }
             else if (x == 2)
             {
-                quad.rect.x += quad.rect.width - e->right * pixel_size;
-                quad.rect.width = e->right * pixel_size;
-                quad.texBounds.x += quad.texBounds.width - e->right; 
-                quad.texBounds.width = e->right;
+                slice.x += slice.width - e->right * pixel_size;
+                slice.width = e->right * pixel_size;
+                texBounds.x += texBounds.width - e->right; 
+                texBounds.width = e->right;
             }
 
             if (y == 0)
             {
-                quad.rect.height = e->bottom * pixel_size;
-                quad.texBounds.height = e->bottom;
+                slice.height = e->bottom * pixel_size;
+                texBounds.height = e->bottom;
             }
             else if (y == 1)
             {
-                quad.rect.y += e->bottom * pixel_size;
-                quad.rect.height -= (e->top + e->bottom) * pixel_size;
-                quad.texBounds.y -= e->bottom;
-                quad.texBounds.height -= e->top + e->bottom;
+                slice.y += e->bottom * pixel_size;
+                slice.height -= (e->top + e->bottom) * pixel_size;
+                texBounds.y -= e->bottom;
+                texBounds.height -= e->top + e->bottom;
             }
             else if (y == 2)
             {
-                quad.rect.y += quad.rect.height - e->top * pixel_size;
-                quad.rect.height = e->top * pixel_size;
-                quad.texBounds.y -= quad.texBounds.height - e->top;
-                quad.texBounds.height = e->top;
+                slice.y += slice.height - e->top * pixel_size;
+                slice.height = e->top * pixel_size;
+                texBounds.y -= texBounds.height - e->top;
+                texBounds.height = e->top;
             }
-            objects.push_back(quad);
+
+            texBounds.pos /= e->size;
+            texBounds.y = 1 - texBounds.y;
+            texBounds.size /= e->size;
+
+            uint32_t idx = vertices.size();
+            vertices.insert(vertices.end(), {
+                    Vertex{
+                        .pos = {slice.x, slice.y}, .uv = {texBounds.x, texBounds.y},
+                    },
+                    Vertex{
+                        .pos = {slice.x + slice.w, slice.y}, .uv = {texBounds.x + texBounds.w, texBounds.y},
+                    },
+                    Vertex{
+                        .pos = {slice.x, slice.y + slice.h}, .uv = {texBounds.x, texBounds.y + texBounds.h},
+                    },
+                    Vertex{
+                        .pos = {slice.x + slice.w, slice.y + slice.h}, .uv = {texBounds.x + texBounds.w, texBounds.y + texBounds.h},
+                    },
+                }
+            );
+
+            indices.insert(indices.end(), {idx, idx+1, idx+2, idx+1, idx+2, idx+3});
         }
     }
 
     commands.emplace_back(Command{
-        .type = Command::TEXTURE,
-        .number = 9,
-        .scissor = bounds,
-        .texture = {
-            .texture = e,
-            .state = state
-        }
+        .indexCount = 6 * 9,
+        .textureIndex = tex,
+        .scale = {2.f / float(framebufferSize.x), 2.f / float(framebufferSize.y)},
+        .translate = {-1.f, -1.f},
+        .scissor = scissor,
     });
 }
 
 void RenderData::addQuad(Math::fbox rect, const Math::fvec4& col)
 {
-    //#TODO: white texture is just 1x1 texture which is wierd
-    //#TODO: pixel size doesnt matter right now
     Math::ivec2 framebufferSize = GTexGui->framebufferSize;
-    /*
-    rect.x -= framebufferSize.x / 2.f;
-
-    rect.y = framebufferSize.y / 2.f - rect.y - rect.height;
-    objects.push_back(Quad{
-        .rect = rect,
-        .texBounds = {0, 0, 1, 1},
-        .pixelSize = 1,
-        .colour = col,
-    });
-
-    commands.emplace_back(Command{
-        .type = Command::QUAD,
-        .number = 1,
-        .quad = {}
-    });
-    */
-
     rect.x = rect.x / float(framebufferSize.x) * 2 - 1;
     rect.y = rect.y / float(framebufferSize.y) * 2 - 1;
     rect.w = rect.w / float(framebufferSize.x) * 2;
@@ -1726,27 +1757,26 @@ void RenderData::addQuad(Math::fbox rect, const Math::fvec4& col)
     uint32_t idx = vertices.size();
     vertices.insert(vertices.end(), {
             Vertex{
-                .pos = {rect.x, rect.y, 0}, .textureIndex = 0, .uv = {0,0}, .col = col,
+                .pos = {rect.x, rect.y}, .uv = {0,0}, .col = col,
             },
             Vertex{
-                .pos = {rect.x + rect.w, rect.y, 0}, .textureIndex = 0, .uv = {0, 0}, .col = col,
+                .pos = {rect.x + rect.w, rect.y}, .uv = {0, 0}, .col = col,
             },
             Vertex{
-                .pos = {rect.x, rect.y + rect.h, 0}, .textureIndex = 0, .uv = {0, 0}, .col = col,
+                .pos = {rect.x, rect.y + rect.h}, .uv = {0, 0}, .col = col,
             },
             Vertex{
-                .pos = {rect.x + rect.w, rect.y + rect.h, 0}, .textureIndex = 0, .uv = {0, 0}, .col = col,
+                .pos = {rect.x + rect.w, rect.y + rect.h}, .uv = {0, 0}, .col = col,
             },
         }
     );
 
     indices.insert(indices.end(), {idx, idx+1, idx+2, idx+1, idx+2, idx+3});
     commands.emplace_back(Command{
-        .type = Command::VERTEX,
-        .number = 0,
-        .vertex = {
-            .indexCount = 6
-        }
+        .indexCount = 6,
+        .textureIndex = 0,
+        .scale = {2.f / float(framebufferSize.x), 2.f / float(framebufferSize.y)},
+        .translate = {-1.f, -1.f},
     });
 }
 
@@ -1757,32 +1787,27 @@ void RenderData::addLine(float x1, float y1, float x2, float y2, const Math::fve
 {
     Math::ivec2 framebufferSize = GTexGui->framebufferSize;
 
-    x1 = x1 / float(framebufferSize.x) * 2 - 1;
-    x2 = x2 / float(framebufferSize.x) * 2 - 1;
-    y1 = y1 / float(framebufferSize.y) * 2 - 1;
-    y2 = y2 / float(framebufferSize.y) * 2 - 1;
-
     float dx = x2 - x1;
     float dy = y2 - y1;
 
     IM_NORMALIZE2F_OVER_ZERO(dx, dy);
 
-    dx *= (lineWidth / float(framebufferSize.y) * 2 * 0.5f);
-    dy *= (lineWidth / float(framebufferSize.x) * 2 * 0.5f);
+    dx *= (lineWidth * 0.5f);
+    dy *= (lineWidth * 0.5f);
 
     uint32_t idx = vertices.size();
     vertices.insert(vertices.end(), {
             Vertex{
-                .pos = {x1 + dy, y1 - dx, 0}, .textureIndex = 0, .uv = {0,0}, .col = col,
+                .pos = {x1 + dy, y1 - dx}, .uv = {0,0}, .col = col,
             },
             Vertex{
-                .pos = {x2 + dy, y2 - dx, 0}, .textureIndex = 0, .uv = {0,0}, .col = col, 
+                .pos = {x2 + dy, y2 - dx}, .uv = {0,0}, .col = col, 
             },
             Vertex{
-                .pos = {x2 - dy, y2 + dx, 0}, .textureIndex = 0, .uv = {0,0}, .col = col, 
+                .pos = {x2 - dy, y2 + dx}, .uv = {0,0}, .col = col, 
             },
             Vertex{
-                .pos = {x1 - dy, y1 + dx, 0}, .textureIndex = 0, .uv = {0,0}, .col = col, 
+                .pos = {x1 - dy, y1 + dx}, .uv = {0,0}, .col = col, 
             },
         }
     );
@@ -1790,10 +1815,9 @@ void RenderData::addLine(float x1, float y1, float x2, float y2, const Math::fve
     indices.insert(indices.end(), {idx, idx+1, idx+2, idx, idx+2, idx+3});
 
     commands.emplace_back(Command{
-        .type = Command::VERTEX,
-        .number = 0,
-        .vertex = {
-            .indexCount = 6
-        }
+        .indexCount = 6,
+        .textureIndex = 0,
+        .scale = {2.f / float(framebufferSize.x), 2.f / float(framebufferSize.y)},
+        .translate = {-1.f, -1.f},
     });
 }

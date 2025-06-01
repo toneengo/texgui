@@ -405,11 +405,16 @@ struct box
         return {_b.x - _vec.left, _b.y - _vec.top, _b.width + (_vec.right + _vec.left), _b.height + (_vec.top + _vec.bottom)};
     }
 
-    bool contains(const vec2<T>& _vec)
+    bool contains(const vec2<T>& _vec) const
     {
         vec2<T> d = _vec - pos;
         return d.x <= width && d.x >= 0 &&
                d.y <= height && d.y >= 0;
+    }
+
+    bool isValid() const
+    {
+        return !(width <= 0 || height <= 0);
     }
 
     bool contains(const box& _box)

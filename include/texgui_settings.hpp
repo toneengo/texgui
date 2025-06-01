@@ -10,6 +10,8 @@ namespace Defaults {
 inline int PixelSize  = 1;
 inline uint32_t Flags = SLICE_9;
 
+inline float FadeOut = 12;
+
 namespace Stack {
     inline float Padding = 8;
 }
