@@ -144,6 +144,8 @@ uint32_t TexGui::loadFont(const char* font_path, int baseFontSize, float msdfPxR
     {
         GTexGui->fonts[fontName].codepointToGlyph[glyph.getCodepoint()] = &glyph;
     }
+
+    return 0;
 }
 
 void TexGui::loadTextures(const char* dir)
@@ -950,10 +952,11 @@ void Container::TextInput(const char* name, char* buf, uint32_t bufsize, Charact
         {
             if (tstate.cursor_pos != tlen)
             {
-                char tail[tlen - tstate.cursor_pos + 1]; // + 1 to include the null
+                char* tail = new char[tlen - tstate.cursor_pos + 1];
                 strcpy(tail, buf + tstate.cursor_pos);
                 buf[tstate.cursor_pos - 1] = '\0';
                 strcat(buf, tail);
+                delete[] tail;
             }
             else
                 buf[tstate.cursor_pos - 1] = '\0';
@@ -964,18 +967,13 @@ void Container::TextInput(const char* name, char* buf, uint32_t bufsize, Charact
     }
     else if (c && tlen < bufsize - 1)
     {
+        uint32_t newlen = strlen(io.text);
         if (tstate.cursor_pos != tlen)
-        {
-            char tail[tlen - tstate.cursor_pos + 1];
-            strcpy(tail, buf + tstate.cursor_pos);
-            strcpy(buf + tstate.cursor_pos, io.text);
-            strcat(buf, tail);
-        }
-        else
-            strcpy(buf + tstate.cursor_pos, io.text);
-
-        tstate.cursor_pos += strlen(io.text);
-        tlen += strlen(io.text);
+            strcat(io.text, buf + tstate.cursor_pos);
+        
+        strcpy(buf + tstate.cursor_pos, io.text);
+        tstate.cursor_pos += newlen;
+        tlen += newlen;
     }
     renderTextInput(renderData, name, bounds, scissor, tstate, buf, tlen);
 }

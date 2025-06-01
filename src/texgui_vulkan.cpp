@@ -171,7 +171,7 @@ struct VertexPushConstants
 {
     Math::fvec2 scale;
     Math::fvec2 translate;
-    uint textureIndex;
+    uint32_t textureIndex;
 } vertPushConstants;
 struct PushConstants
 {
