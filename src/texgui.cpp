@@ -128,7 +128,7 @@ uint32_t TexGui::loadFont(const char* font_path, int baseFontSize, float msdfPxR
         }
     }
 
-    GTexGui->fonts[fontName].textureIndex = GTexGui->rendererFns.createTexture((void*)rgba, width, height);
+    GTexGui->fonts[fontName].textureIndex = GTexGui->rendererFns.createFontAtlas((void*)rgba, width, height);
     GTexGui->fonts[fontName].msdfPxRange = msdfPxRange;
     GTexGui->fonts[fontName].baseFontSize = baseFontSize;
     GTexGui->fonts[fontName].atlasWidth = width;

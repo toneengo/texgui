@@ -49,6 +49,7 @@ struct TexGui_ImplVulkan_Data
     VkCommandBuffer immCommandBuffer;
 
     VkSampler       textureSampler;
+    VkSampler       linearSampler;
     VkFence         immCommandFence;
 
     VmaAllocator allocator;
@@ -208,7 +209,7 @@ static uint32_t createTexture(VkImageView imageView, Math::fbox bounds)
     return v->textureCount++;
 }
 
-static uint32_t createTexture_Vulkan(void* data, int width, int height)
+static uint32_t _createTexture_Vulkan(void* data, int width, int height, VkSampler sampler)
 {
     TexGui_ImplVulkan_Data* v = (TexGui_ImplVulkan_Data*)(GTexGui->rendererData);
     VkExtent3D size = {
@@ -324,7 +325,7 @@ static uint32_t createTexture_Vulkan(void* data, int width, int height)
     vkWaitForFences(v->device, 1, &v->immCommandFence, true, 9999999999);
 
     VkDescriptorImageInfo imgInfo{
-        .sampler = v->textureSampler,
+        .sampler = sampler,
         .imageView = iv,
         .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
     };
@@ -347,6 +348,17 @@ static uint32_t createTexture_Vulkan(void* data, int width, int height)
     return v->textureCount++;
 }
 
+static uint32_t createTexture_Vulkan(void* data, int width, int height)
+{
+    TexGui_ImplVulkan_Data* v = (TexGui_ImplVulkan_Data*)(GTexGui->rendererData);
+    return _createTexture_Vulkan(data, width, height, v->textureSampler);
+}
+
+static uint32_t createFontAtlas_Vulkan(void* data, int width, int height)
+{
+    TexGui_ImplVulkan_Data* v = (TexGui_ImplVulkan_Data*)(GTexGui->rendererData);
+    return _createTexture_Vulkan(data, width, height, v->linearSampler);
+}
 
 constexpr int MAX_SAMPLERS = 65536;
 TexGui_ImplVulkan_Data::TexGui_ImplVulkan_Data(const VulkanInitInfo& init_info)
@@ -1070,9 +1082,16 @@ bool TexGui::initVulkan(VulkanInitInfo& info)
     GTexGui->rendererData = new TexGui_ImplVulkan_Data(info);
 
     GTexGui->rendererFns.createTexture = createTexture_Vulkan;
+    GTexGui->rendererFns.createFontAtlas = createFontAtlas_Vulkan;
     GTexGui->rendererFns.renderClean = renderClean_Vulkan;
     GTexGui->rendererFns.framebufferSizeCallback = framebufferSizeCallback_Vulkan;
     GTexGui->rendererFns.newFrame = newFrame_Vulkan;
+
+    TexGui_ImplVulkan_Data* v = (TexGui_ImplVulkan_Data*)(GTexGui->rendererData);
+    VkSamplerCreateInfo sampl = {.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+    sampl.magFilter           = VK_FILTER_LINEAR;
+    sampl.minFilter           = VK_FILTER_LINEAR;
+    vkCreateSampler(v->device, &sampl, nullptr, &v->linearSampler);
 
     createImmediateCommandBuffers_Vulkan();
     initializeDescriptors_Vulkan();

@@ -108,6 +108,7 @@ struct TexGuiContext
     void* backendData = nullptr;
     struct {
         uint32_t (*createTexture)(void* data, int width, int height);
+        uint32_t (*createFontAtlas)(void* data, int width, int height);
         void (*framebufferSizeCallback)(int width, int height);
         void (*renderClean)();
         void (*newFrame)();
