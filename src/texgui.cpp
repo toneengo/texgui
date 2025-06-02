@@ -51,7 +51,6 @@ uint32_t TexGui::loadFont(const char* font_path, int baseFontSize, float msdfPxR
     std::string fontName = font_path;
     fontName.erase(0, fontName.find_last_of('/') + 1);
     fontName.erase(fontName.begin() + fontName.find_last_of('.'), fontName.end());
-    printf("FONT NAME: %s\n", fontName.c_str());
 
     Texture output;
     int width = 0, height = 0;
