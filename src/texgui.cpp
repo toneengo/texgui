@@ -1591,9 +1591,9 @@ void RenderData::addText(const char* text, Math::fvec2 pos, const Math::fvec4& c
         .indexCount = uint32_t(6 * numchars), 
         .textureIndex = font.textureIndex,
         .scale = {2.f / float(framebufferSize.x), 2.f / float(framebufferSize.y)},
+        .translate = {-1.f, -1.f},
         .pxRange = fmax(float(size) / float(font.baseFontSize) * font.msdfPxRange, 1.f),
         .uvScale = {1.f / float(font.atlasWidth), 1.f /float(font.atlasHeight)},
-        .translate = {-1.f, -1.f},
         .scissor = scissor,
     });
 }
@@ -1670,9 +1670,9 @@ int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, const Math:
         .indexCount = uint32_t(6 * numchars), 
         .textureIndex = font.textureIndex,
         .scale = {2.f / float(framebufferSize.x), 2.f / float(framebufferSize.y)},
+        .translate = {-1.f, -1.f},
         .pxRange = fmax(float(size) / float(font.baseFontSize) * font.msdfPxRange, 1.f),
         .uvScale = {1.f / float(font.atlasWidth), 1.f /float(font.atlasHeight)},
-        .translate = {-1.f, -1.f},
         .scissor = scissor,
     });
 
