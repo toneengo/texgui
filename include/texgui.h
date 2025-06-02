@@ -388,7 +388,8 @@ public:
     void addLine(float x1, float y1, float x2, float y2, const Math::fvec4& col, float lineWidth);
     void addQuad(Math::fbox rect, const Math::fvec4& col);
     void addTexture(Math::fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, const Math::fbox& scissor);
-    void addText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len = -1);
+    void addText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, const Math::fbox& scissor, int32_t len = -1);
+    int addTextWithCursor(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, const Math::fbox& scissor, int32_t cursorPos, int32_t sel1, int32_t sel2);
 
     void clear() {
         commands.clear();
@@ -418,6 +419,8 @@ public:
         uint32_t textureIndex;
         Math::fvec2 scale;
         Math::fvec2 translate;
+        float pxRange = 0;
+        Math::fvec2 uvScale = {1.f, 1.f};
         Math::fbox scissor = {0, 0, 65535, 65535};
     };
 

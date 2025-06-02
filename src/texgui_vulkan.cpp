@@ -172,17 +172,9 @@ struct VertexPushConstants
     Math::fvec2 scale;
     Math::fvec2 translate;
     uint32_t textureIndex;
-} vertPushConstants;
-struct PushConstants
-{
-    Math::fbox bounds;
-    int index;
-    int texID;
-    int atlasWidth;
-    int atlasHeight;
     float pxRange;
-    int fontPx;
-} pushConstants;
+    Math::fvec2 uvScale;
+} vertPushConstants;
 
 static uint32_t createTexture(VkImageView imageView, Math::fbox bounds)
 {
@@ -706,22 +698,6 @@ static void framebufferSizeCallback_Vulkan(int width, int height)
 void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& data)
 {
     TexGui_ImplVulkan_Data* v = (TexGui_ImplVulkan_Data*)(GTexGui->rendererData);
-    std::vector<RenderData> children = std::move(data.children);
-
-    if (data.ordered)
-    {
-        std::sort(children.begin(), children.end(), [](const RenderData& lhs, const RenderData& rhs)
-                {
-                    return lhs.priority < rhs.priority;
-                }
-                );
-    }
-
-    for (const auto& child : children)
-        renderFromRenderData_Vulkan(cmd, child);
-
-    children.clear();
-
     // set dynamic scissor
     VkRect2D scissor      = {};
     scissor.offset.x      = data.scissor.x;
@@ -783,6 +759,8 @@ void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
         vertPushConstants.textureIndex = c.textureIndex;
         vertPushConstants.scale = c.scale;
         vertPushConstants.translate = c.translate;
+        vertPushConstants.pxRange = c.pxRange;
+        vertPushConstants.uvScale = c.uvScale;
 
         vkCmdPushConstants(cmd, v->vertPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(VertexPushConstants), &vertPushConstants);
 
@@ -792,6 +770,22 @@ void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
         //#TODO: have firstIndex in the command itself maybe
         currIndex += c.indexCount;
     }
+
+    std::vector<RenderData> children = std::move(data.children);
+
+    if (data.ordered)
+    {
+        std::sort(children.begin(), children.end(), [](const RenderData& lhs, const RenderData& rhs)
+                {
+                    return lhs.priority < rhs.priority;
+                }
+                );
+    }
+
+    for (const auto& child : children)
+        renderFromRenderData_Vulkan(cmd, child);
+
+    children.clear();
 }
 
 static void newFrame_Vulkan()

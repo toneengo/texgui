@@ -43,17 +43,21 @@ layout( push_constant ) uniform constants
     vec2 scale;
     vec2 translate;
     uint texID;
+    float pxRange;
+    vec2 uvScale;
 } pushConstants;
 
 out gl_PerVertex { vec4 gl_Position; };
 layout(location = 0) out struct { vec4 Color; vec2 UV; } Out;
 layout(location = 2) flat out uint texID;
+layout(location = 3) flat out float pxRange;
 
 void main()
 {
     Out.Color = aColor;
-    Out.UV = aUV;
+    Out.UV = aUV * pushConstants.uvScale;
     texID = pushConstants.texID;
+    pxRange = pushConstants.pxRange;
     gl_Position = vec4(aPos * pushConstants.scale + pushConstants.translate, 0, 1);
 }
 )#";
@@ -64,12 +68,27 @@ inline const std::string VK_FRAG = R"#(
 layout(location = 0) out vec4 fColor;
 layout(location = 0) in struct { vec4 Color; vec2 UV; } In;
 layout(location = 2) flat in uint texID;
+layout(location = 3) flat in float pxRange;
 
 layout (set = 0, binding = 0) uniform sampler2D samplers[];
 
+float median(float r, float g, float b) {
+    return max(min(r, g), min(max(r, g), b));
+}
+
 void main()
 {
-    fColor = In.Color * texture(samplers[nonuniformEXT(texID)], In.UV.st);
+    fColor = texture(samplers[nonuniformEXT(texID)], In.UV.st);
+
+    if (pxRange > 0.9)
+    {
+        float sd = median(fColor.r, fColor.g, fColor.b);
+        float screenPxDistance = pxRange * (sd - 0.5);
+        fColor.a = clamp(screenPxDistance + 0.5, 0.0, 1.0) * fColor.a;
+        fColor.rgb = vec3(1.0);
+    }
+
+    fColor *= In.Color;
 }
 )#";
 
@@ -159,7 +178,6 @@ void main() {
         frag.a = 0.0;
 }
 )#";
-
 inline const std::string VK_TEXTVERT = VK_VERSION_HEADER + VK_BUFFERS + R"#(
 layout (std430, set = 0, binding = 0) readonly buffer objectBuf {
     Character text[];

@@ -188,7 +188,7 @@ void TexGui::loadTextures(const char* dir)
         {
             Texture& t = GTexGui->textures[fstr];
             t.bounds.x = 0; 
-            t.bounds.y = height; 
+            t.bounds.y = 0; 
             t.bounds.w = width; 
             t.bounds.h = height; 
             
@@ -489,7 +489,7 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
 
     if (!(flags & HIDE_TITLE)) 
         child.renderData->addText(name, {wstate.box.x + padding.left, wstate.box.y + texture->top * _PX / 2},
-                 Defaults::Text::Color, Defaults::Text::Size, CENTER_Y);
+                 Defaults::Text::Color, Defaults::Text::Size, CENTER_Y, scissor);
 
 
     return child;
@@ -524,7 +524,7 @@ bool Container::Button(const char* text, Texture* texture, Container* out)
     else
     {
         innerBounds.pos += bounds.size / 2;
-        renderData->addText(text, innerBounds, Defaults::Text::Color, Defaults::Text::Size, CENTER_X | CENTER_Y);
+        renderData->addText(text, innerBounds, Defaults::Text::Color, Defaults::Text::Size, CENTER_X | CENTER_Y, scissor);
     }
 
     auto& io = inputFrame;
@@ -543,13 +543,17 @@ Container Container::Box(float xpos, float ypos, float width, float height, Math
         height = height == 0 ? bounds.height : bounds.height * height;
 
     fbox boxBounds(bounds.x + xpos, bounds.y + ypos, width, height);
-    if (texture != nullptr)
-    {
-        renderData->addTexture(boxBounds, texture, 0, 2, SLICE_9, scissor);
-    }
 
     fbox internal = fbox::pad(boxBounds, padding);
-    return withBounds(internal);
+    Container child = withBounds(internal);
+    child.renderData = &renderData->children.emplace_back();
+
+    if (texture != nullptr)
+    {
+        child.renderData->addTexture(boxBounds, texture, 0, 2, SLICE_9, scissor);
+    }
+
+    return child; 
 }
 
 void Container::CheckBox(bool* val)
@@ -861,36 +865,20 @@ void renderTextInput(RenderData* renderData, const char* name, fbox bounds, fbox
 
     //#TODO: size
     int size = Defaults::Text::Size;
-    /*
-    auto characters = renderData->addText(
+
+    if (!(tstate.state & STATE_ACTIVE) || cursor_pos > len) cursor_pos = -1;
+
+    renderData->addTextWithCursor(
         !getBit(tstate.state, STATE_ACTIVE) && len == 0
         ? name : text,
         {startx, starty},
         Defaults::Text::Color,
         size,
-        CENTER_Y
+        CENTER_Y,
+        bounds,
+        cursor_pos,
+        -1, -1
     );
-
-    if (!(tstate.state & STATE_ACTIVE) || cursor_pos > len) return;
-
-    TexGui::Math::fbox textCursorQuad;
-
-    textCursorQuad.width = textcursor->bounds.width * _PX;
-    textCursorQuad.height = float(size);
-    if (cursor_pos == 0)
-    {
-        textCursorQuad.x = startx - textcursor->bounds.width;
-        textCursorQuad.y = starty - Defaults::Text::Size / 2.f;
-    }
-    else
-    {
-        auto lastChar = characters[cursor_pos - 1].ch.rect;
-        textCursorQuad.x = lastChar.x - textcursor->bounds.width + lastChar.width;
-        //#TODO starty is wrong if we do multiline textinputs
-        textCursorQuad.y = starty - Defaults::Text::Size / 2.f;
-    }
-    renderData->addTexture(textCursorQuad, textcursor, tstate.state, _PX, SLICE_9, bounds);
-    */
 }
 
 void Container::TextInput(const char* name, char* buf, uint32_t bufsize, CharacterFilter filter)
@@ -949,16 +937,10 @@ void Container::TextInput(const char* name, char* buf, uint32_t bufsize, Charact
         //#TODO: this is just backspace, we want more deletion later
         if (tstate.cursor_pos > 0)
         {
-            if (tstate.cursor_pos != tlen)
+            for (int i = tstate.cursor_pos - 1; i < tlen; i++)
             {
-                char* tail = new char[tlen - tstate.cursor_pos + 1];
-                strcpy(tail, buf + tstate.cursor_pos);
-                buf[tstate.cursor_pos - 1] = '\0';
-                strcat(buf, tail);
-                delete[] tail;
+                buf[i] = buf[i + 1];
             }
-            else
-                buf[tstate.cursor_pos - 1] = '\0';
 
             tstate.cursor_pos--;
             tlen--;
@@ -1073,14 +1055,14 @@ inline static void drawChunk(TextSegment s, RenderData* renderData, TexGui::Math
                 float segwidth = s.width * scale;
                 bumpline(x, y, segwidth, bounds, scale);
 
-                fbox bounds = fbox(x, y - scale / 2.0, segwidth, scale);
+                fbox textbounds = fbox(x, y - scale / 2.0, segwidth, scale);
 
                 underline(renderData, x, y, segwidth, scale, flags);
 
-                renderData->addText(s.word.data, {x, y}, {1,1,1,1}, scale, CENTER_Y, s.word.len);
+                renderData->addText(s.word.data, {x, y}, {1,1,1,1}, scale, CENTER_Y, bounds, s.word.len);
 
                 // if (checkHover) renderData->addQuad(bounds, fvec4(1, 0, 0, 1));
-                hovered |= checkHover && !hovered && bounds.contains(io.cursorPos);
+                hovered |= checkHover && !hovered && textbounds.contains(io.cursorPos);
                 x += segwidth;
             }
             break;
@@ -1168,7 +1150,7 @@ static void renderTooltip(Paragraph text, RenderData* renderData)
     Container s = renderData->drawTooltip(textBounds);
 
     float x = s.bounds.x, y = s.bounds.y;
-    writeText(text, Defaults::Tooltip::TextScale, s.bounds, x, y, renderData, false, 1);
+    writeText(text, Defaults::Tooltip::TextScale, s.bounds, x, y, s.renderData, false, 1);
 }
 
 void Container::Text(Paragraph text, int32_t scale, TextDecl parameters)
@@ -1542,13 +1524,8 @@ float TexGui::computeTextWidth(const char* text, size_t numchars)
     return total;
 }
 
-void RenderData::addText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, int32_t len)
+void RenderData::addText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, const Math::fbox& scissor,  int32_t len)
 {
-    return;
-    /*
-    auto& objects =  this->objects;
-    auto& commands = this->commands;
-
     size_t numchars = len == -1 ? strlen(text) : len;
     size_t numcopy = numchars;
 
@@ -1572,42 +1549,166 @@ void RenderData::addText(const char* text, Math::fvec2 pos, const Math::fvec4& c
 
     //const CharInfo& hyphen = m_char_map['-'];
     //#TODO: unicode
-    for (int idx = 0; idx < numchars; idx++)
+    for (int i = 0; i < numchars; i++)
     {
-        const auto& info = GTexGui->fonts[Defaults::Text::Font].codepointToGlyph[text[idx]];
+        const auto& info = GTexGui->fonts[Defaults::Text::Font].codepointToGlyph[text[i]];
         int x, y, w, h;
         info->getBoxRect(x, y, w, h);
+
         double l, b, r, t;
         info->getQuadPlaneBounds(l, b, r, t);
 
         if (info->isWhitespace())
-        {
             w = info->getAdvance() * font.baseFontSize;
-        }
-        objects.emplace_back(
-            Character{
-                .rect = fbox(
-                    currx + l * size,
-                    pos.y - b * size,
-                    w * size / float(font.baseFontSize),
-                    h * size / float(font.baseFontSize)
-                ),
-                .texBounds = fbox(x, y, w, h),
-                .colour = col,
-                .size = size
+
+        float xpos = currx + l * size;
+        float ypos = pos.y - t * size;
+        float width = w * size / float(font.baseFontSize);
+        float height = h * size / float(font.baseFontSize);
+
+        uint32_t idx = vertices.size();
+        vertices.insert(vertices.end(), {
+                Vertex{
+                    .pos = {xpos, ypos + height}, .uv = Math::fvec2(x, y),
+                },
+                Vertex{
+                    .pos = {xpos + width, ypos + height}, .uv = {float(x + w), float(y)},
+                },
+                Vertex{
+                    .pos = {xpos, ypos}, .uv = {float(x), float(y + h)},
+                },
+                Vertex{
+                    .pos = {xpos + width, ypos}, .uv = {float(x + w), float(y + h)},
+                },
             }
         );
+        indices.insert(indices.end(), {idx, idx+1, idx+2, idx+1, idx+2, idx+3});
         currx += info->getAdvance() * size;
     }
 
+    Math::ivec2 framebufferSize = GTexGui->framebufferSize;
     commands.emplace_back(Command{
-        .type = Command::CHARACTER,
-        .number = uint32_t(numchars),
-        .character = {
-            .font = &font
-        }
+        .indexCount = uint32_t(6 * numchars), 
+        .textureIndex = font.textureIndex,
+        .scale = {2.f / float(framebufferSize.x), 2.f / float(framebufferSize.y)},
+        .pxRange = fmax(float(size) / float(font.baseFontSize) * font.msdfPxRange, 1.f),
+        .uvScale = {1.f / float(font.atlasWidth), 1.f /float(font.atlasHeight)},
+        .translate = {-1.f, -1.f},
+        .scissor = scissor,
     });
-    */
+}
+
+int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, const Math::fbox& scissor, int32_t cursorPos, int32_t sel1, int32_t sel2)
+{
+    size_t numchars = strlen(text);
+    size_t numcopy = numchars;
+
+    auto& font = GTexGui->fonts[Defaults::Text::Font];
+    //#TODO: this sucks .what if a is a differnet size in another font
+    const auto& a = font.codepointToGlyph['a'];
+
+    if (flags & CENTER_Y)
+    {
+        double l, b, r, t;
+        a->getQuadPlaneBounds(l, b, r, t);
+        pos.y += (size - (t * size)) / 2;
+    }
+
+    if (flags & CENTER_X)
+    {
+        pos.x -= computeTextWidth(text, numchars) * size / 2.0;
+    }
+
+    float currx = pos.x;
+
+    //const CharInfo& hyphen = m_char_map['-'];
+    //#TODO: unicode
+    float cursorPosLocation = -1;
+    int mouseIndex = -1;
+    for (int i = 0; i < numchars; i++)
+    {
+        if (cursorPos == i)
+            cursorPosLocation = currx;
+
+        const auto& info = GTexGui->fonts[Defaults::Text::Font].codepointToGlyph[text[i]];
+        int x, y, w, h;
+        info->getBoxRect(x, y, w, h);
+
+        double l, b, r, t;
+        info->getQuadPlaneBounds(l, b, r, t);
+
+        if (info->isWhitespace())
+            w = info->getAdvance() * font.baseFontSize;
+
+        float xpos = currx + l * size;
+        float ypos = pos.y - t * size;
+        float width = w * size / float(font.baseFontSize);
+        float height = h * size / float(font.baseFontSize);
+
+        uint32_t idx = vertices.size();
+        vertices.insert(vertices.end(), {
+                Vertex{
+                    .pos = {xpos, ypos + height}, .uv = Math::fvec2(x, y),
+                },
+                Vertex{
+                    .pos = {xpos + width, ypos + height}, .uv = {float(x + w), float(y)},
+                },
+                Vertex{
+                    .pos = {xpos, ypos}, .uv = {float(x), float(y + h)},
+                },
+                Vertex{
+                    .pos = {xpos + width, ypos}, .uv = {float(x + w), float(y + h)},
+                },
+            }
+        );
+        indices.insert(indices.end(), {idx, idx+1, idx+2, idx+1, idx+2, idx+3});
+        currx += info->getAdvance() * size;
+    }
+
+    Math::ivec2 framebufferSize = GTexGui->framebufferSize;
+    commands.emplace_back(Command{
+        .indexCount = uint32_t(6 * numchars), 
+        .textureIndex = font.textureIndex,
+        .scale = {2.f / float(framebufferSize.x), 2.f / float(framebufferSize.y)},
+        .pxRange = fmax(float(size) / float(font.baseFontSize) * font.msdfPxRange, 1.f),
+        .uvScale = {1.f / float(font.atlasWidth), 1.f /float(font.atlasHeight)},
+        .translate = {-1.f, -1.f},
+        .scissor = scissor,
+    });
+
+    if (cursorPos == numchars)
+        cursorPosLocation = currx;
+
+    if (cursorPosLocation != -1)
+    {
+        pos.y += size / 4.f;
+        uint32_t idx = vertices.size();
+        vertices.insert(vertices.end(), {
+            Vertex{
+                .pos = {cursorPosLocation, pos.y - size},
+            },
+            Vertex{
+                .pos = {cursorPosLocation + 2, pos.y - size},
+            },
+            Vertex{
+                .pos = {cursorPosLocation, pos.y},
+            },
+            Vertex{
+                .pos = {cursorPosLocation + 2, pos.y},
+            },
+        });
+        indices.insert(indices.end(), {idx, idx+1, idx+2, idx+1, idx+2, idx+3});
+        commands.emplace_back(Command{
+            .indexCount = 6, 
+            .textureIndex = 0,
+            .scale = {2.f / float(framebufferSize.x), 2.f / float(framebufferSize.y)},
+            .translate = {-1.f, -1.f},
+            .scissor = scissor,
+        });
+
+    }
+
+    return -1;
 }
 
 static inline uint32_t getTextureIndexFromState(Texture* e, int state)
@@ -1629,10 +1730,6 @@ void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, ui
     if (!(flags & SLICE_9))
     {
         Math::fbox texBounds = e->bounds;
-
-        texBounds.pos /= e->size;
-        texBounds.y = 1 - texBounds.y;
-        texBounds.size /= e->size;
 
         uint32_t idx = vertices.size();
 
@@ -1658,6 +1755,7 @@ void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, ui
             .textureIndex = tex,
             .scale = {2.f / float(framebufferSize.x), 2.f / float(framebufferSize.y)},
             .translate = {-1.f, -1.f},
+            .uvScale = {1.f / float(e->size.x), 1.f / float(e->size.y)},
             .scissor = scissor,
         });
         return;
@@ -1691,27 +1789,23 @@ void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, ui
 
             if (y == 0)
             {
-                slice.height = e->bottom * pixel_size;
-                texBounds.height = e->bottom;
+                slice.height = e->top * pixel_size;
+                texBounds.height = e->top;
             }
             else if (y == 1)
             {
-                slice.y += e->bottom * pixel_size;
+                slice.y += e->top * pixel_size;
                 slice.height -= (e->top + e->bottom) * pixel_size;
-                texBounds.y -= e->bottom;
+                texBounds.y += e->top;
                 texBounds.height -= e->top + e->bottom;
             }
             else if (y == 2)
             {
-                slice.y += slice.height - e->top * pixel_size;
-                slice.height = e->top * pixel_size;
-                texBounds.y -= texBounds.height - e->top;
-                texBounds.height = e->top;
+                slice.y += slice.height - e->bottom * pixel_size;
+                slice.height = e->bottom * pixel_size;
+                texBounds.y += texBounds.height - e->bottom;
+                texBounds.height = e->bottom;
             }
-
-            texBounds.pos /= e->size;
-            texBounds.y = 1 - texBounds.y;
-            texBounds.size /= e->size;
 
             uint32_t idx = vertices.size();
             vertices.insert(vertices.end(), {
@@ -1739,6 +1833,7 @@ void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, ui
         .textureIndex = tex,
         .scale = {2.f / float(framebufferSize.x), 2.f / float(framebufferSize.y)},
         .translate = {-1.f, -1.f},
+        .uvScale = {1.f / float(e->size.x), 1.f / float(e->size.y)},
         .scissor = scissor,
     });
 }
@@ -1746,10 +1841,6 @@ void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, ui
 void RenderData::addQuad(Math::fbox rect, const Math::fvec4& col)
 {
     Math::ivec2 framebufferSize = GTexGui->framebufferSize;
-    rect.x = rect.x / float(framebufferSize.x) * 2 - 1;
-    rect.y = rect.y / float(framebufferSize.y) * 2 - 1;
-    rect.w = rect.w / float(framebufferSize.x) * 2;
-    rect.h = rect.h / float(framebufferSize.y) * 2;
 
     uint32_t idx = vertices.size();
     vertices.insert(vertices.end(), {
