@@ -299,7 +299,7 @@ void TexGui::processEvent_SDL3(const SDL_Event& event)
             io.submitMouseButton(event.button.button, KEY_Release);
             break;
         case SDL_EVENT_MOUSE_WHEEL:
-            io.scroll += Math::fvec2(event.wheel.x, event.wheel.y);
+            io.scroll += Math::fvec2(event.wheel.x * 25, event.wheel.y * 25);
             break;
         case SDL_EVENT_MOUSE_MOTION:
             io.cursorPos = Math::fvec2(event.motion.x, event.motion.y);
