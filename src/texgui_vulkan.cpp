@@ -805,6 +805,7 @@ bool TexGui::initVulkan(VulkanInitInfo& info)
     return true;
 } 
 
+#include <list>
 static std::list<Texture> m_custom_texs;
 Texture* TexGui::customTexture(VkImageView imageView, Math::ibox bounds, Math::ivec2 atlasSize)
 {
