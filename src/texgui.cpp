@@ -796,7 +796,7 @@ Container Container::Stack(float padding)
         child = fbox(stack->bounds.pos + fvec2(0, s.y), child.size);
         s.y += child.size.y + s.padding;
     
-        Arrange(stack->parent, {stack->bounds.x, stack->bounds.y, stack->bounds.width, s.y});
+        //Arrange(stack->parent, {stack->bounds.x, stack->bounds.y, stack->bounds.width, s.y});
 
         return child;
     };

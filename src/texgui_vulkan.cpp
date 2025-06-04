@@ -9,9 +9,6 @@
 #include "vulkan_shaders.hpp"
 #include "msdf-atlas-gen/msdf-atlas-gen.h"
 
-#include <glslang/Public/ShaderLang.h>
-#include <glslang/Public/ResourceLimits.h>
-#include <glslang/SPIRV/GlslangToSpv.h>
 #include "stb_image.h"
 
 #include <vulkan/vulkan_core.h>
@@ -111,51 +108,13 @@ static inline void image_barrier(VkCommandBuffer cmd, VkImage image, VkImageLayo
     vkCmdPipelineBarrier2(cmd, &depInfo);
 }
 
-static std::vector<uint32_t> compileShaderToSPIRV_Vulkan(const char* shaderSource, EShLanguage stage) {
-    glslang::InitializeProcess();
-
-    glslang::TShader shader(stage);
-    shader.setDebugInfo(true);
-    shader.setEnvInput(glslang::EShSourceGlsl, stage, glslang::EShClientVulkan, 100);
-    shader.setEnvClient(glslang::EShClientVulkan, glslang::EShTargetVulkan_1_3);
-    shader.setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_6);
-
-    shader.setStrings(&shaderSource, 1);
-    if (!shader.parse(GetDefaultResources(), 100, false, EShMsgDefault)) {
-        puts(shader.getInfoLog());
-        puts(shader.getInfoDebugLog());
-        return {};
-    }
-
-    const char* const* ptr;
-    int                n = 0;
-    shader.getStrings(ptr, n);
-
-    glslang::TProgram program;
-    program.addShader(&shader);
-    program.link(EShMsgDefault);
-
-    std::vector<uint32_t> spirv;
-    glslang::GlslangToSpv(*program.getIntermediate(stage), spirv);
-
-    glslang::FinalizeProcess();
-
-    return spirv;
-}
-
-static VkShaderModule createShaderModule(VkDevice device, int stage, const std::string& shaderSource) {
-    auto spirv = compileShaderToSPIRV_Vulkan(shaderSource.c_str(), EShLanguage(stage));
-    if (spirv.size() == 0) {
-        printf("Error compiling shader\n");
-        assert(false);
-    }
-
+static VkShaderModule createShaderModule(VkDevice device, const uint32_t* shaderSource, size_t codeSize) {
     // create a new shader module, using the buffer we loaded
     VkShaderModuleCreateInfo createInfo = {};
     createInfo.sType                    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     createInfo.pNext                    = nullptr;
-    createInfo.codeSize                 = spirv.size() * sizeof(uint32_t);
-    createInfo.pCode                    = spirv.data();
+    createInfo.codeSize                 = codeSize;
+    createInfo.pCode                    = shaderSource;
 
     // check that the creation goes well.
     VkShaderModule shaderModule;
@@ -507,8 +466,8 @@ static void createPipelines_Vulkan()
     assert(v->vertPipelineLayout != VK_NULL_HANDLE);
 
     std::vector<VkPipelineShaderStageCreateInfo> vertstages;
-    VkShaderModule vertvert = createShaderModule(v->device, EShLangVertex, VK_VERT);
-    VkShaderModule vertfrag = createShaderModule(v->device, EShLangFragment, VK_FRAG);
+    VkShaderModule vertvert = createShaderModule(v->device, VK_VERT, sizeof(VK_VERT));
+    VkShaderModule vertfrag = createShaderModule(v->device, VK_FRAG, sizeof(VK_FRAG));
     VkPipelineShaderStageCreateInfo shaderStage = {.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
     shaderStage.pName = "main";
     shaderStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
