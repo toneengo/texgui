@@ -709,10 +709,10 @@ void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
     int currIndex = 0;
     for (auto& c : data.commands)
     {
-        scissor.offset.x      = c.scissor.x;
-        scissor.offset.y      = c.scissor.y;
-        scissor.extent.width  = c.scissor.width;
-        scissor.extent.height = c.scissor.height;
+        scissor.offset.x      = fmax(0, c.scissor.x);
+        scissor.offset.y      = fmax(0, c.scissor.y);
+        scissor.extent.width  = fmax(0, c.scissor.width);
+        scissor.extent.height = fmax(0, c.scissor.height);
         vkCmdSetScissor(cmd, 0, 1, &scissor);
 
         vertPushConstants.textureIndex = c.textureIndex;
