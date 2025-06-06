@@ -400,7 +400,7 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
     {
         for (auto& entry : GTexGui->windows)
         {
-            entry.second.order++;
+            if (entry.second.order != INT_MAX) entry.second.order++;
         }
 
         GTexGui->windows.insert({name, WindowState{
