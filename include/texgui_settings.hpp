@@ -74,6 +74,7 @@ namespace RadioButton {
 
 namespace ScrollPanel {
     inline Math::fvec4 Padding(8);
+    inline std::string BarTexture = "scroll_bar";
 }
 
 namespace Row {

@@ -600,8 +600,14 @@ Container Container::ScrollPanel(const char* name, Texture* texture, Texture* ba
     auto& spstate = GTexGui->scrollPanels[name];
 
     fvec4 padding = Defaults::ScrollPanel::Padding;
-    if (bartex)
-        padding.right += bartex->bounds.width;
+    
+    if (!bartex)
+    {
+        static auto defaultbt = &GTexGui->textures[Defaults::ScrollPanel::BarTexture];
+        bartex = defaultbt;
+    }
+
+    padding.right += bartex->bounds.width;
 
     static auto arrange = [](Container* scroll, fbox child)
     {
@@ -632,10 +638,7 @@ Container Container::ScrollPanel(const char* name, Texture* texture, Texture* ba
                 barh};
 
     renderData->addTexture(bounds, texture, 0, _PX, 0, bounds);
-    if (bartex)
-        renderData->addTexture(bar, bartex, 0, 2, SLICE_9, bounds);
-    else
-        renderData->addQuad(bar, {1,1,1,1});
+    renderData->addTexture(bar, bartex, 0, 2, SLICE_9, bounds);
 
     if (bar.contains(io.cursorPos) && io.lmb == KEY_Press)
         spstate.scrolling = true;
