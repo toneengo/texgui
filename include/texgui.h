@@ -15,7 +15,6 @@
 #include <cassert>
 #include <unordered_map>
 #include <vector>
-#include <span>
 #include "texgui_math.hpp"
 #include "texgui_settings.hpp"
 
@@ -376,6 +375,38 @@ public:
         Base.scissor = Math::fbox(0, 0, 8192, 8192);
     }
 
+    void operator=(const RenderData& other)
+    {
+        commands = other.commands;
+        children = other.children;
+        vertices = other.vertices;
+        indices = other.indices;
+        ordered = other.ordered;
+        priority = other.priority;
+        scissor = other.scissor;
+    }
+
+    void operator=(RenderData&& other)
+    {
+        commands.swap(other.commands);
+        children.swap(other.children);
+        vertices.swap(other.vertices);
+        indices.swap(other.indices);
+        std::swap(ordered, other.ordered);
+        std::swap(priority, other.priority);
+        scissor = other.scissor;
+    }
+
+    RenderData(const RenderData& other)
+    {
+        *this = other;
+    }
+
+    RenderData(RenderData&& other)
+    {
+        *this = std::move(other);
+    }
+
     //just in case?
     ~RenderData()
     {
@@ -397,20 +428,6 @@ public:
         vertices.clear();
         indices.clear();
         ordered = false;
-    }
-
-    void swap(RenderData& other) {
-        commands.swap(other.commands);
-        children.swap(other.children);
-        vertices.swap(other.vertices);
-        indices.swap(other.indices);
-        std::swap(ordered, other.ordered);
-        std::swap(priority, other.priority);
-    }
-
-    void copy(const RenderData& other)
-    {
-        abort();
     }
 
     struct Command

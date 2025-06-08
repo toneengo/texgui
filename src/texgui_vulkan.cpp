@@ -725,12 +725,11 @@ void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
 
         vkCmdDrawIndexed(cmd, c.indexCount, 1, currIndex, 0, 0);
 
-
         //#TODO: have firstIndex in the command itself maybe
         currIndex += c.indexCount;
     }
 
-    std::vector<RenderData> children = std::move(data.children);
+    std::vector<RenderData> children(data.children);
 
     if (data.ordered)
     {
