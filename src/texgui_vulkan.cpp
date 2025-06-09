@@ -177,7 +177,7 @@ static uint32_t _createTexture_Vulkan(void* data, int width, int height, VkSampl
     bufferInfo.usage              = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 
     VmaAllocationCreateInfo vmaallocInfo = {};
-    vmaallocInfo.usage                   = VMA_MEMORY_USAGE_CPU_TO_GPU;
+    vmaallocInfo.requiredFlags           = VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
     vmaallocInfo.flags                   = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
     VkBuffer uploadBuffer;
@@ -676,7 +676,7 @@ void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
         bufferCreateInfo.usage              = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 
         VmaAllocationCreateInfo vmaallocInfo = {};
-        vmaallocInfo.usage                   = VMA_MEMORY_USAGE_CPU_TO_GPU;
+        vmaallocInfo.requiredFlags           = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
         vmaallocInfo.flags                   = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
         VmaAllocationInfo allocationInfo;
