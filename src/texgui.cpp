@@ -331,6 +331,11 @@ void TexGui::clear()
     }
 }
 
+void TexGui::renderClean()
+{
+    GTexGui->rendererFns.renderClean();
+}
+
 inline void setBit(unsigned int& dest, const unsigned int flag, bool on)
 {
     dest = on ? dest | flag : dest & ~(flag);

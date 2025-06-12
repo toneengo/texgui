@@ -342,6 +342,7 @@ uint32_t loadFont(const char* font, int baseFontSize, float msdfPxRange = 2);
 void loadTextures(const char* dir);
 IconSheet loadIcons(const char* dir, int32_t iconWidth, int32_t iconHeight);
 void clear();
+void renderClean();
 
 struct Texture;
 

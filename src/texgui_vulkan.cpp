@@ -13,7 +13,7 @@
 
 #include <vulkan/vulkan_core.h>
 
-#define VMA_IMPLEMENTATION
+#undef VMA_IMPLEMENTATION
 #include <vk_mem_alloc.h>
 
 using namespace TexGui;
@@ -160,6 +160,16 @@ static uint32_t createTexture(VkImageView imageView, Math::fbox bounds)
     return v->textureCount++;
 }
 
+namespace TexGui {
+struct Image {
+    VkImage image;
+    VkImageView imageView;
+    VmaAllocation allocation;
+};
+}
+
+std::vector<TexGui::Image> images;
+
 static uint32_t _createTexture_Vulkan(void* data, int width, int height, VkSampler sampler)
 {
     TexGui_ImplVulkan_Data* v = (TexGui_ImplVulkan_Data*)(GTexGui->rendererData);
@@ -300,6 +310,8 @@ static uint32_t _createTexture_Vulkan(void* data, int width, int height, VkSampl
     vkUpdateDescriptorSets(v->device, 1, &imageWrite, 0, nullptr);
 
     vmaDestroyBuffer(v->allocator, uploadBuffer, allocation);
+
+    images.push_back({image, iv, imageAllocation});
 
     return v->textureCount++;
 }
@@ -770,11 +782,26 @@ void renderClean_Vulkan()
     for (auto& dp : v->frameDescriptorPools)
         vkDestroyDescriptorPool(v->device, dp, 0);
 
+    vkDestroyCommandPool(v->device, v->immCommandPool, 0);
+    vkDestroyFence(v->device, v->immCommandFence, 0);
+
+    vkDestroySampler(v->device, v->linearSampler, nullptr);
+
+    vkDestroyPipeline(v->device, v->vertPipeline, nullptr);
+    vkDestroyPipelineLayout(v->device, v->vertPipelineLayout, nullptr);
+
+    vkDestroyDescriptorSetLayout(v->device, v->samplerDescriptorSetLayout, nullptr);
+
     for (auto& dq : v->bufferDestroyQueue)
     {
         for (auto it = dq.rbegin(); it != dq.rend(); it++) {
             vmaDestroyBuffer(v->allocator, it->buffer, it->allocation);
         }
+    }
+    for (auto& im : images)
+    {
+        vmaDestroyImage(v->allocator, im.image, im.allocation);
+        vkDestroyImageView(v->device, im.imageView, nullptr);
     }
     //#TODO: need to destroy all textures here
 }
