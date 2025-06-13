@@ -26,6 +26,8 @@ bool isCapturingMouse();
 
 void init();
 
+using TexGuiID = uint32_t;
+
 class RenderData;
 
 struct Texture;
@@ -195,6 +197,8 @@ private:
 };
 */
 
+struct TexGuiWindow;
+
 class Container
 {
     friend struct Arrangers;
@@ -215,8 +219,9 @@ public:
     void      CheckBox(bool* val);
     void      RadioButton(uint32_t* selected, uint32_t id);
     Container ScrollPanel(const char* name, Texture* texture = nullptr, Texture* bartex = nullptr);
-    Container Slider(const char* name, Texture* texture = nullptr, Texture* bartex = nullptr);
+    int       SliderInt(int* val, int minVal, int maxVal);
     void      Image(Texture* texture, int scale = Defaults::PixelSize);
+    bool      DropdownInt(int* val, std::initializer_list<std::pair<const char*, int>> names);
     Container Tooltip(Math::fvec2 size);
 
     void      TextInput(const char* name, char* buf, uint32_t bufsize, CharacterFilter filter = nullptr);
@@ -272,10 +277,9 @@ public:
     }
 
 private:
-    std::unordered_map<std::string, uint32_t>* buttonStates;
-
     Texture* texture = nullptr;
 
+    TexGuiWindow* window = nullptr;
     Container* parent;
     ArrangeFunc arrange;
 

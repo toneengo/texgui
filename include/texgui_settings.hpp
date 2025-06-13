@@ -65,6 +65,11 @@ namespace Box {
     inline Math::fvec4 Padding(8);
 }
 
+namespace Slider {
+    inline std::string BarTexture = "sliderbar";
+    inline std::string NodeTexture = "slidernode";
+}
+
 namespace CheckBox {
     inline std::string Texture = "checkbox";
 }

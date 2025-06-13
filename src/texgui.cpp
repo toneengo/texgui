@@ -15,6 +15,8 @@
 
 using namespace TexGui;
 
+#define HOVERED(rect) rect.contains(inputFrame.cursorPos) && parentState & STATE_HOVER
+#define CLICKED(rect) rect.contains(inputFrame.cursorPos) && inputFrame.lmb == KEY_Press && parentState & STATE_ACTIVE
 void TexGui::init()
 {
     GTexGui = new TexGuiContext();
@@ -39,6 +41,7 @@ bool TexGui::isCapturingMouse()
 {
     return GTexGui->lastCapturingMouse;
 }
+
 
 #ifndef M_PI
 #define M_PI  3.14159265358979323846264  // from CRC
@@ -199,7 +202,6 @@ void TexGui::loadTextures(const char* dir)
             t.right = float(width)/3.f;
             t.bottom = float(height)/3.f;
             t.left = float(width)/3.f;
-
         }
 
         Texture& t = GTexGui->textures[fstr];
@@ -282,8 +284,6 @@ InputFrame inputFrame;
 inline static void updateInput()
 {
     auto& io = GTexGui->io;
-    GTexGui->editingText.store(TexGui_editingText);
-    TexGui_editingText = false;
 
     std::lock_guard<std::mutex> lock(TGInputLock);
 
@@ -323,6 +323,13 @@ inline static void updateInput()
 
 void TexGui::clear()
 {
+    auto& g = *GTexGui;
+    if (g.hoveredWidget == 0 && inputFrame.lmb == KEY_Press)
+    {
+        g.activeWidget = 0;
+    }
+    g.hoveredWidget = 0;
+
     updateInput();
     for (auto& win : GTexGui->windows)
     {
@@ -348,6 +355,24 @@ inline bool getBit(const unsigned int dest, const unsigned int flag)
 
 using namespace TexGui::Math;
 
+ContainerState getState(TexGuiID id, fbox bounds, uint32_t parentState)
+{
+    ContainerState state = 0;
+    if (HOVERED(bounds))
+    {
+        GTexGui->hoveredWidget = id;
+        state |= STATE_HOVER;
+    }
+    if (CLICKED(bounds))
+    {
+        GTexGui->activeWidget = id;
+    }
+    if (GTexGui->activeWidget == id) state |= STATE_ACTIVE;
+    if (GTexGui->activeWidget == id && inputFrame.lmb == KEY_Held) state |= STATE_PRESS;
+    return state;
+}
+
+//#TODO: dont use this anymore
 uint32_t getBoxState(uint32_t& state, fbox box, uint32_t parentState)
 {
     auto& io = inputFrame;
@@ -408,14 +433,15 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
             if (entry.second.order != INT_MAX) entry.second.order++;
         }
 
-        GTexGui->windows.insert({name, WindowState{
+        GTexGui->windows.insert({name, TexGuiWindow{
+            .id = int(GTexGui->windows.size()),
             .box = {xpos, ypos, width, height},
         }});
     }
 
     static Texture* wintex = &GTexGui->textures[Defaults::Window::Texture];
     if (!texture) texture = wintex;
-    WindowState& wstate = GTexGui->windows[name];
+    TexGuiWindow& wstate = GTexGui->windows[name];
 
     wstate.visible = true;
 
@@ -480,12 +506,11 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
 
         fbox internal = fbox::pad(wstate.box, padding);
 
-    buttonStates = &wstate.buttonStates;
-
     renderData->ordered = true;
     parentState = wstate.state;
 
     Container child = withBounds(internal);
+    child.window = &wstate;
     child.renderData = &renderData->children.emplace_back();
 
     //lowest order will be rendered last.
@@ -502,18 +527,13 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
 
 bool Container::Button(const char* text, Texture* texture, Container* out)
 {
-    if (!buttonStates->contains(text))
-    {
-        buttonStates->insert({text, 0});
-    }
+    auto& g = *GTexGui;
+    auto& io = inputFrame;
+    TexGuiID id = window->getID(text);
 
-    uint32_t& state = buttonStates->at(text);
-    getBoxState(state, bounds, parentState);
+    bounds = Arrange(this, bounds);
 
-    if (!(parentState & STATE_ACTIVE))
-        setBit(state, STATE_ACTIVE, 0);
-    if (!(parentState & STATE_HOVER))
-        setBit(state, STATE_HOVER, 0);
+    uint32_t state = getState(id, bounds, parentState);
     static Texture* defaultTex = &GTexGui->textures[Defaults::Button::Texture];
     auto* tex = texture ? texture : defaultTex;
 
@@ -531,8 +551,6 @@ bool Container::Button(const char* text, Texture* texture, Container* out)
         innerBounds.pos += bounds.size / 2;
         renderData->addText(text, innerBounds, Defaults::Text::Color, Defaults::Text::Size, CENTER_X | CENTER_Y, scissor);
     }
-
-    auto& io = inputFrame;
 
     bool hovered = scissor.contains(io.cursorPos) 
                 && bounds.contains(io.cursorPos);
@@ -655,6 +673,49 @@ Container Container::ScrollPanel(const char* name, Texture* texture, Texture* ba
     return sp;
 }
 
+void renderSlider(RenderData* renderData, TexGuiID id, const fbox& bounds, float percent, Texture* bar, Texture* node)
+{
+    //just uses the height of the bar texture
+
+}
+
+int Container::SliderInt(int* val, int minVal, int maxVal)
+{
+    auto& g = *GTexGui;
+    auto& io = inputFrame;
+    static auto bar = &GTexGui->textures[Defaults::Slider::BarTexture];
+    static auto node = &GTexGui->textures[Defaults::Slider::NodeTexture];
+
+    TexGuiID id = window->getID(&val);
+
+    float percent = float(*val - minVal) / float(maxVal - minVal);
+    //renderSlider(renderData, id, bounds, percent, bar, node);
+    
+    assert(bar);
+    fbox barArea = {bounds.x, bounds.y, bounds.width, bar->bounds.height * _PX};
+    barArea = Arrange(this, barArea);
+
+    uint32_t state = getState(id, barArea, parentState);
+    renderData->addTexture(barArea, bar, state, _PX, SLICE_3_HORIZONTAL, scissor);
+
+    if (g.activeWidget == id && io.lmb == KEY_Held)
+    {
+        float p = clamp(float(io.cursorPos.x - barArea.x) / barArea.width, 0.f, 1.f);
+        *val = minVal + p * (maxVal - minVal);
+    }
+
+    if (node)
+    {
+        Math::fvec2 nodePos = {bounds.x - node->bounds.width * _PX * 0.5f + barArea.width * percent, barArea.y};
+        fbox nodeArea = {nodePos, node->bounds.size * _PX};
+        uint32_t nodeState;
+        getBoxState(nodeState, nodeArea, state);
+        renderData->addTexture(nodeArea, node, nodeState, _PX, 0, scissor);
+    }
+
+    return *val;
+}
+
 void Container::Image(Texture* texture, int scale)
 {
     if (!texture) return;
@@ -664,6 +725,11 @@ void Container::Image(Texture* texture, int scale)
     fbox arranged = Arrange(this, sized);
 
     renderData->addTexture(arranged, texture, STATE_NONE, scale, 0, scissor);
+}
+
+bool Container::DropdownInt(int* val, std::initializer_list<std::pair<const char*, int>> names)
+{
+
 }
 
 Container Container::Tooltip(Math::fvec2 size)
@@ -869,7 +935,7 @@ void renderTextInput(RenderData* renderData, const char* name, fbox bounds, fbox
     float startx = bounds.x + offsetx + padding.left;
     float starty = bounds.y + bounds.height / 2;
 
-    int cursor_pos = tstate.cursor_pos;
+    int cursor_pos = tstate.textCursorPos;
 
     //#TODO: size
     int size = Defaults::Text::Size;
@@ -891,18 +957,19 @@ void renderTextInput(RenderData* renderData, const char* name, fbox bounds, fbox
 
 void Container::TextInput(const char* name, char* buf, uint32_t bufsize, CharacterFilter filter)
 {
+    auto& g = *GTexGui;
     auto& io = inputFrame;
     
-    if (!GTexGui->textInputs.contains(name))
-    {
-        GTexGui->textInputs.insert({name, {}});
-    }
-    
-    auto& tstate = GTexGui->textInputs[name];
-    getBoxState(tstate.state, bounds, parentState);
+    uint32_t id = window->getID(&buf);
 
-    if (tstate.state & STATE_ACTIVE)
-        TexGui_editingText = true;
+    auto& ti = g.textInputs[id];
+
+    bounds = Arrange(this, bounds);
+
+    ti.state = getState(id, bounds, parentState);
+
+    if (g.activeWidget == id)
+        g.editingText = true;
 
     int32_t tlen = strlen(buf);
     
@@ -914,7 +981,7 @@ void Container::TextInput(const char* name, char* buf, uint32_t bufsize, Charact
 
     if (dir != 0)
     {
-        tstate.cursor_pos = clamp(tstate.cursor_pos + dir, 0, tlen);
+        ti.textCursorPos = clamp(ti.textCursorPos + dir, 0, tlen);
 
         if (io.mods &
         #ifdef __APPLE__
@@ -924,47 +991,47 @@ void Container::TextInput(const char* name, char* buf, uint32_t bufsize, Charact
         #endif
             )
         {
-            while (tstate.cursor_pos > 0 && tstate.cursor_pos < tlen)
+            while (ti.textCursorPos > 0 && ti.textCursorPos < tlen)
             {
-                const char& curr = buf[tstate.cursor_pos];
-                const char& next = buf[tstate.cursor_pos + dir];
+                const char& curr = buf[ti.textCursorPos];
+                const char& next = buf[ti.textCursorPos + dir];
                 //#TODO: more delimiters
                 if (curr != ' ' && curr != '.' && (next == ' ' || next == '.')) 
                 {
-                    if (dir > 0) tstate.cursor_pos++;
+                    if (dir > 0) ti.textCursorPos++;
                     break;
                 }
 
-                tstate.cursor_pos += dir;
+                ti.textCursorPos += dir;
             }
         }
     }
 
-    if (textInputUpdate(tstate, &c, filter))
+    if (textInputUpdate(ti, &c, filter))
     {
         //#TODO: this is just backspace, we want more deletion later
-        if (tstate.cursor_pos > 0)
+        if (ti.textCursorPos > 0)
         {
-            for (int i = tstate.cursor_pos - 1; i < tlen; i++)
+            for (int i = ti.textCursorPos - 1; i < tlen; i++)
             {
                 buf[i] = buf[i + 1];
             }
 
-            tstate.cursor_pos--;
+            ti.textCursorPos--;
             tlen--;
         }
     }
     else if (c && tlen < bufsize - 1)
     {
         uint32_t newlen = strlen(io.text);
-        if (tstate.cursor_pos != tlen)
-            strcat(io.text, buf + tstate.cursor_pos);
+        if (ti.textCursorPos != tlen)
+            strcat(io.text, buf + ti.textCursorPos);
         
-        strcpy(buf + tstate.cursor_pos, io.text);
-        tstate.cursor_pos += newlen;
+        strcpy(buf + ti.textCursorPos, io.text);
+        ti.textCursorPos += newlen;
         tlen += newlen;
     }
-    renderTextInput(renderData, name, bounds, scissor, tstate, buf, tlen);
+    renderTextInput(renderData, name, bounds, scissor, ti, buf, tlen);
 }
 
 static void renderTooltip(Paragraph text, RenderData* renderData);
@@ -1769,50 +1836,55 @@ void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, ui
         return;
     }
 
-    for (int y = 0; y < 3; y++)
+    float rectSliceH[][2] = {
+        {rect.x, e->left * pixel_size},
+        {rect.x + e->left * pixel_size, rect.width - (e->left + e->right) * pixel_size},
+        {rect.x + rect.width - e->right * pixel_size, e->right * pixel_size}
+    };
+    float texBoundsSliceH[][2] = {
+        {e->bounds.x, e->left},
+        {e->bounds.x + e->left, e->bounds.width - (e->left + e->right)},
+        {e->bounds.x + e->bounds.width - e->right, e->right}
+    };
+
+    float rectSliceV[][2] = {
+        {rect.y, e->top * pixel_size},
+        {rect.y + e->top * pixel_size, rect.height - (e->top + e->bottom) * pixel_size},
+        {rect.y + rect.height - e->bottom * pixel_size, e->bottom * pixel_size}
+    };
+
+    float texBoundsSliceV[][2] = {
+        {e->bounds.y, e->top},
+        {e->bounds.y + e->top, e->bounds.height - (e->top + e->bottom)},
+        {e->bounds.y + e->bounds.height - e->bottom, e->bottom}
+    };
+
+    int minY = flags & SLICE_3_VERTICAL ? 0 : 1;
+    int maxY = flags & SLICE_3_VERTICAL ? 3 : 2;
+    int minX = flags & SLICE_3_HORIZONTAL ? 0 : 1;
+    int maxX = flags & SLICE_3_HORIZONTAL ? 3 : 2;
+
+    for (int y = minY; y < maxY; y++)
     {
-        for (int x = 0; x < 3; x++)
+        for (int x = minX; x < maxX; x++)
         {
             Math::fbox slice = rect;
             Math::fbox texBounds = e->bounds;
-            if (x == 0)
+
+            if (flags & SLICE_3_HORIZONTAL)
             {
-                slice.width = e->left * pixel_size;
-                texBounds.width = e->left;
-            }
-            else if (x == 1)
-            {
-                slice.x += e->left * pixel_size;
-                slice.width -= (e->left + e->right) * pixel_size;
-                texBounds.x += e->left;
-                texBounds.width -= e->left + e->right;
-            }
-            else if (x == 2)
-            {
-                slice.x += slice.width - e->right * pixel_size;
-                slice.width = e->right * pixel_size;
-                texBounds.x += texBounds.width - e->right; 
-                texBounds.width = e->right;
+                slice.x = rectSliceH[x][0];
+                slice.width = rectSliceH[x][1];
+                texBounds.x = texBoundsSliceH[x][0];
+                texBounds.width = texBoundsSliceH[x][1];
             }
 
-            if (y == 0)
+            if (flags & SLICE_3_VERTICAL)
             {
-                slice.height = e->top * pixel_size;
-                texBounds.height = e->top;
-            }
-            else if (y == 1)
-            {
-                slice.y += e->top * pixel_size;
-                slice.height -= (e->top + e->bottom) * pixel_size;
-                texBounds.y += e->top;
-                texBounds.height -= e->top + e->bottom;
-            }
-            else if (y == 2)
-            {
-                slice.y += slice.height - e->bottom * pixel_size;
-                slice.height = e->bottom * pixel_size;
-                texBounds.y += texBounds.height - e->bottom;
-                texBounds.height = e->bottom;
+                slice.y = rectSliceV[y][0];
+                slice.height = rectSliceV[y][1];
+                texBounds.y = texBoundsSliceV[y][0];
+                texBounds.height = texBoundsSliceV[y][1];
             }
 
             uint32_t idx = vertices.size();
@@ -1837,7 +1909,7 @@ void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, ui
     }
 
     commands.emplace_back(Command{
-        .indexCount = 6 * 9,
+        .indexCount = uint32_t(6 * (flags & SLICE_3_HORIZONTAL ? 3 : 1) * (flags & SLICE_3_VERTICAL ? 3 : 1)),
         .textureIndex = tex,
         .scale = {2.f / float(framebufferSize.x), 2.f / float(framebufferSize.y)},
         .translate = {-1.f, -1.f},

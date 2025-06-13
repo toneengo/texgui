@@ -8,8 +8,9 @@ enum ContainerFlags : uint32_t
 {
     CENTER_X = 0x01,
     CENTER_Y = 0x04,
-    SLICE_9  = 0x08,
-    SLICE_3  = 0x10,
+    SLICE_3_VERTICAL  = 0x08,
+    SLICE_3_HORIZONTAL  = 0x10,
+    SLICE_9  = SLICE_3_HORIZONTAL | SLICE_3_VERTICAL,
     WRAPPED  = 0x80,
 
     ALIGN_NONE = 0x100,
@@ -39,7 +40,7 @@ enum RenderFlags : uint32_t
     COLQUAD = 0x0,
 };
 
-enum ContainerState : uint8_t 
+enum ContainerStateEnum : uint8_t 
 {
     STATE_NONE   = 0x0,
     STATE_ACTIVE = 0x01,
@@ -47,6 +48,7 @@ enum ContainerState : uint8_t
     STATE_PRESS  = 0x08,
     STATE_ALL    = 0xff
 };
+using ContainerState = uint32_t;
 
 enum {
     INHERIT = 0
