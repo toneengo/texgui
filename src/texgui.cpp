@@ -366,13 +366,13 @@ ContainerState getState(TexGuiID id, fbox bounds, uint32_t parentState)
     if (CLICKED(bounds))
     {
         GTexGui->activeWidget = id;
+        state |= STATE_PRESS;
     }
     if (GTexGui->activeWidget == id) state |= STATE_ACTIVE;
     if (GTexGui->activeWidget == id && inputFrame.lmb == KEY_Held) state |= STATE_PRESS;
     return state;
 }
 
-//#TODO: dont use this anymore
 uint32_t getBoxState(uint32_t& state, fbox box, uint32_t parentState)
 {
     auto& io = inputFrame;
@@ -935,12 +935,8 @@ void renderTextInput(RenderData* renderData, const char* name, fbox bounds, fbox
     float startx = bounds.x + offsetx + padding.left;
     float starty = bounds.y + bounds.height / 2;
 
-    int cursor_pos = tstate.textCursorPos;
-
     //#TODO: size
     int size = Defaults::Text::Size;
-
-    if (!(tstate.state & STATE_ACTIVE) || cursor_pos > len) cursor_pos = -1;
 
     renderData->addTextWithCursor(
         !getBit(tstate.state, STATE_ACTIVE) && len == 0
@@ -950,37 +946,26 @@ void renderTextInput(RenderData* renderData, const char* name, fbox bounds, fbox
         size,
         CENTER_Y,
         bounds,
-        cursor_pos,
-        -1, -1
+        tstate
     );
 }
 
-void Container::TextInput(const char* name, char* buf, uint32_t bufsize, CharacterFilter filter)
+void TextInputBehaviour(TextInputState& ti, char* buf, uint32_t bufsize, int tlen)
 {
     auto& g = *GTexGui;
     auto& io = inputFrame;
-    
-    uint32_t id = window->getID(&buf);
-
-    auto& ti = g.textInputs[id];
-
-    bounds = Arrange(this, bounds);
-
-    ti.state = getState(id, bounds, parentState);
-
-    if (g.activeWidget == id)
-        g.editingText = true;
-
-    int32_t tlen = strlen(buf);
-    
     //left takes priority
-    bool left = io.keyStates[TexGuiKey_LeftArrow] & (KEY_Press | KEY_Repeat);
+    bool left = io.keyStates[TexGuiKey_LeftArrow] & (KEY_Press | KEY_Repeat) || io.keyStates[TexGuiKey_Backspace] & (KEY_Press | KEY_Repeat);
     bool right = io.keyStates[TexGuiKey_RightArrow] & (KEY_Press | KEY_Repeat);
-    int dir = left ? -1 : right ? 1 : 0;
-    char* c;
 
-    if (dir != 0)
+    int dir = left ? -1 : right ? 1 : 0;
+    
+    if (dir != 0 && ti.selection[0] == ti.selection[1])
     {
+        if (io.keyStates[TexGuiKey_Backspace] & (KEY_Press | KEY_Repeat))
+        {
+            ti.selection[1] = ti.textCursorPos;
+        }
         ti.textCursorPos = clamp(ti.textCursorPos + dir, 0, tlen);
 
         if (io.mods &
@@ -1005,33 +990,79 @@ void Container::TextInput(const char* name, char* buf, uint32_t bufsize, Charact
                 ti.textCursorPos += dir;
             }
         }
-    }
-
-    if (textInputUpdate(ti, &c, filter))
-    {
-        //#TODO: this is just backspace, we want more deletion later
-        if (ti.textCursorPos > 0)
+        if (io.keyStates[TexGuiKey_Backspace] & (KEY_Press | KEY_Repeat))
         {
-            for (int i = ti.textCursorPos - 1; i < tlen; i++)
-            {
-                buf[i] = buf[i + 1];
-            }
-
-            ti.textCursorPos--;
-            tlen--;
+            ti.selection[0] = ti.textCursorPos;
         }
     }
-    else if (c && tlen < bufsize - 1)
+
+    if (io.mods &
+    #ifdef __APPLE__
+        TexGuiMod_Super
+    #else
+        TexGuiMod_Ctrl
+    #endif
+        && io.keyStates[TexGuiKey_A]
+        )
     {
-        uint32_t newlen = strlen(io.text);
-        if (ti.textCursorPos != tlen)
-            strcat(io.text, buf + ti.textCursorPos);
-        
-        strcpy(buf + ti.textCursorPos, io.text);
-        ti.textCursorPos += newlen;
-        tlen += newlen;
+        ti.selection[0] = 0;
+        ti.selection[1] = tlen;
     }
-    renderTextInput(renderData, name, bounds, scissor, ti, buf, tlen);
+
+    if (io.keyStates[TexGuiKey_Backspace] & (KEY_Press | KEY_Repeat) || io.text[0] != '\0')
+    {
+        if (ti.selection[0] != ti.selection[1])
+        {
+            int size = ti.selection[1] - ti.selection[0];
+            for (int i = ti.selection[0]; i <= tlen; i++)
+            {
+                buf[i] = buf[i + size];
+            }
+            tlen -= size;
+            ti.textCursorPos = ti.selection[0];
+        }
+
+        uint32_t newlen = strlen(io.text);
+        if (tlen + newlen < bufsize - 1 && newlen > 0)
+        { 
+            if (ti.textCursorPos != tlen)
+                strcat(io.text, buf + ti.textCursorPos);
+            
+            strcpy(buf + ti.textCursorPos, io.text);
+            ti.textCursorPos += newlen;
+            tlen += newlen;
+        }
+    }
+    
+    //deselect
+    if (dir != 0 || io.text[0] != '\0')
+    {
+        ti.selection[0] = -1;
+        ti.selection[1] = -1;
+    }
+}
+void Container::TextInput(const char* name, char* buf, uint32_t bufsize, CharacterFilter filter)
+{
+    auto& g = *GTexGui;
+    auto& io = inputFrame;
+    
+    uint32_t id = window->getID(&buf);
+
+    auto& ti = g.textInputs[id];
+
+    bounds = Arrange(this, bounds);
+
+    ti.state = getState(id, bounds, parentState);
+
+    uint32_t len = strlen(buf);
+
+    if (g.activeWidget == id)
+    {
+        g.editingText = true;
+        TextInputBehaviour(ti, buf, bufsize, len);
+    }
+    
+    renderTextInput(renderData, name, bounds, scissor, ti, buf, len);
 }
 
 static void renderTooltip(Paragraph text, RenderData* renderData);
@@ -1673,8 +1704,9 @@ void RenderData::addText(const char* text, Math::fvec2 pos, const Math::fvec4& c
     });
 }
 
-int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, const Math::fbox& scissor, int32_t cursorPos, int32_t sel1, int32_t sel2)
+int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, const Math::fbox& scissor, TextInputState& textInput)
 {
+    auto& io = inputFrame;
     size_t numchars = strlen(text);
     size_t numcopy = numchars;
 
@@ -1696,16 +1728,18 @@ int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, const Math:
 
     float currx = pos.x;
 
+    Math::ivec2 framebufferSize = GTexGui->framebufferSize;
     //const CharInfo& hyphen = m_char_map['-'];
     //#TODO: unicode
     float cursorPosLocation = -1;
     int mouseIndex = -1;
+    int& textCursorPos = textInput.textCursorPos;
     for (int i = 0; i < numchars; i++)
     {
-        if (cursorPos == i)
-            cursorPosLocation = currx;
-
         const auto& info = GTexGui->fonts[Defaults::Text::Font].codepointToGlyph[text[i]];
+
+        fvec4 color = col;
+
         int x, y, w, h;
         info->getBoxRect(x, y, w, h);
 
@@ -1720,41 +1754,74 @@ int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, const Math:
         float width = w * size / float(font.baseFontSize);
         float height = h * size / float(font.baseFontSize);
 
+        float advance = info->getAdvance() * size;
+
+        if (textInput.state & STATE_ACTIVE && io.lmb == KEY_Press)
+        {
+            textInput.selection[0] = -1;
+            textInput.selection[1] = -1;
+            if (io.cursorPos.x >= currx && io.cursorPos.x <= currx + advance * 0.5)
+                textCursorPos = i;
+            else if (io.cursorPos.x > currx + advance * 0.5)
+                textCursorPos = i + 1;
+        }
+
+        if (textInput.state & STATE_ACTIVE && io.lmb == KEY_Held)
+        {
+            if (io.cursorPos.x >= currx && io.cursorPos.x <= currx + advance * 0.5)
+            {
+                textInput.selection[i >= textCursorPos ? 0 : 1] = textCursorPos;
+                textInput.selection[i >= textCursorPos ? 1 : 0] = i;
+            }
+            else if (io.cursorPos.x > currx + advance * 0.5)
+            {
+                textInput.selection[i >= textCursorPos ? 0 : 1] = textCursorPos;
+                textInput.selection[i >= textCursorPos ? 1 : 0] = i + 1;
+            }
+        }
+
+        if (i >= textInput.selection[0] && i < textInput.selection[1])
+        {
+            addQuad({currx, pos.y + size / 4.f - size, advance, float(size)}, Defaults::TextInput::SelectColor);
+            color = {1.f - col.r, 1.f - col.g, 1.f - col.b, col.a};
+        }
+
         uint32_t idx = vertices.size();
         vertices.insert(vertices.end(), {
                 Vertex{
-                    .pos = {xpos, ypos + height}, .uv = Math::fvec2(x, y),
+                    .pos = {xpos, ypos + height}, .uv = Math::fvec2(x, y), .col = color
                 },
                 Vertex{
-                    .pos = {xpos + width, ypos + height}, .uv = {float(x + w), float(y)},
+                    .pos = {xpos + width, ypos + height}, .uv = {float(x + w), float(y)}, .col = color
                 },
                 Vertex{
-                    .pos = {xpos, ypos}, .uv = {float(x), float(y + h)},
+                    .pos = {xpos, ypos}, .uv = {float(x), float(y + h)}, .col = color
                 },
                 Vertex{
-                    .pos = {xpos + width, ypos}, .uv = {float(x + w), float(y + h)},
+                    .pos = {xpos + width, ypos}, .uv = {float(x + w), float(y + h)}, .col = color
                 },
             }
         );
         indices.insert(indices.end(), {idx, idx+1, idx+2, idx+1, idx+2, idx+3});
-        currx += info->getAdvance() * size;
+        if (textCursorPos == i)
+            cursorPosLocation = currx;
+        currx += advance;
+
+        commands.emplace_back(Command{
+            .indexCount = uint32_t(6), 
+            .textureIndex = font.textureIndex,
+            .scale = {2.f / float(framebufferSize.x), 2.f / float(framebufferSize.y)},
+            .translate = {-1.f, -1.f},
+            .pxRange = fmax(float(size) / float(font.baseFontSize) * font.msdfPxRange, 1.f),
+            .uvScale = {1.f / float(font.atlasWidth), 1.f /float(font.atlasHeight)},
+            .scissor = scissor,
+        });
     }
-
-    Math::ivec2 framebufferSize = GTexGui->framebufferSize;
-    commands.emplace_back(Command{
-        .indexCount = uint32_t(6 * numchars), 
-        .textureIndex = font.textureIndex,
-        .scale = {2.f / float(framebufferSize.x), 2.f / float(framebufferSize.y)},
-        .translate = {-1.f, -1.f},
-        .pxRange = fmax(float(size) / float(font.baseFontSize) * font.msdfPxRange, 1.f),
-        .uvScale = {1.f / float(font.atlasWidth), 1.f /float(font.atlasHeight)},
-        .scissor = scissor,
-    });
-
-    if (cursorPos == numchars)
+    
+    if (textCursorPos == numchars)
         cursorPosLocation = currx;
 
-    if (cursorPosLocation != -1)
+    if (textInput.state & STATE_ACTIVE && cursorPosLocation != -1)
     {
         pos.y += size / 4.f;
         uint32_t idx = vertices.size();

@@ -363,6 +363,7 @@ int32_t cacheText(TextDecl text, TextSegment* buffer, uint32_t capacity);
 
 float computeTextWidth(const char* text, size_t numchars);
 
+struct TextInputState;
 class RenderData
 {
 public:
@@ -425,7 +426,7 @@ public:
     void addQuad(Math::fbox rect, const Math::fvec4& col);
     void addTexture(Math::fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, const Math::fbox& scissor);
     void addText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, const Math::fbox& scissor, int32_t len = -1);
-    int addTextWithCursor(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, const Math::fbox& scissor, int32_t cursorPos, int32_t sel1, int32_t sel2);
+    int addTextWithCursor(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, const Math::fbox& scissor, TextInputState& textInput);
 
     void clear() {
         commands.clear();

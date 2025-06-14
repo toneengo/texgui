@@ -53,6 +53,7 @@ namespace Button {
 namespace TextInput {
     inline std::string Texture = "textinput";
     inline std::string TextCursor = "textcursor";
+    inline Math::fvec4 SelectColor = {0.0, 0.8, 0.8, 1.0};
     inline Math::fvec4 Padding(8);
 }
 

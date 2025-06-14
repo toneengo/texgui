@@ -246,7 +246,9 @@ static inline void submit_clipboard()
 {
     auto& io = GTexGui->io;
     char* clipboard = SDL_GetClipboardText();
+    TGInputLock.lock();
     strcat(io.text, clipboard);
+    TGInputLock.unlock();
     SDL_free(clipboard);
 }
 
@@ -263,7 +265,6 @@ void TexGui::processEvent_SDL3(const SDL_Event& event)
     TexGuiKey tgkey;
 
     //#TODO: text input
-    TGInputLock.lock();
     switch (event.type)
     {
         case SDL_EVENT_KEY_DOWN:
@@ -276,16 +277,22 @@ void TexGui::processEvent_SDL3(const SDL_Event& event)
             )
                 submit_clipboard();
 
+            TGInputLock.lock();
             io.mods = TexGui_ImplSDL3_ModToTexGuiMod(event.key.mod);
+            TGInputLock.unlock();
             tgkey = TexGui_ImplSDL3_KeyEventToTexGuiKey(event.key.key, event.key.scancode);
 
+            TGInputLock.lock();
             if (io.getKeyState(tgkey) == KEY_Off) io.submitKey(tgkey, KEY_Press);
             else if (event.key.repeat) io.submitKey(tgkey, KEY_Repeat);
+            TGInputLock.unlock();
             break;
         case SDL_EVENT_KEY_UP:
-            io.mods = TexGui_ImplSDL3_ModToTexGuiMod(event.key.mod);
             tgkey = TexGui_ImplSDL3_KeyEventToTexGuiKey(event.key.key, event.key.scancode);
+            TGInputLock.lock();
+            io.mods = TexGui_ImplSDL3_ModToTexGuiMod(event.key.mod);
             io.submitKey(tgkey, KEY_Release);
+            TGInputLock.unlock();
             break;
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
             #ifdef __linux__
@@ -293,25 +300,34 @@ void TexGui::processEvent_SDL3(const SDL_Event& event)
                 submit_clipboard();
             #endif
 
+            TGInputLock.lock();
             io.submitMouseButton(event.button.button, KEY_Press);
+            TGInputLock.unlock();
             break;
         case SDL_EVENT_MOUSE_BUTTON_UP:
+            TGInputLock.lock();
             io.submitMouseButton(event.button.button, KEY_Release);
+            TGInputLock.unlock();
             break;
         case SDL_EVENT_MOUSE_WHEEL:
+            TGInputLock.lock();
             io.scroll += Math::fvec2(event.wheel.x * 25, event.wheel.y * 25);
+            TGInputLock.unlock();
             break;
         case SDL_EVENT_MOUSE_MOTION:
+            TGInputLock.lock();
             io.cursorPos = Math::fvec2(event.motion.x, event.motion.y);
             io.mouseRelativeMotion += Math::fvec2(event.motion.xrel, event.motion.yrel);
+            TGInputLock.unlock();
             break;
         case SDL_EVENT_TEXT_INPUT:
+            TGInputLock.lock();
             strcat(io.text, event.text.text);
+            TGInputLock.unlock();
             break;
         default:
             break;
     }
-    TGInputLock.unlock();
 
     switch (event.type)
     {

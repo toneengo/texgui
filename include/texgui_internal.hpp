@@ -122,8 +122,8 @@ struct TexGuiWindow
 
 struct TextInputState 
 {
-    //Math::fvec2 select_pos;
     int textCursorPos = 0;
+    int selection[2] = {-1, -1};
     bool selecting = false;
     ContainerState state;
 };
