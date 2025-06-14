@@ -120,9 +120,9 @@ void main() {
     glDeleteShader(vsh); glDeleteShader(fsh);
 
     // ************** ALL GUI STUFF ****************
-    TexGui::Defaults::PixelSize = 2;
-    TexGui::Defaults::Font::Size = 20;
-    TexGui::Defaults::Font::MsdfPxRange = 2;
+    //TexGui::Defaults::PixelSize = 2;
+    //TexGui::Defaults::Font::Size = 20;
+    //TexGui::Defaults::Font::MsdfPxRange = 2;
 
     TexGui::init();
     TexGui::initOpenGL();
@@ -174,14 +174,14 @@ void main() {
 
         box0[4].TextInput("char input...", charbuf, 128);
 
-        auto box1 = row[1].ScrollPanel("panel1", TexGui::texByName("box2"));
+        auto box1 = row[1].ScrollPanel("panel1", TexGui::getTexture("box2"));
         auto grid = box1.Grid();
 
         for (uint32_t i = 0; i < 10; i++)
         {
             grid
                 .ListItem(&selected, i)
-                .Image(TexGui::texByName("lollipop"));
+                .Image(TexGui::getTexture("lollipop"));
         }
 
         copy.copy(data);

@@ -201,7 +201,7 @@ struct vec4
           z(0),
           w(0)
     {}
-    
+
     vec4(T _x, T _y, T _z, T _w)
         : x(static_cast<T>(_x)),
           y(static_cast<T>(_y)),

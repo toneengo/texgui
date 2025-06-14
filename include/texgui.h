@@ -22,6 +22,7 @@
 
 NAMESPACE_BEGIN(TexGui);
 
+Math::fvec2 getCursorPos();
 bool isCapturingMouse();
 
 void init();
@@ -154,51 +155,7 @@ struct TextDecl
 };
     
 using CharacterFilter = bool(*)(unsigned int c);
-// very basic shared ptr that is good enough for  what we do
-/*
-template<typename T>
-class TexGuiSharedPtr
-{
-public:
-    TexGuiSharedPtr(uint32_t count)
-    {
-        ptr = new T[count];
-        refcount = new uint32_t(1);
-    }
-
-    TexGuiSharedPtr(const TexGuiSharedPtr& other)
-    {
-        ptr = other.ptr;
-        refcount = other.refcount;
-        *refcount++;
-    }
-
-    void operator=(const TexGuiSharedPtr& other)
-    {
-        ptr = other.ptr;
-        refcount = other.refcount;
-        *refcount++;
-    }
-
-    ~TexGuiSharedPtr()
-    {
-        *refcount--;
-        if (refcount == 0)
-        {
-            delete [] ptr;
-            delete refcount;
-        }
-    }
-    T * const get() { return ptr; }
-        
-private:
-    T* ptr;
-    uint32_t* refcount;
-};
-*/
-
 struct TexGuiWindow;
-
 class Container
 {
     friend struct Arrangers;
@@ -213,29 +170,30 @@ public:
     Math::fbox bounds;
     Math::fbox scissor = {-1, -1, -1, -1};
 
-    Container Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags = 0,  Texture* texture = nullptr);
-    bool      Button(const char* text, Texture* texture = nullptr, Container* out = nullptr);
-    Container Box(float xpos, float ypos, float width, float height, Math::fvec4 padding = Defaults::Box::Padding, Texture* texture = nullptr);
+    Container Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags = 0);
+    bool      Button(const char* text, Container* out = nullptr);
+    Container Box(float xpos, float ypos, float width, float height);
+    Container Box();
     void      CheckBox(bool* val);
     void      RadioButton(uint32_t* selected, uint32_t id);
-    Container ScrollPanel(const char* name, Texture* texture = nullptr, Texture* bartex = nullptr);
+    Container ScrollPanel(const char* name);
     int       SliderInt(int* val, int minVal, int maxVal);
-    void      Image(Texture* texture, int scale = Defaults::PixelSize);
+    void      Image(Texture* texture, int scale = -1);
     bool      DropdownInt(int* val, std::initializer_list<std::pair<const char*, int>> names);
     Container Tooltip(Math::fvec2 size);
 
-    void      TextInput(const char* name, char* buf, uint32_t bufsize, CharacterFilter filter = nullptr);
+    void      TextInput(const char* name, char* buf, uint32_t bufsize);
     void      Text(Paragraph text, int32_t scale = 0, TextDecl parameters = {});
     void      Text(const char* text, int32_t scale = 0, TextDecl parameters = {});
 
-    Container Align(uint32_t flags = 0, Math::fvec4 padding = Math::fvec4(0,0,0,0));
+    Container Align(uint32_t flags = 0, const Math::fvec4 padding = {0,0,0,0});
 
     void      Divider(float padding = 0);
     void      Line(float x1, float y1, float x2, float y2, Math::fvec4 color, float lineWidth = 1.f);
 
     // Similar to radio buttons - the id of the selected one is stored in the *selected pointer.
     // If you don't want them to be clickable - set selected to nullptr, and 0 or 1 for whether it is active in id
-    Container ListItem(uint32_t* selected, uint32_t id, Texture* texture = nullptr);
+    Container ListItem(uint32_t* selected, uint32_t id);
 
     // Arranges children in a bento-grid layout.
     Container Grid();
@@ -346,14 +304,16 @@ uint32_t loadFont(const char* font, int baseFontSize, float msdfPxRange = 2);
 void loadTextures(const char* dir);
 IconSheet loadIcons(const char* dir, int32_t iconWidth, int32_t iconHeight);
 void clear();
-void renderClean();
+void destroy();
 
 struct Texture;
 
 // Get a specific texture that was read by loadTextures
-Texture* texByName(const char* name);
+Texture* getTexture(const char* name);
 // Prepare a reference to a texture already present in an OpenGL 2D texture object.
 //Texture* customTexture(unsigned int glTexID, Math::ibox pixelBounds);
+
+Font* getFont(const char* name);
 
 Math::ivec2 getTextureSize(Texture* tex);
 
@@ -461,7 +421,7 @@ public:
 };
 
 Math::fvec2 calculateTextBounds(Paragraph text, int32_t scale, float maxWidth);
-Math::fvec2 calculateTextBounds(const char* text, float maxWidth, int32_t scale = Defaults::Text::Size);
+Math::fvec2 calculateTextBounds(const char* text, float maxWidth, int32_t scale = -1);
 
 //This is copied from Dear ImGui. Thank you Ocornut
 enum TexGuiKey : int

@@ -25,7 +25,7 @@ struct Font
 
 struct Texture
 {
-    unsigned int id = -1;
+    int id = -1;
 
     //Texture sub-region
     Math::fbox bounds;

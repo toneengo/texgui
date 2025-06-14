@@ -8,9 +8,11 @@
 #include <mutex>
 #include <unordered_map>
 #include <atomic>
+#include <stack>
 
 NAMESPACE_BEGIN(TexGui);
 
+struct Style;
 inline std::mutex TGInputLock;
 
 // CRC32 needs a 1KB lookup table (not cache friendly)
@@ -223,6 +225,9 @@ struct TexGuiContext
     //#TODO: separate rasterized and msdf font atlases 
     std::unordered_map<std::string, TexGui::Font> fonts;
     std::unordered_map<std::string, TexGui::Texture> textures;
+
+    std::vector<Style*> styleStack;
+    Style* defaultStyle;
 
     InputData io;
     bool initialised = false;
