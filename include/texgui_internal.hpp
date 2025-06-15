@@ -198,6 +198,7 @@ struct TexGuiContext
     bool lastCapturingMouse = false;
     Math::ivec2 framebufferSize;
     std::atomic<bool> editingText = false;
+    int pixelSize = 1;
     
     // only for slider for now
     TexGuiID activeWidget;

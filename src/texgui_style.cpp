@@ -4,72 +4,85 @@
 
 using namespace TexGui;
 
-Style::Style()
+Style* TexGui::BeginStyle()
 {
+    Style* style = new Style;
     if (!GTexGui->styleStack.empty())
     {
-        *this = *GTexGui->styleStack.back();
+        *style = *GTexGui->styleStack.back();
     };
-    GTexGui->styleStack.push_back(this);
+    GTexGui->styleStack.push_back(style);
+    return style;
 }
 
-Style::~Style()
+void TexGui::EndStyle()
 {
+    delete GTexGui->styleStack.back();
     GTexGui->styleStack.pop_back();
 }
-DefaultStyle::DefaultStyle() : Style()
+
+Style* initDefaultStyle()
 {
-    Tooltip.HoverPadding = {6, 12, 6, 12};
-    Tooltip.TextScale = 20;
-    Tooltip.MouseOffset = {16, 16};
-    Tooltip.Texture = &GTexGui->textures["tooltip"];
-    Tooltip.Padding = {8, 12, 8, 12};
-    Tooltip.MaxWidth = 400;
-    Tooltip.UnderlineSize = {0, 2};
+    auto style = BeginStyle();
+    style->Tooltip.HoverPadding = {6, 12, 6, 12};
+    style->Tooltip.TextScale = 20;
+    style->Tooltip.MouseOffset = {16, 16};
+    style->Tooltip.Texture = &GTexGui->textures["tooltip"];
+    style->Tooltip.Padding = {8, 12, 8, 12};
+    style->Tooltip.MaxWidth = 400;
+    style->Tooltip.UnderlineSize = {0, 2};
 
-    Stack.Padding = 8;
+    style->Stack.Padding = 8;
 
-    Text.Color = {1, 1, 1, 1};
-    Text.Size = 20;
-    Text.Font;
+    style->Text.Color = {1, 1, 1, 1};
+    style->Text.Size = 20;
 
-    Window.Texture = &GTexGui->textures["window"];
-    Window.Padding = {12, 12, 12, 12};
-    Window.Flags = 0;
+    style->Window.Texture = &GTexGui->textures["window"];
+    style->Window.Padding = {12, 12, 12, 12};
+    style->Window.Flags = 0;
 
-    Button.Texture = &GTexGui->textures["button"];
-    Button.Padding = Math::fvec4(12);
-    Button.Flags   = SLICE_9 | CENTER_X | CENTER_Y;
-    Button.POffset = 0;
+    style->Button.Texture = &GTexGui->textures["button"];
+    style->Button.Padding = Math::fvec4(12);
+    style->Button.POffset = 0;
+    style->Button.Text = style->Text;
 
-    TextInput.Texture = &GTexGui->textures["textinput"];
-    TextInput.SelectColor = {0.0, 0.8, 0.8, 1.0};
-    TextInput.Padding = Math::fvec4(8);
+    style->TextInput.Texture = &GTexGui->textures["textinput"];
+    style->TextInput.SelectColor = {0.0, 0.8, 0.8, 1.0};
+    style->TextInput.Padding = Math::fvec4(8);
+    style->TextInput.Text = style->Text;
 
-    ListItem.Texture = &GTexGui->textures["listitem"];
-    ListItem.Padding = Math::fvec4(4);
+    style->ListItem.Texture = &GTexGui->textures["listitem"];
+    style->ListItem.Padding = Math::fvec4(4);
 
-    Box.Padding = Math::fvec4(8);
+    style->Box.Padding = Math::fvec4(8);
 
-    Slider.BarTexture = &GTexGui->textures["sliderbar"];
-    Slider.NodeTexture = &GTexGui->textures["slidernode"];
+    style->Slider.BarTexture = &GTexGui->textures["sliderbar"];
+    style->Slider.NodeTexture = &GTexGui->textures["slidernode"];
 
-    CheckBox.Texture = &GTexGui->textures["checkbox"];
+    style->CheckBox.Texture = &GTexGui->textures["checkbox"];
 
-    RadioButton.Texture = &GTexGui->textures["radiobutton"];
+    style->RadioButton.Texture = &GTexGui->textures["radiobutton"];
 
-    ScrollPanel.Padding = Math::fvec4(8);
-    //ScrollPanel.PanelTexture = &GTexGui->textures["scroll_bar"];
-    ScrollPanel.BarTexture = &GTexGui->textures["scroll_bar"];
+    style->ScrollPanel.Padding = Math::fvec4(8);
+    //style->ScrollPanel.PanelTexture = &GTexGui->textures["scroll_bar"];
+    style->ScrollPanel.BarTexture = &GTexGui->textures["scroll_bar"];
 
-    Row.Height = INHERIT;
-    Row.Spacing = 4;
+    style->Row.Height = INHERIT;
+    style->Row.Spacing = 4;
 
-    Column.Height = INHERIT;
-    Column.Spacing = 4;
+    style->Column.Height = INHERIT;
+    style->Column.Spacing = 4;
+    return style;
 }
 
 Style* TexGui::getDefaultStyle()
 {
     return GTexGui->styleStack[0];
+}
+
+int TexGui::setPixelSize(int px)
+{
+    int old = GTexGui->pixelSize;
+    GTexGui->pixelSize = px;
+    return old;
 }

@@ -170,21 +170,21 @@ public:
     Math::fbox bounds;
     Math::fbox scissor = {-1, -1, -1, -1};
 
-    Container Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags = 0);
-    bool      Button(const char* text, Container* out = nullptr);
-    Container Box(float xpos, float ypos, float width, float height);
+    Container Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags = 0, TexGui::WindowStyle* style = nullptr);
+    bool      Button(const char* text, Container* out = nullptr, TexGui::ButtonStyle* style = nullptr);
+    Container Box(float xpos, float ypos, float width, float height, TexGui::BoxStyle* style = nullptr);
     Container Box();
-    void      CheckBox(bool* val);
-    void      RadioButton(uint32_t* selected, uint32_t id);
-    Container ScrollPanel(const char* name);
-    int       SliderInt(int* val, int minVal, int maxVal);
+    void      CheckBox(bool* val, TexGui::CheckBoxStyle* style = nullptr);
+    void      RadioButton(uint32_t* selected, uint32_t id, TexGui::RadioButtonStyle* style = nullptr);
+    Container ScrollPanel(const char* name, TexGui::ScrollPanelStyle* style = nullptr);
+    int       SliderInt(int* val, int minVal, int maxVal, TexGui::SliderStyle* style = nullptr);
     void      Image(Texture* texture, int scale = -1);
     bool      DropdownInt(int* val, std::initializer_list<std::pair<const char*, int>> names);
-    Container Tooltip(Math::fvec2 size);
+    Container Tooltip(Math::fvec2 size, TexGui::TooltipStyle* style = nullptr);
 
-    void      TextInput(const char* name, char* buf, uint32_t bufsize);
-    void      Text(Paragraph text, int32_t scale = 0, TextDecl parameters = {});
-    void      Text(const char* text, int32_t scale = 0, TextDecl parameters = {});
+    void      TextInput(const char* name, char* buf, uint32_t bufsize, TexGui::TextInputStyle* style = nullptr);
+    void      Text(Paragraph text, int32_t scale = 0, TextDecl parameters = {}, TexGui::TextStyle* style = nullptr);
+    void      Text(const char* text, int32_t scale = 0, TextDecl parameters = {}, TexGui::TextStyle* style = nullptr);
 
     Container Align(uint32_t flags = 0, const Math::fvec4 padding = {0,0,0,0});
 
@@ -193,12 +193,12 @@ public:
 
     // Similar to radio buttons - the id of the selected one is stored in the *selected pointer.
     // If you don't want them to be clickable - set selected to nullptr, and 0 or 1 for whether it is active in id
-    Container ListItem(uint32_t* selected, uint32_t id);
+    Container ListItem(uint32_t* selected, uint32_t id, TexGui::ListItemStyle* style = nullptr);
 
     // Arranges children in a bento-grid layout.
     Container Grid();
     // Arranges children in a vertical stack.
-    Container Stack(float padding = -1);
+    Container Stack(float padding = -1, TexGui::StackStyle* style = nullptr);
 
     Container Node(float x, float y);
 
