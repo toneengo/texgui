@@ -1,4 +1,4 @@
-#include "texgui_settings.hpp"
+#include "texgui_style.hpp"
 #include "texgui_internal.hpp"
 #include "texgui.h"
 

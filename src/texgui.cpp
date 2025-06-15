@@ -1,6 +1,6 @@
 #include "texgui.h"
 #include "texgui_flags.hpp"
-#include "texgui_settings.hpp"
+#include "texgui_style.hpp"
 #include "texgui_types.hpp"
 #include <cassert>
 #include <cstring>

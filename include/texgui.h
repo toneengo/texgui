@@ -16,7 +16,7 @@
 #include <unordered_map>
 #include <vector>
 #include "texgui_math.hpp"
-#include "texgui_settings.hpp"
+#include "texgui_style.hpp"
 
 #include <vulkan/vulkan_core.h>
 
