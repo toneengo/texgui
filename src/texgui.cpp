@@ -531,8 +531,9 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
 
     Container child = withBounds(internal);
     child.window = &wstate;
-    child.renderData = &renderData->children.emplace_back();
+    renderData->children.emplace_back();
 
+    child.renderData = &renderData->children.back();
     //lowest order will be rendered last.
     child.renderData->priority = -wstate.order;
     child.renderData->addTexture(wstate.box, wintex, wstate.state, _PX, SLICE_9, scissor);
@@ -1748,23 +1749,20 @@ void RenderData::addText(const char* text, Math::fvec2 pos, const Math::fvec4& c
         float width = w * size / float(font->baseFontSize);
         float height = h * size / float(font->baseFontSize);
 
-        uint32_t idx = vertices.size();
-        vertices.insert(vertices.end(), {
-                Vertex{
-                    .pos = {xpos, ypos + height}, .uv = Math::fvec2(x, y),
-                },
-                Vertex{
-                    .pos = {xpos + width, ypos + height}, .uv = {float(x + w), float(y)},
-                },
-                Vertex{
-                    .pos = {xpos, ypos}, .uv = {float(x), float(y + h)},
-                },
-                Vertex{
-                    .pos = {xpos + width, ypos}, .uv = {float(x + w), float(y + h)},
-                },
-            }
-        );
-        indices.insert(indices.end(), {idx, idx+1, idx+2, idx+1, idx+2, idx+3});
+
+        vertices.emplace_back(Vertex{.pos = {xpos, ypos + height}, .uv = Math::fvec2(x, y)});
+        vertices.emplace_back(Vertex{.pos = {xpos + width, ypos + height}, .uv = {float(x + w), float(y)}});
+        vertices.emplace_back(Vertex{.pos = {xpos, ypos}, .uv = {float(x), float(y + h)}});
+        vertices.emplace_back(Vertex{.pos = {xpos + width, ypos}, .uv = {float(x + w), float(y + h)}});
+        uint32_t idx = vertices.size() - 4;
+
+        indices.emplace_back(idx);
+        indices.emplace_back(idx+1);
+        indices.emplace_back(idx+2);
+        indices.emplace_back(idx+1);
+        indices.emplace_back(idx+2);
+        indices.emplace_back(idx+3);
+
         currx += info->getAdvance() * size;
     }
 
@@ -1863,23 +1861,18 @@ int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, const Math:
             color = {1.f - col.r, 1.f - col.g, 1.f - col.b, col.a};
         }
 
-        uint32_t idx = vertices.size();
-        vertices.insert(vertices.end(), {
-                Vertex{
-                    .pos = {xpos, ypos + height}, .uv = Math::fvec2(x, y), .col = color
-                },
-                Vertex{
-                    .pos = {xpos + width, ypos + height}, .uv = {float(x + w), float(y)}, .col = color
-                },
-                Vertex{
-                    .pos = {xpos, ypos}, .uv = {float(x), float(y + h)}, .col = color
-                },
-                Vertex{
-                    .pos = {xpos + width, ypos}, .uv = {float(x + w), float(y + h)}, .col = color
-                },
-            }
-        );
-        indices.insert(indices.end(), {idx, idx+1, idx+2, idx+1, idx+2, idx+3});
+        vertices.emplace_back(Vertex{.pos = {xpos, ypos + height}, .uv = Math::fvec2(x, y), .col = color});
+        vertices.emplace_back(Vertex{.pos = {xpos + width, ypos + height}, .uv = {float(x + w), float(y)}, .col = col});
+        vertices.emplace_back(Vertex{.pos = {xpos, ypos}, .uv = {float(x), float(y + h)}, .col = color});
+        vertices.emplace_back(Vertex{.pos = {xpos + width, ypos}, .uv = {float(x + w), float(y + h)}, .col = color});
+        uint32_t idx = vertices.size() - 4;
+        indices.emplace_back(idx);
+        indices.emplace_back(idx+1);
+        indices.emplace_back(idx+2);
+        indices.emplace_back(idx+1);
+        indices.emplace_back(idx+2);
+        indices.emplace_back(idx+3);
+
         if (textCursorPos == i)
             cursorPosLocation = currx;
         currx += advance;
@@ -1901,22 +1894,19 @@ int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, const Math:
     if (textInput.state & STATE_ACTIVE && cursorPosLocation != -1)
     {
         pos.y += size / 4.f;
-        uint32_t idx = vertices.size();
-        vertices.insert(vertices.end(), {
-            Vertex{
-                .pos = {cursorPosLocation, pos.y - size},
-            },
-            Vertex{
-                .pos = {cursorPosLocation + 2, pos.y - size},
-            },
-            Vertex{
-                .pos = {cursorPosLocation, pos.y},
-            },
-            Vertex{
-                .pos = {cursorPosLocation + 2, pos.y},
-            },
-        });
-        indices.insert(indices.end(), {idx, idx+1, idx+2, idx+1, idx+2, idx+3});
+
+        vertices.emplace_back(Vertex{.pos = {cursorPosLocation, pos.y - size}});
+        vertices.emplace_back(Vertex{.pos = {cursorPosLocation + 2, pos.y - size}});
+        vertices.emplace_back(Vertex{.pos = {cursorPosLocation, pos.y}});
+        vertices.emplace_back(Vertex{.pos = {cursorPosLocation + 2, pos.y}});
+        uint32_t idx = vertices.size() - 4;
+        indices.emplace_back(idx);
+        indices.emplace_back(idx+1);
+        indices.emplace_back(idx+2);
+        indices.emplace_back(idx+1);
+        indices.emplace_back(idx+2);
+        indices.emplace_back(idx+3);
+
         commands.emplace_back(Command{
             .indexCount = 6, 
             .textureIndex = 0,
@@ -1949,24 +1939,17 @@ void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, ui
     {
         Math::fbox texBounds = e->bounds;
 
-        uint32_t idx = vertices.size();
-
-        vertices.insert(vertices.end(), {
-                Vertex{
-                    .pos = {rect.x, rect.y}, .uv = {texBounds.x, texBounds.y},
-                },
-                Vertex{
-                    .pos = {rect.x + rect.w, rect.y}, .uv = {texBounds.x + texBounds.w, texBounds.y},
-                },
-                Vertex{
-                    .pos = {rect.x, rect.y + rect.h}, .uv = {texBounds.x, texBounds.y + texBounds.h},
-                },
-                Vertex{
-                    .pos = {rect.x + rect.w, rect.y + rect.h}, .uv = {texBounds.x + texBounds.w, texBounds.y + texBounds.h},
-                },
-            }
-        );
-        indices.insert(indices.end(), {idx, idx+1, idx+2, idx+1, idx+2, idx+3});
+        vertices.emplace_back(Vertex{.pos = {rect.x, rect.y}, .uv = {texBounds.x, texBounds.y}});
+        vertices.emplace_back(Vertex{.pos = {rect.x + rect.w, rect.y}, .uv = {texBounds.x + texBounds.w, texBounds.y},});
+        vertices.emplace_back(Vertex{.pos = {rect.x, rect.y + rect.h}, .uv = {texBounds.x, texBounds.y + texBounds.h},});
+        vertices.emplace_back(Vertex{.pos = {rect.x + rect.w, rect.y + rect.h}, .uv = {texBounds.x + texBounds.w, texBounds.y + texBounds.h},});
+        uint32_t idx = vertices.size() - 4;
+        indices.emplace_back(idx);
+        indices.emplace_back(idx+1);
+        indices.emplace_back(idx+2);
+        indices.emplace_back(idx+1);
+        indices.emplace_back(idx+2);
+        indices.emplace_back(idx+3);
 
         commands.emplace_back(Command{
             .indexCount = 6,
@@ -2030,24 +2013,17 @@ void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, ui
                 texBounds.height = texBoundsSliceV[y][1];
             }
 
-            uint32_t idx = vertices.size();
-            vertices.insert(vertices.end(), {
-                    Vertex{
-                        .pos = {slice.x, slice.y}, .uv = {texBounds.x, texBounds.y},
-                    },
-                    Vertex{
-                        .pos = {slice.x + slice.w, slice.y}, .uv = {texBounds.x + texBounds.w, texBounds.y},
-                    },
-                    Vertex{
-                        .pos = {slice.x, slice.y + slice.h}, .uv = {texBounds.x, texBounds.y + texBounds.h},
-                    },
-                    Vertex{
-                        .pos = {slice.x + slice.w, slice.y + slice.h}, .uv = {texBounds.x + texBounds.w, texBounds.y + texBounds.h},
-                    },
-                }
-            );
-
-            indices.insert(indices.end(), {idx, idx+1, idx+2, idx+1, idx+2, idx+3});
+            vertices.emplace_back(Vertex{.pos = {slice.x, slice.y}, .uv = {texBounds.x, texBounds.y},});
+            vertices.emplace_back(Vertex{.pos = {slice.x + slice.w, slice.y}, .uv = {texBounds.x + texBounds.w, texBounds.y},});
+            vertices.emplace_back(Vertex{.pos = {slice.x, slice.y + slice.h}, .uv = {texBounds.x, texBounds.y + texBounds.h},});
+            vertices.emplace_back(Vertex{.pos = {slice.x + slice.w, slice.y + slice.h}, .uv = {texBounds.x + texBounds.w, texBounds.y + texBounds.h},});
+            uint32_t idx = vertices.size() - 4;
+            indices.emplace_back(idx);
+            indices.emplace_back(idx+1);
+            indices.emplace_back(idx+2);
+            indices.emplace_back(idx+1);
+            indices.emplace_back(idx+2);
+            indices.emplace_back(idx+3);
         }
     }
 
@@ -2065,24 +2041,18 @@ void RenderData::addQuad(Math::fbox rect, const Math::fvec4& col)
 {
     Math::ivec2 framebufferSize = GTexGui->framebufferSize;
 
-    uint32_t idx = vertices.size();
-    vertices.insert(vertices.end(), {
-            Vertex{
-                .pos = {rect.x, rect.y}, .uv = {0,0}, .col = col,
-            },
-            Vertex{
-                .pos = {rect.x + rect.w, rect.y}, .uv = {0, 0}, .col = col,
-            },
-            Vertex{
-                .pos = {rect.x, rect.y + rect.h}, .uv = {0, 0}, .col = col,
-            },
-            Vertex{
-                .pos = {rect.x + rect.w, rect.y + rect.h}, .uv = {0, 0}, .col = col,
-            },
-        }
-    );
+    vertices.emplace_back(Vertex{.pos = {rect.x, rect.y}, .uv = {0,0}, .col = col,});
+    vertices.emplace_back(Vertex{.pos = {rect.x + rect.w, rect.y}, .uv = {0, 0}, .col = col,});
+    vertices.emplace_back(Vertex{.pos = {rect.x, rect.y + rect.h}, .uv = {0, 0}, .col = col,});
+    vertices.emplace_back(Vertex{.pos = {rect.x + rect.w, rect.y + rect.h}, .uv = {0, 0}, .col = col,});
+    uint32_t idx = vertices.size() - 4;
+    indices.emplace_back(idx);
+    indices.emplace_back(idx+1);
+    indices.emplace_back(idx+2);
+    indices.emplace_back(idx+1);
+    indices.emplace_back(idx+2);
+    indices.emplace_back(idx+3);
 
-    indices.insert(indices.end(), {idx, idx+1, idx+2, idx+1, idx+2, idx+3});
     commands.emplace_back(Command{
         .indexCount = 6,
         .textureIndex = 0,
@@ -2106,24 +2076,18 @@ void RenderData::addLine(float x1, float y1, float x2, float y2, const Math::fve
     dx *= (lineWidth * 0.5f);
     dy *= (lineWidth * 0.5f);
 
-    uint32_t idx = vertices.size();
-    vertices.insert(vertices.end(), {
-            Vertex{
-                .pos = {x1 + dy, y1 - dx}, .uv = {0,0}, .col = col,
-            },
-            Vertex{
-                .pos = {x2 + dy, y2 - dx}, .uv = {0,0}, .col = col, 
-            },
-            Vertex{
-                .pos = {x2 - dy, y2 + dx}, .uv = {0,0}, .col = col, 
-            },
-            Vertex{
-                .pos = {x1 - dy, y1 + dx}, .uv = {0,0}, .col = col, 
-            },
-        }
-    );
+    vertices.emplace_back(Vertex{.pos = {x1 + dy, y1 - dx}, .uv = {0,0}, .col = col});
+    vertices.emplace_back(Vertex{.pos = {x2 + dy, y2 - dx}, .uv = {0,0}, .col = col,});
+    vertices.emplace_back(Vertex{.pos = {x2 - dy, y2 + dx}, .uv = {0,0}, .col = col,});
+    vertices.emplace_back(Vertex{.pos = {x1 - dy, y1 + dx}, .uv = {0,0}, .col = col,});
 
-    indices.insert(indices.end(), {idx, idx+1, idx+2, idx, idx+2, idx+3});
+    uint32_t idx = vertices.size() - 4;
+    indices.emplace_back(idx);
+    indices.emplace_back(idx+1);
+    indices.emplace_back(idx+2);
+    indices.emplace_back(idx);
+    indices.emplace_back(idx+2);
+    indices.emplace_back(idx+3);
 
     commands.emplace_back(Command{
         .indexCount = 6,
