@@ -251,6 +251,66 @@ struct vec4
           w(static_cast<T>(_w))
     {}
 
+    template <typename v>
+    vec4<T> operator-(const v& vec)
+    {
+        vec4<T> val;
+        val.x = x - vec.x;
+        val.y = y - vec.y;
+        val.z = z - vec.z;
+        val.w = w - vec.w;
+        return val;
+    }
+
+    template <typename v>
+    vec4<T> operator+(const v& vec)
+    {
+        vec4<T> val;
+        val.x = x + vec.x;
+        val.y = y + vec.y;
+        val.z = z + vec.z;
+        val.w = w + vec.w;
+        return val;
+    }
+
+    template <typename v>
+    void operator+=(const v& vec)
+    {
+        x += vec.x;
+        y += vec.y;
+        z += vec.z;
+        w += vec.w;
+    }
+
+    template <typename v>
+    vec4<T> operator*(v num)
+    {
+        vec4<T> val;
+        val.x = x * static_cast<T>(num);
+        val.y = y * static_cast<T>(num);
+        val.z = z * static_cast<T>(num);
+        val.w = w * static_cast<T>(num);
+        return val;
+    }
+
+    template <typename v>
+    void operator*=(v num)
+    {
+        x *= static_cast<T>(num);
+        y *= static_cast<T>(num);
+        z *= static_cast<T>(num);
+        w *= static_cast<T>(num);
+    }
+
+    template <typename v>
+    void operator*=(const vec4<v>& vec)
+    {
+        x *= static_cast<T>(vec.x);
+        y *= static_cast<T>(vec.y);
+        z *= static_cast<T>(vec.z);
+        w *= static_cast<T>(vec.w);
+    }
+
     //#TODO: other initialisers. likely dont need them though. need to finish vec3 first
 };
 

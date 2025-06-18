@@ -13,8 +13,17 @@
 #include "msdf-atlas-gen/msdf-atlas-gen.h"
 #include "texgui_internal.hpp"
 #include "msdf-atlas-gen/GlyphGeometry.h"
+#include <chrono>
 
 using namespace TexGui;
+using namespace std::chrono_literals;
+namespace stc = std::chrono;
+
+namespace TexGui
+{
+    static int deltaMs = 0;
+    stc::time_point<stc::steady_clock> currentTime;
+}
 
 #define HOVERED(rect) rect.contains(inputFrame.cursorPos) && parentState & STATE_HOVER && scissor.contains(inputFrame.cursorPos)
 #define CLICKED(rect) rect.contains(inputFrame.cursorPos) && inputFrame.lmb == KEY_Press && parentState & STATE_ACTIVE && scissor.contains(inputFrame.cursorPos)
@@ -335,6 +344,10 @@ inline static void updateInput()
 
 void TexGui::clear()
 {
+    stc::nanoseconds nanodelta = stc::steady_clock::now() - currentTime;
+    deltaMs = stc::duration_cast<stc::milliseconds>(nanodelta).count();
+    currentTime = stc::steady_clock::now();
+
     auto& g = *GTexGui;
     if (g.hoveredWidget == 0 && inputFrame.lmb == KEY_Press)
     {
@@ -439,18 +452,20 @@ fbox AlignBox(fbox bounds, fbox child, uint32_t f)
     return child;
 }
 
+
 #define _PX GTexGui->pixelSize
 Container Container::Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags, WindowStyle* style)
 {
     auto& io = inputFrame;
-    if (!GTexGui->windows.contains(name))
+    TexGuiID hash = ImHashStr(name, strlen(name), -1);
+    if (!GTexGui->windows.contains(hash))
     {
         for (auto& entry : GTexGui->windows)
         {
             if (entry.second.order != INT_MAX) entry.second.order++;
         }
 
-        GTexGui->windows.insert({name, TexGuiWindow{
+        GTexGui->windows.insert({hash, TexGuiWindow{
             .id = int(GTexGui->windows.size()),
             .box = {xpos, ypos, width, height},
         }});
@@ -460,11 +475,50 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
         style = &GTexGui->styleStack.back()->Window;
 
     Texture* wintex = style->Texture;
-    assert(wintex && wintex->id != -1);
-    TexGuiWindow& wstate = GTexGui->windows[name];
-
+    assert(wintex);
+    TexGuiWindow& wstate = GTexGui->windows[hash];
     wstate.visible = true;
 
+    fbox box = {xpos, ypos, width, height};
+    box = AlignBox(Math::fbox(0, 0, GTexGui->framebufferSize.x, GTexGui->framebufferSize.y), box, flags);
+
+    Math::fvec4 color = {1, 1, 1, 1};
+    bool animationActive = false;
+    if (style->InAnimation.enabled)
+    {
+        Animation& anim = GTexGui->animations[hash];
+
+        if (!wstate.prevVisible)
+        {
+            anim.offset = style->InAnimation.offset;
+            anim.time = -deltaMs;
+        }
+
+        if (anim.time < style->InAnimation.duration) {
+            animationActive = true;
+
+            anim.time += deltaMs;
+            double duration = anim.duration / 1000.0;
+            double t = anim.time / double(style->InAnimation.duration);
+            double* b = anim.bezier;
+            // this is a faked bezier curve cuz i dont know how to do it yet
+            double val = pow((1 - t), 3) * b[0] +
+                         3 * pow((1 - t), 2) * t * b[1] +
+                         3 * (1 - t) * pow(t, 2) * b[2] +
+                         pow(t, 3) * b[3];
+
+            anim.offset = style->InAnimation.offset * -1 * (1 - float(val));
+            box.pos += anim.offset;
+
+            // "color" is an offset
+            anim.color = (color - style->InAnimation.color) * -1 * (1 - float(val));
+            color += anim.color;
+        }
+    }
+
+    if (flags & LOCKED || !wstate.prevVisible || animationActive)
+        wstate.box = box;
+    
     if (flags & BACK)
         wstate.order = INT_MAX;
     if (flags & FRONT)
@@ -498,12 +552,6 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
         wstate.order = 0;
     }
 
-    if (flags & LOCKED || !wstate.prevVisible)
-    {
-        wstate.box = {xpos, ypos, width, height};
-        wstate.box = AlignBox(Math::fbox(0, 0, GTexGui->framebufferSize.x, GTexGui->framebufferSize.y), wstate.box, flags);
-    }
-    
     if (flags & LOCKED || !(io.lmb & (KEY_Held | KEY_Press)) || !(wstate.state & STATE_ACTIVE))
     {
         wstate.moving = false;
@@ -524,7 +572,7 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
     fvec4 padding = style->Padding;
     padding.top = wintex->top * _PX;
 
-        fbox internal = fbox::pad(wstate.box, padding);
+    fbox internal = fbox::pad(wstate.box, padding);
 
     renderData->ordered = true;
     parentState = wstate.state;
@@ -536,7 +584,8 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
     child.renderData = &renderData->children.back();
     //lowest order will be rendered last.
     child.renderData->priority = -wstate.order;
-    child.renderData->addTexture(wstate.box, wintex, wstate.state, _PX, SLICE_9, scissor);
+    child.renderData->colorMultiplier = color;
+    child.renderData->addTexture(wstate.box, wintex, wstate.state, _PX, SLICE_9, scissor, color);
 
     if (!(flags & HIDE_TITLE)) 
         child.renderData->addText(name, {wstate.box.x + padding.left, wstate.box.y + wintex->top * _PX / 2},
@@ -599,6 +648,8 @@ Container Container::Box(float xpos, float ypos, float width, float height, BoxS
     Container child = withBounds(internal);
     child.renderData = &renderData->children.emplace_back();
 
+    child.renderData->colorMultiplier = renderData->colorMultiplier;
+
     if (texture)
     {
         child.renderData->addTexture(boxBounds, texture, 0, 2, SLICE_9, scissor);
@@ -646,17 +697,18 @@ Container Container::ScrollPanel(const char* name, ScrollPanelStyle* style)
     Texture* texture = style->PanelTexture;
     Texture* bartex = style->BarTexture;
     auto& io = inputFrame;
-    if (!GTexGui->scrollPanels.contains(name))
+    TexGuiID id = window->getID(name);
+    if (!GTexGui->scrollPanels.contains(id))
     {
         ScrollPanelState _s = 
         {
             .contentPos = {0,0},
             .bounds = bounds 
         };
-        GTexGui->scrollPanels.insert({name, _s});
+        GTexGui->scrollPanels.insert({id, _s});
     }
 
-    auto& spstate = GTexGui->scrollPanels[name];
+    auto& spstate = GTexGui->scrollPanels[id];
 
     fvec4 padding = style->Padding;
     
@@ -1706,8 +1758,9 @@ float TexGui::computeTextWidth(const char* text, size_t numchars)
     return total;
 }
 
-void RenderData::addText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, const Math::fbox& scissor,  int32_t len)
+void RenderData::addText(const char* text, Math::fvec2 pos, Math::fvec4 col, int size, uint32_t flags, const Math::fbox& scissor,  int32_t len)
 {
+    col *= colorMultiplier;
     size_t numchars = len == -1 ? strlen(text) : len;
     size_t numcopy = numchars;
 
@@ -1749,11 +1802,10 @@ void RenderData::addText(const char* text, Math::fvec2 pos, const Math::fvec4& c
         float width = w * size / float(font->baseFontSize);
         float height = h * size / float(font->baseFontSize);
 
-
-        vertices.emplace_back(Vertex{.pos = {xpos, ypos + height}, .uv = Math::fvec2(x, y)});
-        vertices.emplace_back(Vertex{.pos = {xpos + width, ypos + height}, .uv = {float(x + w), float(y)}});
-        vertices.emplace_back(Vertex{.pos = {xpos, ypos}, .uv = {float(x), float(y + h)}});
-        vertices.emplace_back(Vertex{.pos = {xpos + width, ypos}, .uv = {float(x + w), float(y + h)}});
+        vertices.emplace_back(Vertex{.pos = {xpos, ypos + height}, .uv = Math::fvec2(x, y), .col = col});
+        vertices.emplace_back(Vertex{.pos = {xpos + width, ypos + height}, .uv = {float(x + w), float(y)}, .col = col});
+        vertices.emplace_back(Vertex{.pos = {xpos, ypos}, .uv = {float(x), float(y + h)}, .col = col});
+        vertices.emplace_back(Vertex{.pos = {xpos + width, ypos}, .uv = {float(x + w), float(y + h)}, .col = col});
         uint32_t idx = vertices.size() - 4;
 
         indices.emplace_back(idx);
@@ -1778,8 +1830,9 @@ void RenderData::addText(const char* text, Math::fvec2 pos, const Math::fvec4& c
     });
 }
 
-int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, const Math::fbox& scissor, TextInputState& textInput)
+int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, Math::fvec4 col, int size, uint32_t flags, const Math::fbox& scissor, TextInputState& textInput)
 {
+    col *= colorMultiplier;
     auto& io = inputFrame;
     size_t numchars = strlen(text);
     size_t numcopy = numchars;
@@ -1927,9 +1980,10 @@ static inline uint32_t getTextureIndexFromState(Texture* e, int state)
         state & STATE_ACTIVE && e->active != -1 ? e->active : e->id;
 }
 
-void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, const fbox& scissor)
+void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, const fbox& scissor, Math::fvec4 col)
 {
     if (!e || e->id == -1 || !scissor.isValid()) return;
+    col *= colorMultiplier;
 
     uint32_t tex = getTextureIndexFromState(e, state);
 
@@ -1939,10 +1993,10 @@ void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, ui
     {
         Math::fbox texBounds = e->bounds;
 
-        vertices.emplace_back(Vertex{.pos = {rect.x, rect.y}, .uv = {texBounds.x, texBounds.y}});
-        vertices.emplace_back(Vertex{.pos = {rect.x + rect.w, rect.y}, .uv = {texBounds.x + texBounds.w, texBounds.y},});
-        vertices.emplace_back(Vertex{.pos = {rect.x, rect.y + rect.h}, .uv = {texBounds.x, texBounds.y + texBounds.h},});
-        vertices.emplace_back(Vertex{.pos = {rect.x + rect.w, rect.y + rect.h}, .uv = {texBounds.x + texBounds.w, texBounds.y + texBounds.h},});
+        vertices.emplace_back(Vertex{.pos = {rect.x, rect.y}, .uv = {texBounds.x, texBounds.y}, .col = col});
+        vertices.emplace_back(Vertex{.pos = {rect.x + rect.w, rect.y}, .uv = {texBounds.x + texBounds.w, texBounds.y}, .col = col});
+        vertices.emplace_back(Vertex{.pos = {rect.x, rect.y + rect.h}, .uv = {texBounds.x, texBounds.y + texBounds.h}, .col = col});
+        vertices.emplace_back(Vertex{.pos = {rect.x + rect.w, rect.y + rect.h}, .uv = {texBounds.x + texBounds.w, texBounds.y + texBounds.h}, .col = col});
         uint32_t idx = vertices.size() - 4;
         indices.emplace_back(idx);
         indices.emplace_back(idx+1);
@@ -2013,10 +2067,10 @@ void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, ui
                 texBounds.height = texBoundsSliceV[y][1];
             }
 
-            vertices.emplace_back(Vertex{.pos = {slice.x, slice.y}, .uv = {texBounds.x, texBounds.y},});
-            vertices.emplace_back(Vertex{.pos = {slice.x + slice.w, slice.y}, .uv = {texBounds.x + texBounds.w, texBounds.y},});
-            vertices.emplace_back(Vertex{.pos = {slice.x, slice.y + slice.h}, .uv = {texBounds.x, texBounds.y + texBounds.h},});
-            vertices.emplace_back(Vertex{.pos = {slice.x + slice.w, slice.y + slice.h}, .uv = {texBounds.x + texBounds.w, texBounds.y + texBounds.h},});
+            vertices.emplace_back(Vertex{.pos = {slice.x, slice.y}, .uv = {texBounds.x, texBounds.y}, .col = col});
+            vertices.emplace_back(Vertex{.pos = {slice.x + slice.w, slice.y}, .uv = {texBounds.x + texBounds.w, texBounds.y}, .col = col});
+            vertices.emplace_back(Vertex{.pos = {slice.x, slice.y + slice.h}, .uv = {texBounds.x, texBounds.y + texBounds.h}, .col = col});
+            vertices.emplace_back(Vertex{.pos = {slice.x + slice.w, slice.y + slice.h}, .uv = {texBounds.x + texBounds.w, texBounds.y + texBounds.h}, .col = col});
             uint32_t idx = vertices.size() - 4;
             indices.emplace_back(idx);
             indices.emplace_back(idx+1);
@@ -2037,8 +2091,9 @@ void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, ui
     });
 }
 
-void RenderData::addQuad(Math::fbox rect, const Math::fvec4& col)
+void RenderData::addQuad(Math::fbox rect, Math::fvec4 col)
 {
+    col *= colorMultiplier;
     Math::ivec2 framebufferSize = GTexGui->framebufferSize;
 
     vertices.emplace_back(Vertex{.pos = {rect.x, rect.y}, .uv = {0,0}, .col = col,});
@@ -2064,9 +2119,10 @@ void RenderData::addQuad(Math::fbox rect, const Math::fvec4& col)
 // from imgui
 #define IM_NORMALIZE2F_OVER_ZERO(VX,VY)     { float d2 = VX*VX + VY*VY; if (d2 > 0.0f) { float inv_len = 1.0/sqrt(d2); VX *= inv_len; VY *= inv_len; } } (void)0 
 
-void RenderData::addLine(float x1, float y1, float x2, float y2, const Math::fvec4& col, float lineWidth)
+void RenderData::addLine(float x1, float y1, float x2, float y2, Math::fvec4 col, float lineWidth)
 {
     Math::ivec2 framebufferSize = GTexGui->framebufferSize;
+    col *= colorMultiplier;
 
     float dx = x2 - x1;
     float dy = y2 - y1;

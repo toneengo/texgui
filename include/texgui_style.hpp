@@ -4,6 +4,7 @@
 #include <texgui_math.hpp>
 #include <texgui_flags.hpp>
 #include <string>
+#include <chrono>
 
 namespace TexGui {
 
@@ -30,12 +31,28 @@ struct TextStyle {
     TexGui::Font* Font = nullptr;
 };
 
+struct Animation
+{
+    bool enabled = false;
+    double bezier[4] = {0, 0, 1, 1};
+
+    // in milliseconds
+    int time = 0;
+    int duration = 1000;
+
+    // The properties of the object at the start of the animation
+    // These default options mean the object will fade in, and slide in from the bottom
+    Math::fvec2 offset = {0, -80};
+    Math::fvec4 color = {1, 1, 1, 0};
+};
+
 struct WindowStyle {
     TexGui::Texture* Texture;
     Math::fvec4 Padding;
-    uint32_t Flags;
+    uint32_t Flags; //unused
     Math::fvec4 TitleColor;
     int TitleFontSize = 20;
+    Animation InAnimation;
 };
 
 struct ButtonStyle {

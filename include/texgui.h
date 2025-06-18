@@ -331,6 +331,7 @@ public:
     int32_t priority = -1;
     std::vector<RenderData> children;
     Math::fbox scissor = {0, 0, 8192, 8192};
+    Math::fvec4 colorMultiplier = {1, 1, 1, 1};
 
     Container Base;
     RenderData()
@@ -382,11 +383,11 @@ public:
 
     Container drawTooltip(Math::fvec2 size);
 
-    void addLine(float x1, float y1, float x2, float y2, const Math::fvec4& col, float lineWidth);
-    void addQuad(Math::fbox rect, const Math::fvec4& col);
-    void addTexture(Math::fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, const Math::fbox& scissor);
-    void addText(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, const Math::fbox& scissor, int32_t len = -1);
-    int addTextWithCursor(const char* text, Math::fvec2 pos, const Math::fvec4& col, int size, uint32_t flags, const Math::fbox& scissor, TextInputState& textInput);
+    void addLine(float x1, float y1, float x2, float y2, Math::fvec4 col, float lineWidth);
+    void addQuad(Math::fbox rect, Math::fvec4 col);
+    void addTexture(Math::fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, const Math::fbox& scissor, Math::fvec4 col = {1, 1, 1, 1});
+    void addText(const char* text, Math::fvec2 pos, Math::fvec4 col, int size, uint32_t flags, const Math::fbox& scissor, int32_t len = -1);
+    int addTextWithCursor(const char* text, Math::fvec2 pos, Math::fvec4 col, int size, uint32_t flags, const Math::fbox& scissor, TextInputState& textInput);
 
     void clear() {
         commands.clear();

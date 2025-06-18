@@ -219,9 +219,10 @@ struct TexGuiContext
     } rendererFns;
     void* rendererData = nullptr;
 
-    std::unordered_map<std::string, TexGuiWindow> windows;
+    std::unordered_map<TexGuiID, Animation> animations;
+    std::unordered_map<TexGuiID, TexGuiWindow> windows;
     std::unordered_map<TexGuiID, TextInputState> textInputs;
-    std::unordered_map<std::string, ScrollPanelState> scrollPanels;
+    std::unordered_map<TexGuiID, ScrollPanelState> scrollPanels;
 
     //#TODO: separate rasterized and msdf font atlases 
     std::unordered_map<std::string, TexGui::Font> fonts;

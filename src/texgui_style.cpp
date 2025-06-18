@@ -39,6 +39,7 @@ Style* initDefaultStyle()
 
     style->Window.Texture = &GTexGui->textures["window"];
     style->Window.Padding = {12, 12, 12, 12};
+    style->Window.TitleColor = {1, 1, 1, 1};
     style->Window.Flags = 0;
 
     style->Button.Texture = &GTexGui->textures["button"];
