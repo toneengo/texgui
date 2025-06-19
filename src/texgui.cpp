@@ -840,11 +840,16 @@ Container Container::Tooltip(Math::fvec2 size, TooltipStyle* style)
         io.cursorPos + style->MouseOffset, 
         size,
     };
-    rect = fbox::pad(rect, style->Padding);
+    fbox external = fbox::margin(rect, style->Padding);
 
-    auto box = Box(rect.x - bounds.x, rect.y - bounds.y, rect.w, rect.h);
+    Container child = withBounds(rect);
 
-    return box;
+    if (tex)
+    {
+        child.renderData->addTexture(external, tex, 0, 2, SLICE_9, fbox(0,0,8192,8192));
+    }
+
+    return child;
 }
 
 fbox Container::Arrange(Container* o, fbox child)
