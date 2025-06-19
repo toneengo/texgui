@@ -840,11 +840,19 @@ Container Container::Tooltip(Math::fvec2 size, TooltipStyle* style)
         io.cursorPos + style->MouseOffset, 
         size,
     };
-    rect = fbox::pad(rect, style->Padding);
 
-    auto box = Box(rect.x - bounds.x, rect.y - bounds.y, rect.w, rect.h);
+    fbox internal = fbox::pad(rect, style->Padding);
+    Container child = withBounds(internal);
+    child.renderData = &renderData->children.emplace_back();
 
-    return box;
+    child.renderData->colorMultiplier = renderData->colorMultiplier;
+
+    if (tex)
+    {
+        child.renderData->addTexture(rect, tex, 0, _PX, SLICE_9, scissor);
+    }
+
+    return child; 
 }
 
 fbox Container::Arrange(Container* o, fbox child)
@@ -1352,21 +1360,6 @@ static bool writeText(Paragraph text, int32_t scale, TexGui::Math::fbox bounds, 
     return hovered;
 }
 
-Container RenderData::drawTooltip(fvec2 size)
-{
-    auto& io = inputFrame;
-    Style& style = *GTexGui->styleStack.back();
-    Texture* tex = style.Tooltip.Texture;
-    
-    fbox bounds = {
-        io.cursorPos + style.Tooltip.MouseOffset, 
-        size,
-    };
-    bounds = fbox::margin(bounds, style.Tooltip.Padding);
-
-    return this->Base.Box(bounds.x, bounds.y, bounds.w, bounds.h);
-}
-
 static void renderTooltip(Paragraph text, RenderData* renderData)
 {
     Style& style = *GTexGui->styleStack.back();
@@ -1374,7 +1367,7 @@ static void renderTooltip(Paragraph text, RenderData* renderData)
 
     fvec2 textBounds = calculateTextBounds(text, scale, style.Tooltip.MaxWidth);
 
-    Container s = renderData->drawTooltip(textBounds);
+    Container s = renderData->Base.Tooltip(textBounds);
 
     float x = s.bounds.x, y = s.bounds.y + style.Tooltip.Padding.top;
     writeText(text, style.Tooltip.TextScale, s.bounds, x, y, s.renderData, false, 1);

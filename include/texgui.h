@@ -381,8 +381,6 @@ public:
         children.clear();
     }
 
-    Container drawTooltip(Math::fvec2 size);
-
     void addLine(float x1, float y1, float x2, float y2, Math::fvec4 col, float lineWidth);
     void addQuad(Math::fbox rect, Math::fvec4 col);
     void addTexture(Math::fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, const Math::fbox& scissor, Math::fvec4 col = {1, 1, 1, 1});
