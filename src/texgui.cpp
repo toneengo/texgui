@@ -1305,6 +1305,8 @@ inline static void drawChunk(TextSegment s, RenderData* renderData, TexGui::Math
                 Style& style = *GTexGui->styleStack.back();
                 Texture* icon = s.type == TextSegment::LAZY_ICON ? s.lazyIcon.func(s.lazyIcon.data) : s.icon;
 
+                if (!icon) break;
+
                 fvec2 tsize = fvec2(icon->bounds.width, icon->bounds.height) * _PX;
                 bumpline(x, y, tsize.x, bounds, scale);
 
