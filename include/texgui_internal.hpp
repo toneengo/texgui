@@ -192,6 +192,17 @@ struct InputData {
     }
 };
 
+struct TGContainer
+{
+    RenderData* renderData;
+    Math::fbox bounds;
+    Math::fbox scissor;
+    TexGuiWindow* window;
+    Container* parent;
+    ArrangeFunc arrangeProc;
+};
+
+
 struct TexGuiContext
 {
     bool capturingMouse = false;
@@ -219,6 +230,9 @@ struct TexGuiContext
     } rendererFns;
     void* rendererData = nullptr;
 
+    std::vector<TGContainer> containers;
+
+    RenderData* renderData;
     std::unordered_map<TexGuiID, Animation> animations;
     std::unordered_map<TexGuiID, TexGuiWindow> windows;
     std::unordered_map<TexGuiID, TextInputState> textInputs;

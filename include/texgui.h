@@ -292,6 +292,42 @@ struct IconSheet
     Texture* getIcon(uint32_t x, uint32_t y);
 };
 
+using ArrangeFunc = Math::fbox(*)(Container* parent, Math::fbox in);
+
+struct TGContainer;
+TGContainer* Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags = 0, TexGui::WindowStyle* style = nullptr);
+bool      Button(TGContainer* container, const char* text, TexGui::ButtonStyle* style = nullptr);
+TGContainer* Box(TGContainer* container, float xpos, float ypos, float width, float height, TexGui::BoxStyle* style = nullptr);
+TGContainer* Box(TGContainer* container);
+void      CheckBox(TGContainer* container, bool* val, TexGui::CheckBoxStyle* style = nullptr);
+void      RadioButton(TGContainer* container, uint32_t* selected, uint32_t id, TexGui::RadioButtonStyle* style = nullptr);
+TGContainer* ScrollPanel(TGContainer* container, const char* name, TexGui::ScrollPanelStyle* style = nullptr);
+int       SliderInt(TGContainer* container, int* val, int minVal, int maxVal, TexGui::SliderStyle* style = nullptr);
+//void      Image(TGContainer* container, Texture* texture, int scale = -1);
+bool      DropdownInt(TGContainer* container, int* val, std::initializer_list<std::pair<const char*, int>> names);
+TGContainer* Tooltip(TGContainer* container, Math::fvec2 size, TexGui::TooltipStyle* style = nullptr);
+
+void      TextInput(TGContainer* container, const char* name, char* buf, uint32_t bufsize, TexGui::TextInputStyle* style = nullptr);
+void      Text(TGContainer* container, Paragraph text, int32_t scale = 0, TextDecl parameters = {}, TexGui::TextStyle* style = nullptr);
+void      Text(TGContainer* container, const char* text, int32_t scale = 0, TextDecl parameters = {}, TexGui::TextStyle* style = nullptr);
+
+TGContainer* Align(TGContainer* container, uint32_t flags = 0, const Math::fvec4 padding = {0,0,0,0});
+
+void      Divider(TGContainer* container, float padding = 0);
+void      Line(TGContainer* container, float x1, float y1, float x2, float y2, Math::fvec4 color, float lineWidth = 1.f);
+
+// Similar to radio buttons - the id of the selected one is stored in the *selected pointer.
+// If you don't want them to be clickable - set selected to nullptr, and 0 or 1 for whether it is active in id
+TGContainer* ListItem(TGContainer* container, uint32_t* selected, uint32_t id, TexGui::ListItemStyle* style = nullptr);
+
+// Arranges children in a bento-grid layout.
+TGContainer* Grid(TGContainer* container);
+// Arranges children in a vertical stack.
+TGContainer* Stack(TGContainer* container, float padding = -1, TexGui::StackStyle* style = nullptr);
+
+TGContainer* Node(TGContainer* container, float x, float y);
+
+
 inline Container Base;
 
 void newFrame();
@@ -419,6 +455,7 @@ public:
     std::vector<uint32_t> indices;
 };
 
+void setRenderData(RenderData* renderData);
 Math::fvec2 calculateTextBounds(Paragraph text, int32_t scale, float maxWidth);
 Math::fvec2 calculateTextBounds(const char* text, float maxWidth, int32_t scale = -1);
 

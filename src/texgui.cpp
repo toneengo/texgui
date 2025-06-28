@@ -349,6 +349,7 @@ void TexGui::clear()
     currentTime = stc::steady_clock::now();
 
     auto& g = *GTexGui;
+    g.containers.clear();
     if (g.hoveredWidget == 0 && inputFrame.lmb == KEY_Press)
     {
         g.activeWidget = 0;
@@ -452,8 +453,226 @@ fbox AlignBox(fbox bounds, fbox child, uint32_t f)
     return child;
 }
 
-
 #define _PX GTexGui->pixelSize
+
+void TexGui::setRenderData(RenderData* renderData)
+{
+    GTexGui->renderData = renderData;
+}
+
+TGContainer* TexGui::Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags, WindowStyle* style)
+{
+    auto& io = inputFrame;
+    auto& g = *GTexGui;
+    TexGuiID hash = ImHashStr(name, strlen(name), -1);
+    if (!GTexGui->windows.contains(hash))
+    {
+        for (auto& entry : GTexGui->windows)
+        {
+            if (entry.second.order != INT_MAX) entry.second.order++;
+        }
+
+        GTexGui->windows.insert({hash, TexGuiWindow{
+            .id = int(GTexGui->windows.size()),
+            .box = {xpos, ypos, width, height},
+        }});
+    }
+
+    if (style == nullptr)
+        style = &GTexGui->styleStack.back()->Window;
+
+    Texture* wintex = style->Texture;
+    assert(wintex);
+    TexGuiWindow& wstate = GTexGui->windows[hash];
+    wstate.visible = true;
+
+    fbox box = {xpos, ypos, width, height};
+    box = AlignBox(Math::fbox(0, 0, GTexGui->framebufferSize.x, GTexGui->framebufferSize.y), box, flags);
+
+    Math::fvec4 color = {1, 1, 1, 1};
+    bool animationActive = false;
+    if (style->InAnimation.enabled)
+    {
+        Animation& anim = GTexGui->animations[hash];
+
+        if (!wstate.prevVisible)
+        {
+            anim.offset = style->InAnimation.offset;
+            anim.time = -deltaMs;
+        }
+
+        if (anim.time < style->InAnimation.duration) {
+            animationActive = true;
+
+            anim.time += deltaMs;
+            double duration = anim.duration / 1000.0;
+            double t = anim.time / double(style->InAnimation.duration);
+            double* b = anim.bezier;
+            // this is a faked bezier curve cuz i dont know how to do it yet
+            double val = pow((1 - t), 3) * b[0] +
+                         3 * pow((1 - t), 2) * t * b[1] +
+                         3 * (1 - t) * pow(t, 2) * b[2] +
+                         pow(t, 3) * b[3];
+
+            anim.offset = style->InAnimation.offset * -1 * (1 - float(val));
+            box.pos += anim.offset;
+
+            // "color" is an offset
+            anim.color = (color - style->InAnimation.color) * -1 * (1 - float(val));
+            color += anim.color;
+        }
+    }
+
+    if (flags & LOCKED || !wstate.prevVisible || animationActive)
+        wstate.box = box;
+    
+    if (flags & BACK)
+        wstate.order = INT_MAX;
+    if (flags & FRONT)
+        wstate.order = -1;
+
+    if (flags & CAPTURE_INPUT && wstate.box.contains(io.cursorPos)) GTexGui->capturingMouse = true;
+
+    //if there is a window over the window being clicked, set state to 0
+    getBoxState(wstate.state, wstate.box, STATE_ALL);
+    if (wstate.order > 0 && wstate.state != STATE_NONE && wstate.box.contains(io.cursorPos))
+    {
+        for (auto& entry : GTexGui->windows)
+        {
+            if (!entry.second.prevVisible || entry.second.order >= wstate.order) continue;
+            if (entry.second.box.contains(io.cursorPos)) {
+                wstate.state = STATE_NONE;
+                break;
+            }
+        }
+    }
+
+    //bring focused window to the front (0), if it doesnt have a FRONT or BACK flag
+    if (!(flags & FORCED_ORDER) && wstate.state & STATE_ACTIVE && wstate.order > 0)
+    {
+        int order = wstate.order;
+        for (auto& entry : GTexGui->windows)
+        {
+            if (entry.second.order < order && entry.second.order > -1) entry.second.order++;
+        }
+
+        wstate.order = 0;
+    }
+
+    if (flags & LOCKED || !(io.lmb & (KEY_Held | KEY_Press)) || !(wstate.state & STATE_ACTIVE))
+    {
+        wstate.moving = false;
+        wstate.resizing = false;
+    }
+    else if (fbox(wstate.box.x, wstate.box.y, wstate.box.width, wintex->top * _PX).contains(io.cursorPos) && io.lmb == KEY_Press)
+        wstate.moving = true;
+    else if (flags & RESIZABLE && fbox(wstate.box.x + wstate.box.width - wintex->right * _PX,
+             wstate.box.y + wstate.box.height - wintex->bottom * _PX,
+             wintex->right * _PX, wintex->bottom * _PX).contains(io.cursorPos) && io.lmb == KEY_Press)
+        wstate.resizing = true;
+
+    if (wstate.moving)
+        wstate.box.pos += io.mouseRelativeMotion;
+    else if (wstate.resizing)
+        wstate.box.size += io.mouseRelativeMotion;
+
+    fvec4 padding = style->Padding;
+    padding.top = wintex->top * _PX;
+
+    fbox internal = fbox::pad(wstate.box, padding);
+
+    g.renderData->ordered = true;
+
+    TGContainer* child = &g.containers.emplace_back();
+
+    child->bounds = internal;
+    child->renderData = &g.renderData->children.emplace_back();
+    child->window = &wstate;
+    child->renderData->priority = -wstate.order;
+    child->renderData->colorMultiplier = color;
+    child->renderData->addTexture(wstate.box, wintex, wstate.state, _PX, SLICE_9, {{0, 0}, g.framebufferSize}, color);
+    child->scissor = {{0, 0}, g.framebufferSize};
+
+    if (!(flags & HIDE_TITLE)) 
+        child->renderData->addText(name, {wstate.box.x + padding.left, wstate.box.y + wintex->top * _PX / 2},
+                 style->TitleColor, style->TitleFontSize, CENTER_Y, {{0, 0}, g.framebufferSize});
+
+
+    return child;
+}
+
+bool TexGui::Button(TGContainer* c, const char* text, TexGui::ButtonStyle* style)
+{
+    auto& g = *GTexGui;
+    auto& io = inputFrame;
+    TexGuiID id = c->window->getID(text);
+
+    if (c->arrangeProc) c->bounds = c->arrangeProc(c->parent, c->bounds);
+
+    if (style == nullptr)
+        style = &GTexGui->styleStack.back()->Button;
+
+    uint32_t state = getState(id, c->bounds, c->window->state, c->scissor);
+
+    Texture* tex = style->Texture;
+    assert(tex && tex->id != -1);
+
+    c->renderData->addTexture(c->bounds, tex, state, _PX, SLICE_9, c->scissor);
+
+    TexGui::Math::vec2 pos = state & STATE_PRESS 
+                       ? c->bounds.pos + style->POffset
+                       : c->bounds.pos;
+
+    /*
+    if (out)
+        *out = withBounds(innerBounds);
+    else
+    {
+        innerBounds.pos += bounds.size / 2;
+        renderData->addText(text, innerBounds, style->Text.Color, style->Text.Size, CENTER_X | CENTER_Y, scissor);
+    }
+    */
+    fbox internal = {pos + c->bounds.size / 2, c->bounds.size};
+    c->renderData->addText(text, internal, style->Text.Color, style->Text.Size, CENTER_X | CENTER_Y, c->scissor);
+
+    bool hovered = c->scissor.contains(io.cursorPos) 
+                && c->bounds.contains(io.cursorPos);
+
+    return state & STATE_ACTIVE && io.lmb == KEY_Release && hovered ? true : false;
+
+}
+
+TGContainer* Box(TGContainer* c, float xpos, float ypos, float width, float height, TexGui::BoxStyle* style = nullptr)
+{
+    if (width <= 1)
+        width = width == 0 ? c->bounds.width : c->bounds.width * width;
+    if (height <= 1)
+        height = height == 0 ? c->bounds.height : c->bounds.height * height;
+
+    if (style == nullptr)
+        style = &GTexGui->styleStack.back()->Box;
+    Texture* texture = style->Texture;
+
+    fbox boxBounds(c->bounds.x + xpos, c->bounds.y + ypos, width, height);
+
+    fbox internal = fbox::pad(boxBounds, style->Padding);
+    TGContainer* child = &GTexGui->containers.emplace_back();
+
+    child->bounds = internal;
+    child->renderData = &c->renderData->children.emplace_back();
+    child->window = c->window;
+    //child->renderData->colorMultiplier = color;
+    child->scissor = boxBounds;
+
+    if (texture)
+    {
+        child->renderData->addTexture(boxBounds, texture, 0, 2, SLICE_9, boxBounds);
+    }
+
+    return child; 
+
+}
+
 Container Container::Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags, WindowStyle* style)
 {
     auto& io = inputFrame;
