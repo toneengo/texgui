@@ -202,6 +202,46 @@ struct TGContainer
     ArrangeFunc arrangeProc;
 };
 
+struct Arranger;
+using ArrangerSubmitProc = Math::fbox(*)(Arranger* parent, Math::fbox in);
+struct Arranger
+{
+    union
+    {
+        struct
+        {
+            float x, y, rowHeight;
+            int n;
+        } grid;
+        struct
+        {
+            uint32_t* selected;
+            uint32_t id;
+        } listItem;
+
+        /*
+        struct
+        {
+            uint32_t width;
+            uint32_t height;
+        } box;
+        */
+
+        struct 
+        {
+            uint32_t flags;
+            float top, right, bottom, left;
+        } align;
+
+        struct
+        {
+            float y;
+            float padding;
+        } stack;
+    };
+    Math::fbox box;
+    ArrangerSubmitProc submit;
+};
 
 struct TexGuiContext
 {
@@ -231,6 +271,7 @@ struct TexGuiContext
     void* rendererData = nullptr;
 
     std::vector<TGContainer> containers;
+    std::vector<Arranger> arrangers;
 
     RenderData* renderData;
     std::unordered_map<TexGuiID, Animation> animations;
@@ -251,4 +292,11 @@ struct TexGuiContext
 
 //#TODO: testing without dynamic alloc
 inline TexGuiContext* GTexGui = nullptr;
+
+inline void Arrange(Math::fbox child)
+{
+    if (GTexGui->arrangers.size() == 0) return;
+    Arranger* a = &GTexGui->arrangers.back();
+    a->submit(a, child);
+}
 NAMESPACE_END(TexGui);

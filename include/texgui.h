@@ -156,6 +156,8 @@ struct TextDecl
     
 using CharacterFilter = bool(*)(unsigned int c);
 struct TexGuiWindow;
+void BeginTooltip(int width, int height);
+void EndTooltip();
 class Container
 {
     friend struct Arrangers;
@@ -163,8 +165,12 @@ class Container
 
 public:
     using ArrangeFunc = Math::fbox(*)(Container* parent, Math::fbox in);
+    using RenderFunc = void(*)(Container* parent);
+
+    RenderFunc render; // equivalent to ::End() and then rendering it immediately for now
 
     //#TODO: these should be private
+    RenderData* parentRenderData;
     RenderData* renderData;
     uint32_t parentState = STATE_ALL;
     Math::fbox bounds;
@@ -254,6 +260,11 @@ private:
             uint32_t id;
         } listItem;
 
+        struct
+        {
+            uint32_t width;
+            uint32_t height;
+        } box;
         struct 
         {
             uint32_t flags;
@@ -264,6 +275,7 @@ private:
         {
             float y;
             float padding;
+            float maxWidth;
         } stack;
     };
 
@@ -278,6 +290,7 @@ private:
         copy.parent = this;
         copy.arrange = arrange;
         copy.parentState = parentState;
+        copy.renderData = renderData;
         return copy;
     }
 

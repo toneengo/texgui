@@ -1048,28 +1048,89 @@ bool Container::DropdownInt(int* val, std::initializer_list<std::pair<const char
 }
 */
 
+void TexGui::BeginTooltip(int width, int height)
+{
+    static auto submit = [](Arranger* a, fbox child)
+    {
+        Style& style = *GTexGui->styleStack.back();
+        // A bit scuffed since we add margins then unpad them but mehh
+        fbox bounds = fbox::margin(child, style.Tooltip.Padding);
+        // Get the parent to arrange the list item
+        if (a->box.width > 0) bounds.width = a->box.width;
+        if (a->box.height > 0) bounds.height = a->box.height;
+
+        uint32_t state = STATE_NONE;
+
+        auto& io = inputFrame;
+
+        bounds.pos = io.cursorPos + style.Tooltip.MouseOffset;
+
+        // The child is positioned by the tooptip parent 
+        return fbox::pad(bounds, style.Tooltip.Padding);
+    };
+
+    auto a = GTexGui->arrangers.emplace_back();
+    a.box.width = width;
+    a.box.height = height;
+    a.submit = submit;
+}
+
+void TexGui::EndTooltip()
+{
+    Style& style = *GTexGui->styleStack.back();
+    auto& a = GTexGui->arrangers.back();
+    GTexGui->renderData->addTexture(a.box, style.Tooltip.Texture, 0, _PX, SLICE_9, a.box);
+    GTexGui->arrangers.pop_back();
+}
+
 Container Container::Tooltip(Math::fvec2 size, TooltipStyle* style)
 {
+    static auto arrange = [](Container* tooltip, fbox child)
+    {
+        Style& style = *GTexGui->styleStack.back();
+        // A bit scuffed since we add margins then unpad them but mehh
+        fbox bounds = fbox::margin(child, style.Tooltip.Padding);
+        // Get the parent to arrange the list item
+        if (bounds.width > tooltip->box.width) tooltip->box.width = bounds.width;
+        if (bounds.height > tooltip->box.height) tooltip->box.height = bounds.height;
+
+        uint32_t state = STATE_NONE;
+
+        auto& io = inputFrame;
+
+        bounds.pos = io.cursorPos + style.Tooltip.MouseOffset;
+
+        // The child is positioned by the tooptip parent 
+        return fbox::pad(bounds, style.Tooltip.Padding);
+    };
+
+    static auto render = [](Container* a)
+    {
+        Style& style = *GTexGui->styleStack.back();
+        auto& io = inputFrame;
+        a->parentRenderData->addTexture(fbox(io.cursorPos + style.Tooltip.MouseOffset, fvec2(a->box.width, a->box.height)), style.Tooltip.Texture, 0, _PX, SLICE_9, {0, 0, 8192, 8192});
+    };
+
     if (style == nullptr)
         style = &GTexGui->styleStack.back()->Tooltip;
     auto& io = inputFrame;
-    Texture* tex = style->Texture;
     
     fbox rect = {
         io.cursorPos + style->MouseOffset, 
         size,
     };
+    box.width = size.x;
+    box.height = size.y;
 
     fbox internal = fbox::pad(rect, style->Padding);
-    Container child = withBounds(internal);
-    child.renderData = &renderData->children.emplace_back();
+    Container child = withBounds(internal, arrange);
+    child.texture = style->Texture;
+    child.render = render;
 
+    //this is scuffed
+    child.parentRenderData = &renderData->children.emplace_back();
+    child.renderData = &child.parentRenderData->children.emplace_back();
     child.renderData->colorMultiplier = renderData->colorMultiplier;
-
-    if (tex)
-    {
-        child.renderData->addTexture(rect, tex, 0, _PX, SLICE_9, scissor);
-    }
 
     return child; 
 }
@@ -1204,7 +1265,8 @@ Container Container::Stack(float padding, StackStyle* style)
         child = fbox(stack->bounds.pos + fvec2(0, s.y), child.size);
         s.y += child.size.y + s.padding;
     
-        Arrange(stack->parent, {stack->bounds.x, stack->bounds.y, stack->bounds.width, s.y});
+        //TexGui::Arrange(child);
+        Arrange(stack->parent, {stack->bounds.x, stack->bounds.y, child.width, s.y});
 
         return child;
     };
@@ -1212,7 +1274,7 @@ Container Container::Stack(float padding, StackStyle* style)
     if (style == nullptr)
         style = &GTexGui->styleStack.back()->Stack;
     Container stack = withBounds(bounds, arrange);
-    stack.stack = {0, padding < 0 ? style->Padding : padding};
+    stack.stack = {0, padding < 0 ? style->Padding : padding, 0};
     return stack;
 }
 
@@ -1510,7 +1572,7 @@ inline static void drawChunk(TextSegment s, RenderData* renderData, TexGui::Math
 
                 underline(renderData, x, y, segwidth, scale, flags);
 
-                renderData->addText(s.word.data, {x, y}, {1,1,1,1}, scale, CENTER_Y, bounds, s.word.len);
+                renderData->addText(s.word.data, {x, y}, {1,1,1,1}, scale, CENTER_Y, {0,0,8192,8192}, s.word.len);
 
                 // if (checkHover) renderData->addQuad(bounds, fvec4(1, 0, 0, 1));
                 hovered |= checkHover && !hovered && textbounds.contains(io.cursorPos);
@@ -1591,7 +1653,8 @@ static void renderTooltip(Paragraph text, RenderData* renderData)
     Container s = renderData->Base.Tooltip(textBounds);
 
     float x = s.bounds.x, y = s.bounds.y + style.Tooltip.Padding.top;
-    writeText(text, style.Tooltip.TextScale, s.bounds, x, y, s.renderData, false, 1);
+    s.Text(text, scale);
+    s.render(&s);
 }
 
 void Container::Text(Paragraph text, int32_t scale, TextDecl parameters, TextStyle* style)
@@ -1624,11 +1687,14 @@ void Container::Text(const char* text, int32_t scale, TextDecl parameters, TextS
         calculateTextBounds(p, scale, bounds.width)
     };
 
+    textBounds.width = ts.width * scale;
+    textBounds.height = scale;
+
     if (scale == 0) scale = style->Size;
     textBounds = Arrange(this, textBounds);
-    textBounds.y += + scale / 2.0f;
+    textBounds.y += scale / 2.0f;
 
-    writeText(p, scale, bounds, textBounds.x, textBounds.y, renderData, false, 0, parameters);
+    writeText(p, scale, textBounds, textBounds.x, textBounds.y, renderData, false, 0, parameters);
 }
 
 /*
