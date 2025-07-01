@@ -460,6 +460,40 @@ void TexGui::setRenderData(RenderData* renderData)
     GTexGui->renderData = renderData;
 }
 
+bool animate(const Animation& animation, Animation& out, fbox& box, fvec4& color, bool reset)
+{
+    if (!animation.enabled) return false;
+    bool active = false;
+    if (reset)
+    {
+        out.offset = animation.offset;
+        out.time = -deltaMs;
+    }
+
+    if (out.time < animation.duration) {
+        active = true;
+
+        out.time += deltaMs;
+        double duration = out.duration / 1000.0;
+        double t = out.time / double(animation.duration);
+        double* b = out.bezier;
+        // this is a faked bezier curve cuz i dont know how to do it yet
+        double val = pow((1 - t), 3) * b[0] +
+                     3 * pow((1 - t), 2) * t * b[1] +
+                     3 * (1 - t) * pow(t, 2) * b[2] +
+                     pow(t, 3) * b[3];
+
+        out.offset = animation.offset * -1 * (1 - float(val));
+        box.pos += out.offset;
+
+        // "color" is an offset
+        out.color = (color - animation.color) * -1 * (1 - float(val));
+        color += out.color;
+    }
+
+    return active;
+}
+
 TGContainer* TexGui::Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags, WindowStyle* style)
 {
     auto& io = inputFrame;
@@ -490,38 +524,7 @@ TGContainer* TexGui::Window(const char* name, float xpos, float ypos, float widt
     box = AlignBox(Math::fbox(0, 0, GTexGui->framebufferSize.x, GTexGui->framebufferSize.y), box, flags);
 
     Math::fvec4 color = {1, 1, 1, 1};
-    bool animationActive = false;
-    if (style->InAnimation.enabled)
-    {
-        Animation& anim = GTexGui->animations[hash];
-
-        if (!wstate.prevVisible)
-        {
-            anim.offset = style->InAnimation.offset;
-            anim.time = -deltaMs;
-        }
-
-        if (anim.time < style->InAnimation.duration) {
-            animationActive = true;
-
-            anim.time += deltaMs;
-            double duration = anim.duration / 1000.0;
-            double t = anim.time / double(style->InAnimation.duration);
-            double* b = anim.bezier;
-            // this is a faked bezier curve cuz i dont know how to do it yet
-            double val = pow((1 - t), 3) * b[0] +
-                         3 * pow((1 - t), 2) * t * b[1] +
-                         3 * (1 - t) * pow(t, 2) * b[2] +
-                         pow(t, 3) * b[3];
-
-            anim.offset = style->InAnimation.offset * -1 * (1 - float(val));
-            box.pos += anim.offset;
-
-            // "color" is an offset
-            anim.color = (color - style->InAnimation.color) * -1 * (1 - float(val));
-            color += anim.color;
-        }
-    }
+    bool animationActive = animate(style->InAnimation, GTexGui->animations[hash], box, color, !wstate.prevVisible);
 
     if (flags & LOCKED || !wstate.prevVisible || animationActive)
         wstate.box = box;

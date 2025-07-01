@@ -275,6 +275,7 @@ struct TexGuiContext
 
     RenderData* renderData;
     std::unordered_map<TexGuiID, Animation> animations;
+    Animation tooltipAnimation;
     std::unordered_map<TexGuiID, TexGuiWindow> windows;
     std::unordered_map<TexGuiID, TextInputState> textInputs;
     std::unordered_map<TexGuiID, ScrollPanelState> scrollPanels;
