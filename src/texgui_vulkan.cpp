@@ -32,7 +32,7 @@ namespace TexGui
 struct TexGui_ImplVulkan_Data
 {
     uint32_t whiteTextureID = 0;
-    uint32_t textureCount = 0;
+    //uint32_t textureCount = 0;
     VkDevice                    device;
     VkPhysicalDevice            physicalDevice;
 
@@ -55,15 +55,16 @@ struct TexGui_ImplVulkan_Data
 
     int currentFrame = 0;
     int imageCount;
-    std::vector<VkDescriptorPool> frameDescriptorPools;
     std::vector<std::vector<TGVulkanBuffer>> bufferDestroyQueue;
 
     VmaAllocator allocator;
 
     VkDescriptorPool globalDescriptorPool;
 
-    VkDescriptorSet samplerDescriptorSet = VK_NULL_HANDLE;
-    VkDescriptorSetLayout samplerDescriptorSetLayout;
+    //VkDescriptorSet samplerDescriptorSet = VK_NULL_HANDLE;
+    std::vector<VkDescriptorSet> samplerDescriptorSets;
+    //VkDescriptorSetLayout samplerDescriptorSetLayout;
+    VkDescriptorSetLayout samplerLayout;
     VkBuffer samplerBuffer = 0;
     VmaAllocation samplerBufferAllocation = 0;
 
@@ -135,20 +136,30 @@ struct VertexPushConstants
     Math::fvec2 uvScale;
 } vertPushConstants;
 
-static uint32_t createTexture(VkImageView imageView, Math::fbox bounds)
+static uint32_t createTexture(VkImageView imageView, VkSampler sampler)
 {
     TexGui_ImplVulkan_Data* v = (TexGui_ImplVulkan_Data*)(GTexGui->rendererData);
+
+    VkDescriptorSet* set = &v->samplerDescriptorSets.emplace_back();
+    VkDescriptorSetAllocateInfo allocInfo = {};
+    allocInfo.pNext                       = VK_NULL_HANDLE;
+    allocInfo.sType                       = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool              = v->globalDescriptorPool;
+    allocInfo.descriptorSetCount          = 1;
+    allocInfo.pSetLayouts                 = &v->samplerLayout;
+    VkResult result = vkAllocateDescriptorSets(v->device, &allocInfo, set);
+
     VkDescriptorImageInfo imgInfo{
-        .sampler = v->textureSampler,
+        .sampler = sampler,
         .imageView = imageView,
         .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
     };
     auto imageWrite = VkWriteDescriptorSet{
         .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .pNext            = nullptr,
-        .dstSet           = v->samplerDescriptorSet,
+        .dstSet           = *set,
         .dstBinding       = 0,
-        .dstArrayElement  = v->textureCount,
+        .dstArrayElement  = 0,
         .descriptorCount  = 1,
         .descriptorType   = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         .pImageInfo       = &imgInfo,
@@ -157,7 +168,7 @@ static uint32_t createTexture(VkImageView imageView, Math::fbox bounds)
     };
     vkUpdateDescriptorSets(v->device, 1, &imageWrite, 0, nullptr);
 
-    return v->textureCount++;
+    return v->samplerDescriptorSets.size() - 1;
 }
 
 namespace TexGui {
@@ -290,30 +301,13 @@ static uint32_t _createTexture_Vulkan(void* data, int width, int height, VkSampl
     vkQueueSubmit2(v->graphicsQueue, 1, &submit, v->immCommandFence);
     vkWaitForFences(v->device, 1, &v->immCommandFence, true, 9999999999);
 
-    VkDescriptorImageInfo imgInfo{
-        .sampler = sampler,
-        .imageView = iv,
-        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-    };
-    auto imageWrite = VkWriteDescriptorSet{
-        .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .pNext            = nullptr,
-        .dstSet           = v->samplerDescriptorSet,
-        .dstBinding       = 0,
-        .dstArrayElement  = v->textureCount,
-        .descriptorCount  = 1,
-        .descriptorType   = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        .pImageInfo       = &imgInfo,
-        .pBufferInfo      = nullptr,
-        .pTexelBufferView = nullptr //unused for now
-    };
-    vkUpdateDescriptorSets(v->device, 1, &imageWrite, 0, nullptr);
+    uint32_t idx = createTexture(iv, sampler);
 
     vmaDestroyBuffer(v->allocator, uploadBuffer, allocation);
 
     images.push_back({image, iv, imageAllocation});
 
-    return v->textureCount++;
+    return idx;
 }
 
 static uint32_t createTexture_Vulkan(void* data, int width, int height)
@@ -376,40 +370,16 @@ static void initializeDescriptors_Vulkan()
     {
         VkDescriptorPoolSize pool_sizes[] = {
             {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 65536},
-            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1},
         };
         VkDescriptorPoolCreateInfo pool_info = {};
         pool_info.sType                      = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         pool_info.flags                      = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
-        pool_info.maxSets                    = 2;
+        pool_info.maxSets                    = 65536;
 
         pool_info.poolSizeCount = sizeof(pool_sizes) / sizeof(pool_sizes[0]);
         pool_info.pPoolSizes    = pool_sizes;
 
         vkCreateDescriptorPool(v->device, &pool_info, nullptr, &v->globalDescriptorPool);
-    }
-
-    v->frameDescriptorPools.resize(v->imageCount);
-    for (int i = 0; i < v->imageCount; i++)
-    {
-        VkDescriptorPoolSize pool_sizes[] = {
-            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 64},
-            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 64},
-        };
-        VkDescriptorPoolCreateInfo pool_info = {};
-        pool_info.sType                      = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        pool_info.flags                      = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
-        pool_info.maxSets                    = 64;
-
-        /*
-        for (VkDescriptorPoolSize& pool_size : pool_sizes)
-            pool_info.maxSets += pool_size.descriptorCount;
-        */
-
-        pool_info.poolSizeCount = sizeof(pool_sizes) / sizeof(pool_sizes[0]);
-        pool_info.pPoolSizes    = pool_sizes;
-
-        vkCreateDescriptorPool(v->device, &pool_info, nullptr, &v->frameDescriptorPools[i]);
     }
 
     // probably shouldnt be in descriptors section
@@ -421,7 +391,7 @@ static void initializeDescriptors_Vulkan()
         VkDescriptorSetLayoutBinding{
             .binding = 0,
             .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .descriptorCount = MAX_SAMPLERS,
+            .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
         }
     };
@@ -434,8 +404,9 @@ static void initializeDescriptors_Vulkan()
     set_info.flags                           = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
     set_info.bindingCount                    = 1;
     set_info.pBindings                       = bindings;
-    vkCreateDescriptorSetLayout(v->device, &set_info, nullptr, &v->samplerDescriptorSetLayout);
+    vkCreateDescriptorSetLayout(v->device, &set_info, nullptr, &v->samplerLayout);
 
+    /*
     {
         VkDescriptorSetAllocateInfo allocInfo = {};
         allocInfo.pNext                       = VK_NULL_HANDLE;
@@ -445,6 +416,7 @@ static void initializeDescriptors_Vulkan()
         allocInfo.pSetLayouts                 = &v->samplerDescriptorSetLayout;
         VkResult        result = vkAllocateDescriptorSets(v->device, &allocInfo, &v->samplerDescriptorSet);
     }
+    */
 }
 
 // creates 1x1 white texture for coloured objects without a texture
@@ -466,7 +438,7 @@ static void createPipelines_Vulkan()
         .size = sizeof(VertexPushConstants)
     };
 
-    VkDescriptorSetLayout dsl[] = {v->samplerDescriptorSetLayout};
+    VkDescriptorSetLayout dsl[] = {v->samplerLayout};
     VkPipelineLayoutCreateInfo layoutInfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount         = sizeof(dsl)/sizeof(dsl[0]),
@@ -714,7 +686,6 @@ void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
         vkCmdBindIndexBuffer(cmd, indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
     }
 
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->vertPipelineLayout, 0, 1, &v->samplerDescriptorSet, 0, nullptr);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->vertPipeline);
 
     int count = 0;
@@ -726,6 +697,7 @@ void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
         scissor.extent.width  = fmax(0, c.scissor.width);
         scissor.extent.height = fmax(0, c.scissor.height);
         vkCmdSetScissor(cmd, 0, 1, &scissor);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->vertPipelineLayout, 0, 1, &v->samplerDescriptorSets[c.textureIndex], 0, nullptr);
 
         vertPushConstants.textureIndex = c.textureIndex;
         vertPushConstants.scale = c.scale;
@@ -765,8 +737,6 @@ static void newFrame_Vulkan()
     v->currentFrame++;
     if (v->currentFrame == v->imageCount) v->currentFrame = 0;
 
-    vkResetDescriptorPool(v->device, v->frameDescriptorPools[v->currentFrame], 0);
-
     auto& dq = v->bufferDestroyQueue[v->currentFrame];
     for (auto it = dq.rbegin(); it != dq.rend(); it++) {
         vmaDestroyBuffer(v->allocator, it->buffer, it->allocation);
@@ -779,8 +749,6 @@ void renderClean_Vulkan()
 {
     TexGui_ImplVulkan_Data* v = (TexGui_ImplVulkan_Data*)(GTexGui->rendererData);
     vkDestroyDescriptorPool(v->device, v->globalDescriptorPool, 0);
-    for (auto& dp : v->frameDescriptorPools)
-        vkDestroyDescriptorPool(v->device, dp, 0);
 
     vkDestroyCommandPool(v->device, v->immCommandPool, 0);
     vkDestroyFence(v->device, v->immCommandFence, 0);
@@ -790,7 +758,7 @@ void renderClean_Vulkan()
     vkDestroyPipeline(v->device, v->vertPipeline, nullptr);
     vkDestroyPipelineLayout(v->device, v->vertPipelineLayout, nullptr);
 
-    vkDestroyDescriptorSetLayout(v->device, v->samplerDescriptorSetLayout, nullptr);
+    vkDestroyDescriptorSetLayout(v->device, v->samplerLayout, nullptr);
 
     for (auto& dq : v->bufferDestroyQueue)
     {
@@ -835,7 +803,8 @@ bool TexGui::initVulkan(VulkanInitInfo& info)
 static std::list<Texture> m_custom_texs;
 Texture* TexGui::customTexture(VkImageView imageView, Math::ibox bounds, Math::ivec2 atlasSize)
 {
-    int index = createTexture(imageView, bounds);
+    TexGui_ImplVulkan_Data* v = (TexGui_ImplVulkan_Data*)(GTexGui->rendererData);
+    int index = createTexture(imageView, v->textureSampler);
 
     float xth = bounds.w / 3.f;
     float yth = bounds.h / 3.f;
