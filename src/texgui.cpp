@@ -35,16 +35,19 @@ void TexGui::init()
     GTexGui->defaultStyle = initDefaultStyle();
 }
 
-TexGui::Math::ivec2 _getScreenSize()
-{
-    return GTexGui->framebufferSize;
-}
-
 void TexGui::newFrame()
 {
     GTexGui->rendererFns.newFrame();
 }
 
+void TexGui::setTextScale(float scale)
+{
+    GTexGui->textScale = scale;
+}
+float TexGui::getTextScale()
+{
+    return GTexGui->textScale;
+}
 RenderData* TexGui::newRenderData()
 {
     return new RenderData();
@@ -523,7 +526,7 @@ TGContainer* TexGui::Window(const char* name, float xpos, float ypos, float widt
     wstate.visible = true;
 
     fbox box = {xpos, ypos, width, height};
-    box = AlignBox(Math::fbox(0, 0, GTexGui->framebufferSize.x, GTexGui->framebufferSize.y), box, flags);
+    box = AlignBox(Math::fbox(0, 0, GTexGui->getWindowSize().x, GTexGui->getWindowSize().y), box, flags);
 
     Math::fvec4 color = {1, 1, 1, 1};
     bool animationActive = animate(style->InAnimation, GTexGui->animations[hash], box, color, !wstate.prevVisible);
@@ -595,12 +598,12 @@ TGContainer* TexGui::Window(const char* name, float xpos, float ypos, float widt
     child->window = &wstate;
     child->renderData->priority = -wstate.order;
     child->renderData->colorMultiplier = color;
-    child->renderData->addTexture(wstate.box, wintex, wstate.state, _PX, SLICE_9, {{0, 0}, g.framebufferSize}, color);
-    child->scissor = {{0, 0}, g.framebufferSize};
+    child->renderData->addTexture(wstate.box, wintex, wstate.state, _PX, SLICE_9, {{0, 0}, g.getWindowSize()}, color);
+    child->scissor = {{0, 0}, g.getWindowSize()};
 
     if (!(flags & HIDE_TITLE)) 
         child->renderData->addText(name, {wstate.box.x + padding.left, wstate.box.y + wintex->top * _PX / 2},
-                 style->TitleColor, style->TitleFontSize, CENTER_Y, {{0, 0}, g.framebufferSize});
+                 style->TitleColor, style->TitleFontSize * g.textScale, CENTER_Y, {{0, 0}, g.getWindowSize()});
 
 
     return child;
@@ -638,7 +641,8 @@ bool TexGui::Button(TGContainer* c, const char* text, TexGui::ButtonStyle* style
     }
     */
     fbox internal = {pos + c->bounds.size / 2, c->bounds.size};
-    c->renderData->addText(text, internal, style->Text.Color, style->Text.Size, CENTER_X | CENTER_Y, c->scissor);
+
+    c->renderData->addText(text, internal, style->Text.Color, style->Text.Size * g.textScale, CENTER_X | CENTER_Y, c->scissor);
 
     bool hovered = c->scissor.contains(io.cursorPos) 
                 && c->bounds.contains(io.cursorPos);
@@ -704,7 +708,7 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
     wstate.visible = true;
 
     fbox box = {xpos, ypos, width, height};
-    box = AlignBox(Math::fbox(0, 0, GTexGui->framebufferSize.x, GTexGui->framebufferSize.y), box, flags);
+    box = AlignBox(Math::fbox(0, 0, GTexGui->getWindowSize().x, GTexGui->getWindowSize().y), box, flags);
 
     Math::fvec4 color = {1, 1, 1, 1};
     bool animationActive = false;
@@ -813,7 +817,7 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
 
     if (!(flags & HIDE_TITLE)) 
         child.renderData->addText(name, {wstate.box.x + padding.left, wstate.box.y + wintex->top * _PX / 2},
-                 style->TitleColor, style->TitleFontSize, CENTER_Y, scissor);
+                 style->TitleColor, style->TitleFontSize * GTexGui->textScale, CENTER_Y, scissor);
 
 
     return child;
@@ -846,7 +850,7 @@ bool Container::Button(const char* text, Container* out, ButtonStyle* style)
     else
     {
         innerBounds.pos += bounds.size / 2;
-        renderData->addText(text, innerBounds, style->Text.Color, style->Text.Size, CENTER_X | CENTER_Y, scissor);
+        renderData->addText(text, innerBounds, style->Text.Color, style->Text.Size * g.textScale, CENTER_X | CENTER_Y, scissor);
     }
 
     bool hovered = scissor.contains(io.cursorPos) 
@@ -1038,9 +1042,9 @@ void Container::Image(Texture* texture, int scale)
     if (scale == -1)
         scale = _PX;
 
-    Math::ivec2 tsize = Math::ivec2(texture->bounds.width, texture->bounds.height) * scale;
+    Math::fvec2 tsize = Math::fvec2(texture->bounds.width, texture->bounds.height) * scale;
 
-    fbox sized = fbox(bounds.pos, fvec2(tsize));
+    fbox sized = fbox(bounds.pos, tsize);
     fbox arranged = Arrange(this, sized);
 
     renderData->addTexture(arranged, texture, STATE_NONE, scale, 0, scissor);
@@ -1341,6 +1345,7 @@ void renderTextInput(RenderData* renderData, const char* name, fbox bounds, fbox
 
     //#TODO: size
     int size = style->Text.Size;
+    size *= GTexGui->textScale;
 
     renderData->addTextWithCursor(
         !getBit(tstate.state, STATE_ACTIVE) && len == 0
@@ -1668,6 +1673,7 @@ void Container::Text(Paragraph text, int32_t scale, TextDecl parameters, TextSty
         style = &GTexGui->styleStack.back()->Text;
     if (scale == 0) scale = style->Size;
 
+    scale *= GTexGui->textScale;
     fbox textBounds = {
         { bounds.x, bounds.y },
         calculateTextBounds(text, scale, bounds.width)
@@ -1684,6 +1690,8 @@ void Container::Text(const char* text, int32_t scale, TextDecl parameters, TextS
     if (style == nullptr)
         style = &GTexGui->styleStack.back()->Text;
     if (scale == 0) scale = style->Size;
+
+    scale *= GTexGui->textScale;
     auto ts = TextSegment::FromChunkFast(TextChunk(text));
     auto p = Paragraph(&ts, 1);
 
@@ -2043,11 +2051,14 @@ float TexGui::computeTextWidth(const char* text, size_t numchars)
     return total;
 }
 
-void RenderData::addText(const char* text, Math::fvec2 pos, Math::fvec4 col, int size, uint32_t flags, const Math::fbox& scissor,  int32_t len)
+void RenderData::addText(const char* text, Math::fvec2 pos, Math::fvec4 col, int _size, uint32_t flags, const Math::fbox& scissor,  int32_t len)
 {
     col *= colorMultiplier;
     size_t numchars = len == -1 ? strlen(text) : len;
     size_t numcopy = numchars;
+
+    float size = _size * GTexGui->scale;
+    pos *= GTexGui->scale;
 
     Style& style = *GTexGui->styleStack.back();
     Font* font = style.Text.Font;
@@ -2115,12 +2126,15 @@ void RenderData::addText(const char* text, Math::fvec2 pos, Math::fvec4 col, int
     });
 }
 
-int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, Math::fvec4 col, int size, uint32_t flags, const Math::fbox& scissor, TextInputState& textInput)
+int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, Math::fvec4 col, int _size, uint32_t flags, const Math::fbox& scissor, TextInputState& textInput)
 {
     col *= colorMultiplier;
     auto& io = inputFrame;
     size_t numchars = strlen(text);
     size_t numcopy = numchars;
+
+    float size = _size * GTexGui->scale;
+    pos *= GTexGui->scale;
 
     Style& style = *GTexGui->styleStack.back();
     Font* font = style.Text.Font;
@@ -2272,8 +2286,10 @@ void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, ui
 
     uint32_t tex = getTextureIndexFromState(e, state);
 
-    Math::ivec2 framebufferSize = GTexGui->framebufferSize;
+    auto& g = *GTexGui;
+    Math::ivec2 framebufferSize = g.framebufferSize;
 
+    rect *= g.scale;
     if (!(flags & SLICE_9))
     {
         Math::fbox texBounds = e->bounds;
@@ -2380,6 +2396,7 @@ void RenderData::addQuad(Math::fbox rect, Math::fvec4 col)
 {
     col *= colorMultiplier;
     Math::ivec2 framebufferSize = GTexGui->framebufferSize;
+    rect *= GTexGui->scale;
 
     vertices.emplace_back(Vertex{.pos = {rect.x, rect.y}, .uv = {0,0}, .col = col,});
     vertices.emplace_back(Vertex{.pos = {rect.x + rect.w, rect.y}, .uv = {0, 0}, .col = col,});
@@ -2408,6 +2425,13 @@ void RenderData::addLine(float x1, float y1, float x2, float y2, Math::fvec4 col
 {
     Math::ivec2 framebufferSize = GTexGui->framebufferSize;
     col *= colorMultiplier;
+
+    auto& g = *GTexGui;
+    x1 *= g.scale; 
+    x2 *= g.scale; 
+    y1 *= g.scale; 
+    y2 *= g.scale; 
+    lineWidth *= g.scale; 
 
     float dx = x2 - x1;
     float dy = y2 - y1;

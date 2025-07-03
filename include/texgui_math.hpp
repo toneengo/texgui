@@ -103,6 +103,14 @@ struct vec2
         return val;
     }
 
+    template <typename v>
+    void operator*=(const v& num)
+    {
+        x *= static_cast<T>(num);
+        y *= static_cast<T>(num);
+    }
+
+
     //division
     template <typename v>
     vec2<T> operator/(const v& num) const
@@ -421,6 +429,15 @@ struct box
           w(static_cast<T>(_size.x)),
           h(static_cast<T>(_size.y))
     {}
+
+    template <typename v>
+    void operator*=(const v num)
+    {
+        x *= static_cast<T>(num);
+        y *= static_cast<T>(num);
+        w *= static_cast<T>(num);
+        h *= static_cast<T>(num);
+    }
 
     //expand or shrink box
     static box expand(box _b, T _val)

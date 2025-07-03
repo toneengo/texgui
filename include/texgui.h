@@ -344,6 +344,8 @@ TGContainer* Node(TGContainer* container, float x, float y);
 inline Container Base;
 
 void newFrame();
+float getTextScale();
+void setTextScale(float scale);
 void render(const RenderData& rs);
 RenderData* newRenderData();
 

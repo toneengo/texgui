@@ -248,6 +248,13 @@ struct TexGuiContext
     bool capturingMouse = false;
     bool lastCapturingMouse = false;
     Math::ivec2 framebufferSize;
+    float scale = 1.0;
+    float textScale = 1.25;
+
+    Math::fvec2 getWindowSize()
+    {
+        return Math::fvec2(framebufferSize) / scale;
+    }
     std::atomic<bool> editingText = false;
     int pixelSize = 1;
     
