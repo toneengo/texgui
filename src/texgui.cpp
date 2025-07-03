@@ -1138,6 +1138,7 @@ Container Container::Tooltip(Math::fvec2 size, TooltipStyle* style)
 
     //this is scuffed
     child.parentRenderData = &renderData->children.emplace_back();
+    child.parentRenderData->priority = INT_MAX;
     child.renderData = &child.parentRenderData->children.emplace_back();
     child.renderData->colorMultiplier = renderData->colorMultiplier;
 
