@@ -180,7 +180,9 @@ void TexGui::loadTextures(const char* dir)
 
         if (!pstr.ends_with(".png"))
         {
+#ifdef DBG
             printf("Unexpected file in sprites folder: %s\n", pstr.c_str());
+#endif
             continue;
         }
 
