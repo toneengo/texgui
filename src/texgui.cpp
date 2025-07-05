@@ -44,6 +44,16 @@ void TexGui::setTextScale(float scale)
 {
     GTexGui->textScale = scale;
 }
+
+float TexGui::getUiScale()
+{
+    return GTexGui->scale;
+}
+
+void TexGui::setUiScale(float scale)
+{
+    GTexGui->scale = scale;
+}
 float TexGui::getTextScale()
 {
     return GTexGui->textScale;
@@ -453,8 +463,8 @@ fbox AlignBox(fbox bounds, fbox child, uint32_t f)
     if (f & ALIGN_TOP) child.y = bounds.y;
     if (f & ALIGN_BOTTOM) child.y = bounds.y + bounds.height - child.height;
 
-    if (f & ALIGN_CENTER_X) child.x = bounds.x + (bounds.width - child.width) / 2;
-    if (f & ALIGN_CENTER_Y) child.y = bounds.y + (bounds.height - child.height) / 2;
+    if (f & ALIGN_CENTER_X) child.x = floor(bounds.x + (bounds.width - child.width) / 2);
+    if (f & ALIGN_CENTER_Y) child.y = floor(bounds.y + (bounds.height - child.height) / 2);
     return child;
 }
 
@@ -2052,7 +2062,7 @@ float TexGui::computeTextWidth(const char* text, size_t numchars)
     return total;
 }
 
-void RenderData::addText(const char* text, Math::fvec2 pos, Math::fvec4 col, int _size, uint32_t flags, const Math::fbox& scissor,  int32_t len)
+void RenderData::addText(const char* text, Math::fvec2 pos, Math::fvec4 col, int _size, uint32_t flags, Math::fbox scissor,  int32_t len)
 {
     col *= colorMultiplier;
     size_t numchars = len == -1 ? strlen(text) : len;
@@ -2060,6 +2070,7 @@ void RenderData::addText(const char* text, Math::fvec2 pos, Math::fvec4 col, int
 
     float size = _size * GTexGui->scale;
     pos *= GTexGui->scale;
+    scissor *= GTexGui->scale;
 
     Style& style = *GTexGui->styleStack.back();
     Font* font = style.Text.Font;
@@ -2127,7 +2138,7 @@ void RenderData::addText(const char* text, Math::fvec2 pos, Math::fvec4 col, int
     });
 }
 
-int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, Math::fvec4 col, int _size, uint32_t flags, const Math::fbox& scissor, TextInputState& textInput)
+int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, Math::fvec4 col, int _size, uint32_t flags, Math::fbox scissor, TextInputState& textInput)
 {
     col *= colorMultiplier;
     auto& io = inputFrame;
@@ -2136,6 +2147,7 @@ int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, Math::fvec4
 
     float size = _size * GTexGui->scale;
     pos *= GTexGui->scale;
+    scissor *= GTexGui->scale;
 
     Style& style = *GTexGui->styleStack.back();
     Font* font = style.Text.Font;
@@ -2280,7 +2292,7 @@ static inline uint32_t getTextureIndexFromState(Texture* e, int state)
         state & STATE_ACTIVE && e->active != -1 ? e->active : e->id;
 }
 
-void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, const fbox& scissor, Math::fvec4 col)
+void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, fbox scissor, Math::fvec4 col)
 {
     if (!e || e->id == -1 || !scissor.isValid()) return;
     col *= colorMultiplier;
@@ -2291,6 +2303,7 @@ void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, ui
     Math::ivec2 framebufferSize = g.framebufferSize;
 
     rect *= g.scale;
+    scissor *= g.scale;
     if (!(flags & SLICE_9))
     {
         Math::fbox texBounds = e->bounds;

@@ -248,8 +248,8 @@ struct TexGuiContext
     bool capturingMouse = false;
     bool lastCapturingMouse = false;
     Math::ivec2 framebufferSize;
-    float scale = 1.0;
-    float textScale = 1.25;
+    float scale = 1.00;
+    float textScale = 1.00;
 
     Math::fvec2 getWindowSize()
     {

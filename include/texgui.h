@@ -346,6 +346,8 @@ inline Container Base;
 void newFrame();
 float getTextScale();
 void setTextScale(float scale);
+float getUiScale();
+void setUiScale(float scale);
 void render(const RenderData& rs);
 RenderData* newRenderData();
 
@@ -434,9 +436,9 @@ public:
 
     void addLine(float x1, float y1, float x2, float y2, Math::fvec4 col, float lineWidth);
     void addQuad(Math::fbox rect, Math::fvec4 col);
-    void addTexture(Math::fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, const Math::fbox& scissor, Math::fvec4 col = {1, 1, 1, 1});
-    void addText(const char* text, Math::fvec2 pos, Math::fvec4 col, int size, uint32_t flags, const Math::fbox& scissor, int32_t len = -1);
-    int addTextWithCursor(const char* text, Math::fvec2 pos, Math::fvec4 col, int size, uint32_t flags, const Math::fbox& scissor, TextInputState& textInput);
+    void addTexture(Math::fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, Math::fbox scissor, Math::fvec4 col = {1, 1, 1, 1});
+    void addText(const char* text, Math::fvec2 pos, Math::fvec4 col, int size, uint32_t flags, Math::fbox scissor, int32_t len = -1);
+    int addTextWithCursor(const char* text, Math::fvec2 pos, Math::fvec4 col, int size, uint32_t flags, Math::fbox scissor, TextInputState& textInput);
 
     void clear() {
         commands.clear();
