@@ -202,7 +202,7 @@ public:
     Container ListItem(uint32_t* selected, uint32_t id, TexGui::ListItemStyle* style = nullptr);
 
     // Arranges children in a bento-grid layout.
-    Container Grid();
+    Container Grid(float spacing = -1);
     // Arranges children in a vertical stack.
     Container Stack(float padding = -1, TexGui::StackStyle* style = nullptr);
 
@@ -253,6 +253,7 @@ private:
         {
             float x, y, rowHeight;
             int n;
+            float spacing;
         } grid;
         struct
         {

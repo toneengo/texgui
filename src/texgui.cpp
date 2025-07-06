@@ -1232,7 +1232,7 @@ Container Container::Align(uint32_t flags, const Math::fvec4 padding)
 }
 
 // Arranges the cells of a grid by adding a new child box to it.
-Container Container::Grid()
+Container Container::Grid(float spacing)
 {
     static auto arrange = [](Container* grid, fbox child)
     {
@@ -1242,7 +1242,7 @@ Container Container::Grid()
 
         gs.rowHeight = fmax(gs.rowHeight, child.height);
 
-        float spacing = style.Row.Spacing;
+        float spacing = gs.spacing == -1 ? style.Row.Spacing : gs.spacing;
         if (gs.x + child.width > grid->bounds.width && gs.n > 0)
         {
             gs.x = 0;
@@ -1262,7 +1262,7 @@ Container Container::Grid()
         return child;
     };
     Container grid = withBounds(bounds, arrange);
-    grid.grid = { 0, 0, 0, 0 };
+    grid.grid = { 0, 0, 0, 0, spacing };
     return grid;
 }
 
