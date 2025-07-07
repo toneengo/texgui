@@ -1205,7 +1205,7 @@ Container Container::ListItem(uint32_t* selected, uint32_t id, ListItemStyle* st
     if (style == nullptr)
         style = &GTexGui->styleStack.back()->ListItem;
     // Add padding to the contents of the list item
-    static Texture* tex = style->Texture;
+    Texture* tex = style->Texture;
     Container listItem = withBounds(fbox::pad(bounds, style->Padding), arrange);
     listItem.texture = !texture ? tex : texture;
     listItem.listItem = { selected, id };
