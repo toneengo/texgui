@@ -134,6 +134,7 @@ struct VertexPushConstants
     uint32_t textureIndex;
     float pxRange;
     Math::fvec2 uvScale;
+    Math::fvec4 textBorderColor;
 } vertPushConstants;
 
 static uint32_t createTexture(VkImageView imageView, VkSampler sampler)
@@ -704,7 +705,8 @@ void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
         vertPushConstants.translate = c.translate;
         vertPushConstants.pxRange = c.pxRange;
         vertPushConstants.uvScale = c.uvScale;
-
+        vertPushConstants.textBorderColor = c.textBorderColor;
+        //size_t pushSz = c.textBorderColor.a > 0 ? sizeof(vertPushConstants) : sizeof(vertPushConstants) - sizeof(vertPushConstants.textBorderColor);
         vkCmdPushConstants(cmd, v->vertPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(VertexPushConstants), &vertPushConstants);
 
         vkCmdDrawIndexed(cmd, c.indexCount, 1, currIndex, 0, 0);

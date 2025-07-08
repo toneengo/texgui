@@ -29,6 +29,7 @@ struct TextStyle {
     Math::fvec4 Color;
     int Size;
     TexGui::Font* Font = nullptr;
+    Math::fvec4 BorderColor;
 };
 
 struct Animation
@@ -50,9 +51,8 @@ struct WindowStyle {
     TexGui::Texture* Texture;
     Math::fvec4 Padding;
     uint32_t Flags; //unused
-    Math::fvec4 TitleColor;
-    int TitleFontSize = 20;
     Animation InAnimation;
+    TextStyle Text;
 };
 
 struct ButtonStyle {

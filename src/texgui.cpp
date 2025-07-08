@@ -1,4 +1,5 @@
 #include "texgui.h"
+#include "core/edge-coloring.h"
 #include "texgui_flags.hpp"
 #include "texgui_style.hpp"
 #include "texgui_types.hpp"
@@ -109,7 +110,7 @@ uint32_t TexGui::loadFont(const char* font_path, int baseFontSize, float msdfPxR
     // Apply MSDF edge coloring. See edge-coloring.h for other coloring strategies.
     const double maxCornerAngle = M_PI / 4.0;
     for (GlyphGeometry &glyph : glyphs)
-        glyph.edgeColoring(&msdfgen::edgeColoringSimple, maxCornerAngle, 0);
+        glyph.edgeColoring(&msdfgen::edgeColoringByDistance, maxCornerAngle, 0);
     // TightAtlasPacker class computes the layout of the atlas.
     TightAtlasPacker packer;
     // Set atlas parameters:
@@ -127,9 +128,9 @@ uint32_t TexGui::loadFont(const char* font_path, int baseFontSize, float msdfPxR
     // The ImmediateAtlasGenerator class facilitates the generation of the atlas bitmap.
     ImmediateAtlasGenerator<
         float, // pixel type of buffer for individual glyphs depends on generator function
-        3, // number of atlas color channels
-        msdfGenerator, // function to generate bitmaps for individual glyphs
-        BitmapAtlasStorage<byte, 3> // class that stores the atlas bitmap
+        4, // number of atlas color channels
+        mtsdfGenerator, // function to generate bitmaps for individual glyphs
+        BitmapAtlasStorage<byte, 4> // class that stores the atlas bitmap
         // For example, a custom atlas storage class that stores it in VRAM can be used.
     > generator(width, height);
     // GeneratorAttributes can be modified to change the generator's default settings.
@@ -140,9 +141,10 @@ uint32_t TexGui::loadFont(const char* font_path, int baseFontSize, float msdfPxR
     generator.generate(glyphs.data(), glyphs.size());
     // The atlas bitmap can now be retrieved via atlasStorage as a BitmapConstRef.
     // The glyphs array (or fontGeometry) contains positioning data for typesetting text.
-    msdfgen::BitmapConstRef<byte, 3> ref = generator.atlasStorage();
+    msdfgen::BitmapConstRef<byte, 4> ref = generator.atlasStorage();
 
     // Transform into RGBA
+    /*
     unsigned char* rgba = new unsigned char[width * height * 4];
     for (int r = 0; r < height; r++)
     {
@@ -155,14 +157,15 @@ uint32_t TexGui::loadFont(const char* font_path, int baseFontSize, float msdfPxR
             rgba[index * 4 + 3] = 255;
         }
     }
+    */
 
-    GTexGui->fonts[fontName].textureIndex = GTexGui->rendererFns.createFontAtlas((void*)rgba, width, height);
+    GTexGui->fonts[fontName].textureIndex = GTexGui->rendererFns.createFontAtlas((void*)ref.pixels, width, height);
     GTexGui->fonts[fontName].msdfPxRange = msdfPxRange;
     GTexGui->fonts[fontName].baseFontSize = baseFontSize;
     GTexGui->fonts[fontName].atlasWidth = width;
     GTexGui->fonts[fontName].atlasHeight = height;
 
-    delete [] rgba;
+    //delete [] rgba;
 
     // Cleanup
     msdfgen::destroyFont(font);
@@ -613,7 +616,7 @@ TGContainer* TexGui::Window(const char* name, float xpos, float ypos, float widt
 
     if (!(flags & HIDE_TITLE)) 
         child->renderData->addText(name, {wstate.box.x + padding.left, wstate.box.y + wintex->top * _PX / 2},
-                 style->TitleColor, style->TitleFontSize * g.textScale, CENTER_Y, {{0, 0}, g.getWindowSize()});
+                 style->Text.Color, style->Text.Size * g.textScale, CENTER_Y, {{0, 0}, g.getWindowSize()}, style->Text.BorderColor);
 
 
     return child;
@@ -652,7 +655,7 @@ bool TexGui::Button(TGContainer* c, const char* text, TexGui::ButtonStyle* style
     */
     fbox internal = {pos + c->bounds.size / 2, c->bounds.size};
 
-    c->renderData->addText(text, internal, style->Text.Color, style->Text.Size * g.textScale, CENTER_X | CENTER_Y, c->scissor);
+    c->renderData->addText(text, internal, style->Text.Color, style->Text.Size * g.textScale, CENTER_X | CENTER_Y, c->scissor, style->Text.BorderColor);
 
     bool hovered = c->scissor.contains(io.cursorPos) 
                 && c->bounds.contains(io.cursorPos);
@@ -827,7 +830,7 @@ Container Container::Window(const char* name, float xpos, float ypos, float widt
 
     if (!(flags & HIDE_TITLE)) 
         child.renderData->addText(name, {wstate.box.x + padding.left, wstate.box.y + wintex->top * _PX / 2},
-                 style->TitleColor, style->TitleFontSize * GTexGui->textScale, CENTER_Y, scissor);
+                 style->Text.Color, style->Text.Size * GTexGui->textScale, CENTER_Y, scissor, style->Text.BorderColor);
 
 
     return child;
@@ -860,7 +863,7 @@ bool Container::Button(const char* text, Container* out, ButtonStyle* style)
     else
     {
         innerBounds.pos += bounds.size / 2;
-        renderData->addText(text, innerBounds, style->Text.Color, style->Text.Size * g.textScale, CENTER_X | CENTER_Y, scissor);
+        renderData->addText(text, innerBounds, style->Text.Color, style->Text.Size * g.textScale, CENTER_X | CENTER_Y, scissor, style->Text.BorderColor);
     }
 
     bool hovered = scissor.contains(io.cursorPos) 
@@ -1566,9 +1569,9 @@ fvec2 TexGui::calculateTextBounds(Paragraph text, int32_t scale, float maxWidth)
 
 #define TTUL style.Tooltip.UnderlineSize
 
-static bool writeText(Paragraph text, int32_t scale, TexGui::Math::fbox bounds, float& x, float& y, RenderData* renderData, bool checkHover = false, uint32_t flags = 0, TextDecl parameters = {});
+static bool writeText(Paragraph text, int32_t scale, TexGui::Math::fbox bounds, float& x, float& y, RenderData* renderData, TextStyle* style, bool checkHover = false, uint32_t flags = 0, TextDecl parameters = {});
 
-inline static void drawChunk(TextSegment s, RenderData* renderData, TexGui::Math::fbox bounds, float& x, float& y, int32_t scale, uint32_t flags, bool& hovered, bool checkHover, uint32_t& placeholderIdx, TextDecl parameters)
+inline static void drawChunk(TextSegment s, RenderData* renderData, TexGui::Math::fbox bounds, float& x, float& y, int32_t scale, uint32_t flags, bool& hovered, bool checkHover, uint32_t& placeholderIdx, TextDecl parameters, TextStyle* style)
     {
         static const auto underline = [](auto* renderData, float x, float y, float w, int32_t scale, uint32_t flags)
         {
@@ -1593,7 +1596,7 @@ inline static void drawChunk(TextSegment s, RenderData* renderData, TexGui::Math
 
                 underline(renderData, x, y, segwidth, scale, flags);
 
-                renderData->addText(s.word.data, {x, y}, {1,1,1,1}, scale, CENTER_Y, {0,0,8192,8192}, s.word.len);
+                renderData->addText(s.word.data, {x, y}, style->Color, scale, CENTER_Y, {0,0,8192,8192}, style->BorderColor, s.word.len);
 
                 // if (checkHover) renderData->addQuad(bounds, fvec4(1, 0, 0, 1));
                 hovered |= checkHover && !hovered && textbounds.contains(io.cursorPos);
@@ -1635,7 +1638,7 @@ inline static void drawChunk(TextSegment s, RenderData* renderData, TexGui::Math
                 // Render the base text of the tooltip. Do a coarse bounds check
                 // so we don't check if each word is hovered if we don't need to
                 bool check = bounds.contains(io.cursorPos);
-                bool hoverTT = writeText(s.tooltip.base, scale, bounds, x, y, renderData, check, UNDERLINE);
+                bool hoverTT = writeText(s.tooltip.base, scale, bounds, x, y, renderData, style, check, UNDERLINE);
                 if (hoverTT) renderTooltip(s.tooltip.tooltip, renderData);
             }
             break;
@@ -1643,7 +1646,7 @@ inline static void drawChunk(TextSegment s, RenderData* renderData, TexGui::Math
             {
                 assert(placeholderIdx < parameters.count);
                 bool blah = false;
-                drawChunk(TextSegment::FromChunkFast(parameters.data[placeholderIdx]), renderData, bounds, x, y, scale, flags, blah, false, placeholderIdx, {});
+                drawChunk(TextSegment::FromChunkFast(parameters.data[placeholderIdx]), renderData, bounds, x, y, scale, flags, blah, false, placeholderIdx, {}, style);
                 placeholderIdx++;
             }
             break;
@@ -1651,7 +1654,7 @@ inline static void drawChunk(TextSegment s, RenderData* renderData, TexGui::Math
         
     }
 
-static bool writeText(Paragraph text, int32_t scale, TexGui::Math::fbox bounds, float& x, float& y, RenderData* renderData, bool checkHover, uint32_t flags, TextDecl parameters)
+static bool writeText(Paragraph text, int32_t scale, TexGui::Math::fbox bounds, float& x, float& y, RenderData* renderData, TextStyle* style, bool checkHover, uint32_t flags, TextDecl parameters)
 {
     bool hovered = false;
     // Index into the amount of placeholders we've substituted
@@ -1659,7 +1662,7 @@ static bool writeText(Paragraph text, int32_t scale, TexGui::Math::fbox bounds, 
 
     for (int32_t i = 0; i < text.count; i++) 
     {
-        drawChunk(text.data[i], renderData, bounds, x, y, scale, flags, hovered, checkHover, placeholderIdx, parameters);
+        drawChunk(text.data[i], renderData, bounds, x, y, scale, flags, hovered, checkHover, placeholderIdx, parameters, style);
     }
     return hovered;
 }
@@ -1693,7 +1696,7 @@ void Container::Text(Paragraph text, int32_t scale, TextDecl parameters, TextSty
     textBounds = Arrange(this, textBounds);
     textBounds.y += + scale / 2.0f;
 
-    writeText(text, scale, bounds, textBounds.x, textBounds.y, renderData, false, 0, parameters);
+    writeText(text, scale, bounds, textBounds.x, textBounds.y, renderData, style, false, 0, parameters);
 }
 
 void Container::Text(const char* text, int32_t scale, TextDecl parameters, TextStyle* style)
@@ -1718,7 +1721,7 @@ void Container::Text(const char* text, int32_t scale, TextDecl parameters, TextS
     textBounds = Arrange(this, textBounds);
     textBounds.y += scale / 2.0f;
 
-    writeText(p, scale, textBounds, textBounds.x, textBounds.y, renderData, false, 0, parameters);
+    writeText(p, scale, textBounds, textBounds.x, textBounds.y, renderData, style, false, 0, parameters);
 }
 
 /*
@@ -2062,7 +2065,7 @@ float TexGui::computeTextWidth(const char* text, size_t numchars)
     return total;
 }
 
-void RenderData::addText(const char* text, Math::fvec2 pos, Math::fvec4 col, int _size, uint32_t flags, Math::fbox scissor,  int32_t len)
+void RenderData::addText(const char* text, Math::fvec2 pos, Math::fvec4 col, int _size, uint32_t flags, Math::fbox scissor, Math::fvec4 borderColor, int32_t len)
 {
     col *= colorMultiplier;
     size_t numchars = len == -1 ? strlen(text) : len;
@@ -2135,6 +2138,7 @@ void RenderData::addText(const char* text, Math::fvec2 pos, Math::fvec4 col, int
         .pxRange = float(fmax(float(size) / float(font->baseFontSize) * font->msdfPxRange, 1.f)),
         .uvScale = {1.f / float(font->atlasWidth), 1.f /float(font->atlasHeight)},
         .scissor = scissor,
+        .textBorderColor = borderColor
     });
 }
 
