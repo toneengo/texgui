@@ -379,7 +379,7 @@ void TexGui::clear()
 
     auto& g = *GTexGui;
     g.containers.clear();
-    g.containers.reserve(1024);
+    g.containers.reserve(2048);
     if (g.hoveredWidget == 0 && inputFrame.lmb == KEY_Press)
     {
         g.activeWidget = 0;
@@ -610,7 +610,6 @@ TGContainer* TexGui::Window(const char* name, float xpos, float ypos, float widt
         wstate.box.size += io.mouseRelativeMotion;
 
     fvec4 padding = style->Padding;
-    padding.top = wintex->top * _PX;
 
     fbox internal = fbox::pad(wstate.box, padding);
 
@@ -639,7 +638,7 @@ bool TexGui::Button(TGContainer* c, const char* text, TexGui::ButtonStyle* style
     auto& io = inputFrame;
     TexGuiID id = c->window->getID(text);
 
-    c->bounds = Arrange(c->parent, c->bounds);
+    c->bounds = Arrange(c, c->bounds);
 
     if (style == nullptr)
         style = &GTexGui->styleStack.back()->Button;
@@ -1454,13 +1453,13 @@ static void renderTooltip(Paragraph text, RenderData* renderData)
 
     fvec2 textBounds = calculateTextBounds(text, scale, style.Tooltip.MaxWidth);
 
-    /*
-    TGContainer* s = renderData->Base.Tooltip(textBounds);
+    TGContainer* s = BeginTooltip(textBounds);
 
     float x = s->bounds.x, y = s->bounds.y + style.Tooltip.Padding.top;
     Text(s, text, scale);
     s->renderProc(s);
-    */
+
+    EndTooltip(s);
 }
 
 void TexGui::Text(TGContainer* c, Paragraph text, int32_t scale, TextDecl parameters, TextStyle* style)
@@ -1513,27 +1512,26 @@ Container::ContainerArray Container::Row(std::initializer_list<float> widths, fl
 }
 */
 
-TGContainerArray TexGui::Row(TGContainer* c, std::initializer_list<float> widths, float height, RowStyle* style)
+TGContainerArray TexGui::Row(TGContainer* c, uint32_t widthCount, const float* pWidths, float height, TexGui::RowStyle* style)
 {
     if (style == nullptr)
         style = &GTexGui->styleStack.back()->Row;
-    int n = widths.size();
+    int n = widthCount;
     if (height < 1) {
         height = height == 0 ? c->bounds.height : c->bounds.height * height;
     }
     float absoluteWidth = 0;
     float inherit = 0;
-    for (auto& w : widths)
+    for (int i = 0; i < widthCount; i++)
     {
-        if (w >= 1)
-            absoluteWidth += w;
+        if (pWidths[i] >= 1)
+            absoluteWidth += pWidths[i];
         else
             inherit++;
     }
 
     float x = 0, y = 0;
     float spacing = style->Spacing;
-    auto _widths = widths.begin();
     TGContainerArray out;
     out.size = n;
     for (uint32_t i = 0; i < n; i++)
@@ -1541,13 +1539,13 @@ TGContainerArray TexGui::Row(TGContainer* c, std::initializer_list<float> widths
         if (i != 0) x += spacing;
 
         float width;
-        if (_widths[i] <= 1)
+        if (pWidths[i] <= 1)
         {
-            float mult = _widths[i] == 0 ? 1 : _widths[i];
+            float mult = pWidths[i] == 0 ? 1 : pWidths[i];
             width = (c->bounds.width - absoluteWidth - (spacing * (n - 1))) * mult / inherit;
         }
         else
-            width = _widths[i];
+            width = pWidths[i];
 
         if (style->Wrapped && x + width > c->bounds.width)
         {
@@ -1571,9 +1569,9 @@ TGContainerArray TexGui::Row(TGContainer* c, std::initializer_list<float> widths
     }
 
     return out;
-}
 
-TGContainerArray TexGui::Column(TGContainer* c, std::initializer_list<float> heights, float width, ColumnStyle* style)
+}
+TGContainerArray TexGui::Column(TGContainer* c, uint32_t heightCount, const float* pHeights, float width, TexGui::ColumnStyle* style)
 {
     if (style == nullptr)
         style = &GTexGui->styleStack.back()->Column;
@@ -1582,30 +1580,29 @@ TGContainerArray TexGui::Column(TGContainer* c, std::initializer_list<float> hei
     }
     float absoluteHeight = 0;
     int inherit = 0;
-    int n = heights.size();
-    for (auto& h : heights)
+    int n = heightCount;
+    for (int i = 0; i < n; i++)
     {
-        if (h >= 1)
-            absoluteHeight += h;
+        if (pHeights[i] >= 1)
+            absoluteHeight += pHeights[i];
         else
             inherit++;
     }
 
     float x = 0, y = 0;
     float spacing = style->Spacing;
-    auto _heights = heights.begin();
     TGContainerArray out;
     out.size = n;
     for (uint32_t i = 0; i < n; i++)
     {
         float height;
-        if (_heights[i] <= 1)
+        if (pHeights[i] <= 1)
         {
-            float mult = _heights[i] == 0 ? 1 : _heights[i];
+            float mult = pHeights[i] == 0 ? 1 : pHeights[i];
             height = (c->bounds.height - absoluteHeight - (spacing * (n - 1))) * mult / inherit;
         }
         else
-            height = _heights[i];
+            height = pHeights[i];
         
         if (i == 0)
             out.data = createChild(c, {x, y, width, height});
@@ -1621,6 +1618,17 @@ TGContainerArray TexGui::Column(TGContainer* c, std::initializer_list<float> hei
         out[i]->bounds.pos = out[i]->bounds.pos + arranged.pos;
     }
     return out;
+
+}
+
+TGContainerArray TexGui::Row(TGContainer* c, std::initializer_list<float> widths, float height, RowStyle* style)
+{
+    return TexGui::Row(c, widths.size(), widths.begin(), height, style);
+}
+
+TGContainerArray TexGui::Column(TGContainer* c, std::initializer_list<float> heights, float width, ColumnStyle* style)
+{
+    return TexGui::Column(c, heights.size(), heights.begin(), width, style);
 }
 
 Math::fbox TexGui::getBounds(TGContainer* c)
