@@ -74,6 +74,11 @@ Style* initDefaultStyle()
 
     style->Column.Height = INHERIT;
     style->Column.Spacing = 4;
+
+    style->ProgressBar.FrameTexture = &GTexGui->textures["progress_bar_frame"];
+    style->ProgressBar.BarTexture = &GTexGui->textures["progress_bar_bar"];
+
+    style->Grid.Spacing = -1; 
     return style;
 }
 

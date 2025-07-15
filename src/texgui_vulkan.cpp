@@ -173,14 +173,14 @@ static uint32_t createTexture(VkImageView imageView, VkSampler sampler)
 }
 
 namespace TexGui {
-struct Image {
+struct TGVkImage {
     VkImage image;
     VkImageView imageView;
     VmaAllocation allocation;
 };
 }
 
-std::vector<TexGui::Image> images;
+std::vector<TexGui::TGVkImage> images;
 
 static uint32_t _createTexture_Vulkan(void* data, int width, int height, VkSampler sampler)
 {

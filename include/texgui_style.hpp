@@ -32,6 +32,15 @@ struct TextStyle {
     Math::fvec4 BorderColor;
 };
 
+struct ProgressBarStyle {
+    TexGui::Texture* FrameTexture = nullptr;
+    TexGui::Texture* BarTexture = nullptr;
+};
+
+struct GridStyle {
+
+    float Spacing;
+};
 struct Animation
 {
     bool enabled = false;
@@ -100,6 +109,7 @@ struct ScrollPanelStyle {
 struct RowStyle {
     int Height;
     int Spacing;
+    bool Wrapped;
 };
 
 struct ColumnStyle {
@@ -107,8 +117,6 @@ struct ColumnStyle {
     int Spacing;
 };
 
-
-// Im not a C++ cult member i swear  to god this just looks nice when its used
 struct Style {
     StackStyle Stack;
 
@@ -135,6 +143,9 @@ struct Style {
     RowStyle Row;
 
     ColumnStyle Column;
+
+    ProgressBarStyle ProgressBar;
+    GridStyle Grid;
 };
 
 Style* BeginStyle();

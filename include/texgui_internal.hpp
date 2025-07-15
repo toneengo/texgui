@@ -198,8 +198,46 @@ struct TGContainer
     Math::fbox bounds;
     Math::fbox scissor;
     TexGuiWindow* window;
-    Container* parent;
+    TGContainer* parent;
     ArrangeFunc arrangeProc;
+    RenderFunc renderProc;
+    RenderData* parentRenderData;
+    Texture* texture;
+
+    void* scrollPanelState = nullptr;
+    union
+    {
+        struct
+        {
+            float x, y, rowHeight;
+            int n;
+            float spacing;
+        } grid;
+        struct
+        {
+            uint32_t* selected;
+            uint32_t id;
+        } listItem;
+
+        struct
+        {
+            uint32_t width;
+            uint32_t height;
+        } box;
+        struct 
+        {
+            uint32_t flags;
+            float top, right, bottom, left;
+        } align;
+
+        struct
+        {
+            float y;
+            float padding;
+            float maxWidth;
+        } stack;
+    };
+
 };
 
 struct Arranger;
@@ -301,10 +339,4 @@ struct TexGuiContext
 //#TODO: testing without dynamic alloc
 inline TexGuiContext* GTexGui = nullptr;
 
-inline void Arrange(Math::fbox child)
-{
-    if (GTexGui->arrangers.size() == 0) return;
-    Arranger* a = &GTexGui->arrangers.back();
-    a->submit(a, child);
-}
 NAMESPACE_END(TexGui);

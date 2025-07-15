@@ -156,8 +156,7 @@ struct TextDecl
     
 using CharacterFilter = bool(*)(unsigned int c);
 struct TexGuiWindow;
-void BeginTooltip(int width, int height);
-void EndTooltip();
+/*
 class Container
 {
     friend struct Arrangers;
@@ -194,6 +193,8 @@ public:
 
     Container Align(uint32_t flags = 0, const Math::fvec4 padding = {0,0,0,0});
 
+    Container ProgressBar(float percentage, TexGui::ProgressBarStyle* style = nullptr);
+
     void      Divider(float padding = 0);
     void      Line(float x1, float y1, float x2, float y2, Math::fvec4 color, float lineWidth = 1.f);
 
@@ -209,19 +210,6 @@ public:
     Container Node(float x, float y);
 
     //for widgets that have multiple child containers
-    /*
-    class ContainerArray 
-    {
-    private:
-        TexGuiSharedPtr<Container> data;
-        int size = 0;
-    public:
-        ContainerArray(uint32_t _size) : data(_size), size(_size) {}
-        Container& operator[](uint32_t idx) { assert(idx < size); return data.get()[idx]; }
-    };
-    ContainerArray Row(std::initializer_list<float> widths, float height = 0, uint32_t flags = 0);
-    */
-   
     void Row(Container* out, const float* widths, uint32_t n, float height, uint32_t flags = 0);
     template <uint32_t N>
     std::array<Container, N> Row(const float (&widths)[N], float height = 0, uint32_t flags = 0)
@@ -297,6 +285,7 @@ private:
 
     static Math::fbox Arrange(Container* o, Math::fbox child);
 };
+*/
 
 struct IconSheet
 {
@@ -306,9 +295,19 @@ struct IconSheet
     Texture* getIcon(uint32_t x, uint32_t y);
 };
 
-using ArrangeFunc = Math::fbox(*)(Container* parent, Math::fbox in);
-
 struct TGContainer;
+struct TGContainerArray
+{
+    TGContainer* data;
+    size_t size = 0;
+    TGContainer* operator[](size_t index);
+};
+using ArrangeFunc = Math::fbox(*)(TGContainer* parent, Math::fbox in);
+using RenderFunc = void(*)(TGContainer* container);
+
+TGContainer* BeginTooltip(Math::fvec2 size, TooltipStyle* style = nullptr);
+void EndTooltip(TGContainer* c);
+
 TGContainer* Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags = 0, TexGui::WindowStyle* style = nullptr);
 bool      Button(TGContainer* container, const char* text, TexGui::ButtonStyle* style = nullptr);
 TGContainer* Box(TGContainer* container, float xpos, float ypos, float width, float height, TexGui::BoxStyle* style = nullptr);
@@ -319,7 +318,6 @@ TGContainer* ScrollPanel(TGContainer* container, const char* name, TexGui::Scrol
 int       SliderInt(TGContainer* container, int* val, int minVal, int maxVal, TexGui::SliderStyle* style = nullptr);
 //void      Image(TGContainer* container, Texture* texture, int scale = -1);
 bool      DropdownInt(TGContainer* container, int* val, std::initializer_list<std::pair<const char*, int>> names);
-TGContainer* Tooltip(TGContainer* container, Math::fvec2 size, TexGui::TooltipStyle* style = nullptr);
 
 void      TextInput(TGContainer* container, const char* name, char* buf, uint32_t bufsize, TexGui::TextInputStyle* style = nullptr);
 void      Text(TGContainer* container, Paragraph text, int32_t scale = 0, TextDecl parameters = {}, TexGui::TextStyle* style = nullptr);
@@ -335,14 +333,16 @@ void      Line(TGContainer* container, float x1, float y1, float x2, float y2, M
 TGContainer* ListItem(TGContainer* container, uint32_t* selected, uint32_t id, TexGui::ListItemStyle* style = nullptr);
 
 // Arranges children in a bento-grid layout.
-TGContainer* Grid(TGContainer* container);
+TGContainer* Grid(TGContainer* container, GridStyle* style = nullptr);
 // Arranges children in a vertical stack.
 TGContainer* Stack(TGContainer* container, float padding = -1, TexGui::StackStyle* style = nullptr);
 
 TGContainer* Node(TGContainer* container, float x, float y);
+TGContainerArray Row(TGContainer* container, std::initializer_list<float> widths, float height = 0, TexGui::RowStyle* style = nullptr);
+TGContainerArray Column(TGContainer* container, std::initializer_list<float> heights, float width = 0, TexGui::ColumnStyle* style = nullptr);
 
-
-inline Container Base;
+Math::fbox getBounds(TGContainer* c); 
+void Image(TGContainer* c, Texture* texture, int scale = -1);
 
 void newFrame();
 float getTextScale();
@@ -387,13 +387,8 @@ public:
     Math::fbox scissor = {0, 0, 8192, 8192};
     Math::fvec4 colorMultiplier = {1, 1, 1, 1};
 
-    Container Base;
     RenderData()
     {
-        Base = TexGui::Base;
-        Base.renderData = this;
-        Base.bounds = Math::fbox(0, 0, 8192, 8192);
-        Base.scissor = Math::fbox(0, 0, 8192, 8192);
     }
 
     void operator=(const RenderData& other)
