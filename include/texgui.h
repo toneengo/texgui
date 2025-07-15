@@ -337,6 +337,7 @@ TGContainer* Grid(TGContainer* container, GridStyle* style = nullptr);
 // Arranges children in a vertical stack.
 TGContainer* Stack(TGContainer* container, float padding = -1, TexGui::StackStyle* style = nullptr);
 
+void ProgressBar(TGContainer* container, float percentage, const TexGui::ProgressBarStyle* style = nullptr);
 TGContainer* Node(TGContainer* container, float x, float y);
 TGContainerArray Row(TGContainer* container, std::initializer_list<float> widths, float height = 0, TexGui::RowStyle* style = nullptr);
 TGContainerArray Column(TGContainer* container, std::initializer_list<float> heights, float width = 0, TexGui::ColumnStyle* style = nullptr);

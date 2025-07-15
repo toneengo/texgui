@@ -26,8 +26,6 @@ namespace TexGui
     stc::time_point<stc::steady_clock> currentTime;
 }
 
-#define HOVERED(rect) rect.contains(inputFrame.cursorPos) && parentState & STATE_HOVER && scissor.contains(inputFrame.cursorPos)
-#define CLICKED(rect) rect.contains(inputFrame.cursorPos) && inputFrame.lmb == KEY_Press && parentState & STATE_ACTIVE && scissor.contains(inputFrame.cursorPos)
 
 Style* initDefaultStyle();
 void TexGui::init()
@@ -416,15 +414,17 @@ inline bool getBit(const unsigned int dest, const unsigned int flag)
 
 using namespace TexGui::Math;
 
-ContainerState getState(TexGuiID id, const fbox& bounds, uint32_t parentState, const fbox& scissor)
+ContainerState getState(TexGuiID id, TGContainer* c, const fbox& bounds, const fbox& scissor)
 {
+#define TG_STATE_HOVERED(rect) rect.contains(inputFrame.cursorPos) && c->window && c->window->state & STATE_HOVER && scissor.contains(inputFrame.cursorPos)
+#define TG_STATE_CLICKED(rect) rect.contains(inputFrame.cursorPos) && inputFrame.lmb == KEY_Press && c->window && c->window->state & STATE_HOVER && scissor.contains(inputFrame.cursorPos)
     ContainerState state = 0;
-    if (HOVERED(bounds))
+    if (TG_STATE_HOVERED(bounds))
     {
         GTexGui->hoveredWidget = id;
         state |= STATE_HOVER;
     }
-    if (CLICKED(bounds))
+    if (TG_STATE_CLICKED(bounds))
     {
         GTexGui->activeWidget = id;
         state |= STATE_PRESS;
@@ -432,6 +432,8 @@ ContainerState getState(TexGuiID id, const fbox& bounds, uint32_t parentState, c
     if (GTexGui->activeWidget == id) state |= STATE_ACTIVE;
     if (GTexGui->activeWidget == id && inputFrame.lmb == KEY_Held) state |= STATE_PRESS;
     return state;
+#undef TG_STATE_HOVERED
+#undef TG_STATE_CLICKED
 }
 
 uint32_t getBoxState(uint32_t& state, fbox box, uint32_t parentState)
@@ -552,6 +554,10 @@ TGContainer* TexGui::Window(const char* name, float xpos, float ypos, float widt
 
     fbox box = {xpos, ypos, width, height};
     box = AlignBox(Math::fbox(0, 0, GTexGui->getWindowSize().x, GTexGui->getWindowSize().y), box, flags);
+    if (flags & (ALIGN_LEFT | ALIGN_CENTER_X | ALIGN_RIGHT))
+        box.x += xpos;
+    if (flags & (ALIGN_BOTTOM | ALIGN_CENTER_Y | ALIGN_TOP))
+        box.y += ypos;
 
     Math::fvec4 color = {1, 1, 1, 1};
     bool animationActive = animate(style->InAnimation, GTexGui->animations[hash], box, color, !wstate.prevVisible);
@@ -638,23 +644,21 @@ bool TexGui::Button(TGContainer* c, const char* text, TexGui::ButtonStyle* style
     auto& io = inputFrame;
     TexGuiID id = c->window->getID(text);
 
-    c->bounds = Arrange(c, c->bounds);
+    fbox internal = Arrange(c, c->bounds);
 
     if (style == nullptr)
         style = &GTexGui->styleStack.back()->Button;
 
-    uint32_t state = getState(id, c->bounds, c->window->state, c->scissor);
+    uint32_t state = getState(id, c, internal, c->scissor);
 
     Texture* tex = style->Texture;
-    assert(tex && tex->id != -1);
-
-    c->renderData->addTexture(c->bounds, tex, state, _PX, SLICE_9, c->scissor);
+    c->renderData->addTexture(internal, tex, state, _PX, SLICE_9, c->scissor);
 
     TexGui::Math::vec2 pos = state & STATE_PRESS 
                        ? c->bounds.pos + style->POffset
                        : c->bounds.pos;
 
-    fbox internal = {pos + c->bounds.size / 2, c->bounds.size};
+    internal = {pos + internal.size / 2, internal.size};
 
     c->renderData->addText(text, internal, style->Text.Color, style->Text.Size * g.textScale, CENTER_X | CENTER_Y, c->scissor, style->Text.BorderColor);
 
@@ -834,7 +838,7 @@ int TexGui::SliderInt(TGContainer* c, int* val, int minVal, int maxVal, SliderSt
     fbox barArea = {c->bounds.x, c->bounds.y, c->bounds.width, bar->bounds.height * _PX};
     barArea = Arrange(c, barArea);
 
-    uint32_t state = getState(id, barArea, c->window->state, c->scissor);
+    uint32_t state = getState(id, c, barArea, c->scissor);
     c->renderData->addTexture(barArea, bar, state, _PX, SLICE_3_HORIZONTAL, c->scissor);
 
     if (g.activeWidget == id && io.lmb == KEY_Held)
@@ -1080,6 +1084,28 @@ TGContainer* TexGui::Stack(TGContainer* c, float padding, StackStyle* style)
     return stack;
 }
 
+void TexGui::ProgressBar(TGContainer* c, float percentage, const ProgressBarStyle* style)
+{
+    if (style == nullptr)
+        style = &GTexGui->styleStack.back()->ProgressBar;
+
+    auto& g = *GTexGui;
+    auto& io = inputFrame;
+
+    //Fixed height
+    Texture* bartex = style->BarTexture;
+    Texture* frametex = style->FrameTexture;
+    assert(bartex && frametex);
+    fbox frame = {c->bounds.x, c->bounds.y, c->bounds.width, frametex ? frametex->bounds.height * _PX : bartex->bounds.height * _PX};
+    frame = Arrange(c, frame);
+
+    fbox internal = fbox::pad(frame, style->Padding);
+    internal.width = percentage * internal.width;
+
+    c->renderData->addTexture(frame, bartex, 0, _PX, SLICE_3_HORIZONTAL, internal);
+    c->renderData->addTexture(frame, frametex, 0, _PX, SLICE_3_HORIZONTAL, c->scissor);
+}
+
 TGContainer* TexGui::Node(TGContainer* c, float x, float y)
 {
     static auto arrange = [](TGContainer* align, fbox child)
@@ -1252,9 +1278,9 @@ void TexGui::TextInput(TGContainer* c, const char* name, char* buf, uint32_t buf
 
     auto& ti = g.textInputs[id];
 
-    c->bounds = Arrange(c, c->bounds);
+    fbox internal = Arrange(c, c->bounds);
 
-    ti.state = getState(id, c->bounds, c->window->state, c->scissor);
+    ti.state = getState(id, c, internal, c->scissor);
 
     uint32_t len = strlen(buf);
 
