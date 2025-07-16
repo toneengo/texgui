@@ -289,7 +289,7 @@ struct TexGuiContext
     float scale = 1.00;
     float textScale = 1.00;
 
-    Math::fvec2 getWindowSize()
+    Math::fvec2 getScreenSize()
     {
         return Math::fvec2(framebufferSize) / scale;
     }
@@ -334,6 +334,8 @@ struct TexGuiContext
 
     InputData io;
     bool initialised = false;
+
+    TGContainer baseContainer = {};
 };
 
 //#TODO: testing without dynamic alloc

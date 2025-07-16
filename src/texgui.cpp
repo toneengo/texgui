@@ -298,7 +298,7 @@ TexGui::Math::ivec2 TexGui::getTextureSize(Texture* tex)
 
 Math::fbox Arrange(TGContainer* c, Math::fbox child)
 {
-    if (c->arrangeProc) return c->arrangeProc(c, child);
+    if (c && c->arrangeProc) return c->arrangeProc(c, child);
     return child;
 }
 
@@ -378,6 +378,12 @@ void TexGui::clear()
     auto& g = *GTexGui;
     g.containers.clear();
     g.containers.reserve(2048);
+    auto& c = g.baseContainer; 
+
+    //#TODO: waste to call "getscreensize" here again but who actually gaf
+    c.bounds = Math::fbox({0,0}, g.getScreenSize());
+    c.scissor = c.bounds;
+
     if (g.hoveredWidget == 0 && inputFrame.lmb == KEY_Press)
     {
         g.activeWidget = 0;
@@ -490,6 +496,7 @@ fbox AlignBox(fbox bounds, fbox child, uint32_t f)
 void TexGui::setRenderData(RenderData* renderData)
 {
     GTexGui->renderData = renderData;
+    GTexGui->baseContainer.renderData = renderData;
 }
 
 bool animate(const Animation& animation, Animation& out, fbox& box, fvec4& color, bool reset)
@@ -553,7 +560,7 @@ TGContainer* TexGui::Window(const char* name, float xpos, float ypos, float widt
     wstate.visible = true;
 
     fbox box = {xpos, ypos, width, height};
-    box = AlignBox(Math::fbox(0, 0, GTexGui->getWindowSize().x, GTexGui->getWindowSize().y), box, flags);
+    box = AlignBox(Math::fbox(0, 0, GTexGui->getScreenSize().x, GTexGui->getScreenSize().y), box, flags);
     if (flags & (ALIGN_LEFT | ALIGN_CENTER_X | ALIGN_RIGHT))
         box.x += xpos;
     if (flags & (ALIGN_BOTTOM | ALIGN_CENTER_Y | ALIGN_TOP))
@@ -628,12 +635,12 @@ TGContainer* TexGui::Window(const char* name, float xpos, float ypos, float widt
     child->window = &wstate;
     child->renderData->priority = -wstate.order;
     child->renderData->colorMultiplier = color;
-    child->renderData->addTexture(wstate.box, wintex, wstate.state, _PX, SLICE_9, {{0, 0}, g.getWindowSize()}, color);
-    child->scissor = {{0, 0}, g.getWindowSize()};
+    child->renderData->addTexture(wstate.box, wintex, wstate.state, _PX, SLICE_9, {{0, 0}, g.getScreenSize()}, color);
+    child->scissor = {{0, 0}, g.getScreenSize()};
 
     if (!(flags & HIDE_TITLE)) 
         child->renderData->addText(name, {wstate.box.x + padding.left, wstate.box.y + wintex->top * _PX / 2},
-                 style->Text.Color, style->Text.Size * g.textScale, CENTER_Y, {{0, 0}, g.getWindowSize()}, style->Text.BorderColor);
+                 style->Text.Color, style->Text.Size * g.textScale, CENTER_Y, {{0, 0}, g.getScreenSize()}, style->Text.BorderColor);
 
     return child;
 }
@@ -677,6 +684,7 @@ TGContainer* TexGui::Box(TGContainer* c, float xpos, float ypos, float width, fl
 
     if (style == nullptr)
         style = &GTexGui->styleStack.back()->Box;
+    if (!c) c = &GTexGui->baseContainer;
     Texture* texture = style->Texture;
 
     fbox boxBounds(c->bounds.x + xpos, c->bounds.y + ypos, width, height);
@@ -735,11 +743,11 @@ TGContainer* createChild(TGContainer* c, Math::fbox bounds, ArrangeFunc arrange 
 {
     TGContainer* child = &GTexGui->containers.emplace_back();
     child->bounds = bounds;
-    child->scissor = c->scissor;
+    child->scissor = !c ? Math::fbox({0,0}, GTexGui->getScreenSize()) : c->scissor;
     child->parent = c;
     child->arrangeProc = arrange;
-    child->window = c->window;
-    child->renderData = c->renderData;
+    child->window = !c ? nullptr : c->window;
+    child->renderData = !c ? GTexGui->renderData : c->renderData;
     return child;
 }
 
@@ -926,7 +934,7 @@ TGContainer* TexGui::BeginTooltip(Math::fvec2 size, TooltipStyle* style)
     child->box.height = size.y;
     child->bounds = internal;
     child->window = nullptr;
-    child->scissor = {{0, 0}, g.getWindowSize()};
+    child->scissor = {{0, 0}, g.getScreenSize()};
 
     child->texture = style->Texture;
     child->renderProc = render;
@@ -1116,6 +1124,7 @@ TGContainer* TexGui::Node(TGContainer* c, float x, float y)
         return bounds;
     };
 
+    if (!c) c = &GTexGui->baseContainer;
     //this is weird maybe there is btter way. bounds is different now 
     //the bounds box itself is moved and not resized,
     //the child will be slightly out of bounds sincei t is centred on top left corner of bounds
