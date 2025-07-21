@@ -153,7 +153,7 @@ struct TextDecl
     const TextChunk* begin() const { return data; }
     const TextChunk* end() const { return data + count; }
 };
-    
+
 using CharacterFilter = bool(*)(unsigned int c);
 struct TexGuiWindow;
 /*
@@ -254,7 +254,7 @@ private:
             uint32_t width;
             uint32_t height;
         } box;
-        struct 
+        struct
         {
             uint32_t flags;
             float top, right, bottom, left;
@@ -326,7 +326,7 @@ void      Text(TGContainer* container, const char* text, int32_t scale = 0, Text
 TGContainer* Align(TGContainer* container, uint32_t flags = 0, const Math::fvec4 padding = {0,0,0,0});
 
 void      Divider(TGContainer* container, float padding = 0);
-void      Line(TGContainer* container, float x1, float y1, float x2, float y2, Math::fvec4 color, float lineWidth = 1.f);
+void      Line(TGContainer* container, float x1, float y1, float x2, float y2, uint32_t color, float lineWidth = 1.f);
 
 // Similar to radio buttons - the id of the selected one is stored in the *selected pointer.
 // If you don't want them to be clickable - set selected to nullptr, and 0 or 1 for whether it is active in id
@@ -344,7 +344,7 @@ TGContainerArray Column(TGContainer* container, std::initializer_list<float> hei
 
 TGContainerArray Row(TGContainer* container, uint32_t widthCount, const float* pWidths, float height = 0, TexGui::RowStyle* style = nullptr);
 TGContainerArray Column(TGContainer* container, uint32_t heightCount, const float* pHeights, float width = 0, TexGui::ColumnStyle* style = nullptr);
-Math::fbox getBounds(TGContainer* c); 
+Math::fbox getBounds(TGContainer* c);
 void Image(TGContainer* c, Texture* texture, int scale = -1);
 
 void newFrame();
@@ -388,7 +388,7 @@ public:
     int32_t priority = -1;
     std::vector<RenderData> children;
     Math::fbox scissor = {0, 0, 8192, 8192};
-    Math::fvec4 colorMultiplier = {1, 1, 1, 1};
+    uint32_t alphaModifier = 0x000000FF;
 
     RenderData()
     {
@@ -433,11 +433,11 @@ public:
         children.clear();
     }
 
-    void addLine(float x1, float y1, float x2, float y2, Math::fvec4 col, float lineWidth);
-    void addQuad(Math::fbox rect, Math::fvec4 col);
-    void addTexture(Math::fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, Math::fbox scissor, Math::fvec4 col = {1, 1, 1, 1});
-    void addText(const char* text, Math::fvec2 pos, Math::fvec4 col, int size, uint32_t flags, Math::fbox scissor, Math::fvec4 borderColor, int32_t len = -1);
-    int addTextWithCursor(const char* text, Math::fvec2 pos, Math::fvec4 col, int size, uint32_t flags, Math::fbox scissor, TextInputState& textInput);
+    void addLine(float x1, float y1, float x2, float y2, uint32_t col, float lineWidth);
+    void addQuad(Math::fbox rect, uint32_t col);
+    void addTexture(Math::fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, Math::fbox scissor, uint32_t col = 0xFFFFFFFF);
+    void addText(const char* text, Math::fvec2 pos, uint32_t col, int size, uint32_t flags, Math::fbox scissor, Math::fvec4 borderColor, int32_t len = -1);
+    int addTextWithCursor(const char* text, Math::fvec2 pos, uint32_t col, int size, uint32_t flags, Math::fbox scissor, TextInputState& textInput);
 
     void clear() {
         commands.clear();
@@ -463,7 +463,7 @@ public:
     {
         Math::fvec2 pos;
         Math::fvec2 uv;
-        Math::fvec4 col = {1.f, 1.f, 1.f, 1.f};
+        uint32_t col = 0xFFFFFFFF;
     };
 
     // Renderable objects

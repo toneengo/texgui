@@ -190,7 +190,7 @@ static uint32_t _createTexture_Vulkan(void* data, int width, int height, VkSampl
         .height = uint32_t(height),
         .depth = 1
     };
-    
+
     // allocate buffer
     VkBufferCreateInfo bufferInfo = {};
     bufferInfo.sType              = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -504,7 +504,7 @@ static void createPipelines_Vulkan()
         .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
         .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
         .colorBlendOp        = VK_BLEND_OP_ADD,
-        .srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
         .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
         .alphaBlendOp        = VK_BLEND_OP_ADD,
         .colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
@@ -554,7 +554,7 @@ static void createPipelines_Vulkan()
     attribute_desc[2] = {
         .location = 2,
         .binding = binding_desc[0].binding,
-        .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+        .format = VK_FORMAT_R8G8B8A8_UNORM,
         .offset = offsetof(RenderData::Vertex, col),
     };
 
@@ -587,7 +587,7 @@ static void createPipelines_Vulkan()
         printf("Failed to create pipeline\n");
         assert(false);
     }
-        
+
     vkDestroyShaderModule(v->device, vertvert, nullptr);
     vkDestroyShaderModule(v->device, vertfrag, nullptr);
 }
@@ -799,7 +799,7 @@ bool TexGui::initVulkan(VulkanInitInfo& info)
     createWhiteTexture_Vulkan();
     //#TODO: need to delete more stuff probably
     return true;
-} 
+}
 
 #include <list>
 static std::list<Texture> m_custom_texs;

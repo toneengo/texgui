@@ -34,13 +34,13 @@ Style* initDefaultStyle()
 
     style->Stack.Padding = 8;
 
-    style->Text.Color = {1, 1, 1, 1};
+    style->Text.Color = 0xFFFFFFFF;
     style->Text.Size = 20;
 
     style->Window.Texture = &GTexGui->textures["window"];
     style->Window.Padding = {12, 12, 12, 12};
-    style->Window.Text.Color = {1, 1, 1, 1};
-    style->Window.Text.Size = 20; 
+    style->Window.Text.Color = 0xFFFFFFFF;
+    style->Window.Text.Size = 20;
     style->Window.Flags = 0;
 
     style->Button.Texture = &GTexGui->textures["button"];
@@ -49,7 +49,7 @@ Style* initDefaultStyle()
     style->Button.Text = style->Text;
 
     style->TextInput.Texture = &GTexGui->textures["textinput"];
-    style->TextInput.SelectColor = {0.0, 0.8, 0.8, 1.0};
+    style->TextInput.SelectColor = 0xFFFFFFFF;
     style->TextInput.Padding = Math::fvec4(8);
     style->TextInput.Text = style->Text;
 
@@ -78,7 +78,7 @@ Style* initDefaultStyle()
     style->ProgressBar.FrameTexture = &GTexGui->textures["progress_bar_frame"];
     style->ProgressBar.BarTexture = &GTexGui->textures["progress_bar_bar"];
 
-    style->Grid.Spacing = -1; 
+    style->Grid.Spacing = -1;
     return style;
 }
 

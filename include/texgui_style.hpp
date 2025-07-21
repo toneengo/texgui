@@ -26,7 +26,7 @@ struct TooltipStyle {
 };
 
 struct TextStyle {
-    Math::fvec4 Color;
+    uint32_t Color;
     int Size;
     TexGui::Font* Font = nullptr;
     Math::fvec4 BorderColor;
@@ -54,7 +54,7 @@ struct Animation
     // The properties of the object at the start of the animation
     // These default options mean the object will fade in, and slide in from the bottom
     Math::fvec2 offset = {0, -80};
-    Math::fvec4 color = {1, 1, 1, 0};
+    uint32_t alphaModifier = 0x00000000;
 };
 
 struct WindowStyle {
@@ -73,7 +73,7 @@ struct ButtonStyle {
 };
 struct TextInputStyle {
     TexGui::Texture* Texture;
-    Math::fvec4 SelectColor;
+    uint32_t SelectColor;
     Math::fvec4 Padding;
     TextStyle Text;
 };
@@ -156,4 +156,3 @@ Style* getDefaultStyle();
 
 int setPixelSize(int px);
 }
-

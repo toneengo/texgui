@@ -1,11 +1,14 @@
 #version 450 core
 layout(location = 0) out vec4 fColor;
-layout(location = 0) in struct { vec4 Color; vec2 UV; } In;
+layout(location = 0) in struct {
+    vec4 Color;
+    vec2 UV;
+} In;
 layout(location = 2) flat in uint texID;
 layout(location = 3) flat in float pxRange;
 layout(location = 4) flat in vec4 textBorderColor;
 
-layout (set = 0, binding = 0) uniform sampler2D tex;
+layout(set = 0, binding = 0) uniform sampler2D tex;
 
 float median(float r, float g, float b) {
     return max(min(r, g), min(max(r, g), b));
@@ -32,5 +35,5 @@ void main()
         fColor.a = opacity;
     }
 
-    fColor *= In.Color;
+    fColor *= In.Color.abgr;
 }

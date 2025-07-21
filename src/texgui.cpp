@@ -16,6 +16,7 @@
 #include "msdf-atlas-gen/GlyphGeometry.h"
 #include <chrono>
 
+#define ALPHA_MASK 0x000000FF
 using namespace TexGui;
 using namespace std::chrono_literals;
 namespace stc = std::chrono;
@@ -212,7 +213,7 @@ void TexGui::loadTextures(const char* dir)
             printf("Failed to load file: %s\n", pstr.c_str());
             continue;
         }
-        
+
         if (GTexGui->textures.contains(fstr) && GTexGui->textures[fstr].id > -1)
         {
             if (GTexGui->textures[fstr].bounds.w != width || GTexGui->textures[fstr].bounds.h != height)
@@ -224,11 +225,11 @@ void TexGui::loadTextures(const char* dir)
         else
         {
             Texture& t = GTexGui->textures[fstr];
-            t.bounds.x = 0; 
-            t.bounds.y = 0; 
-            t.bounds.w = width; 
-            t.bounds.h = height; 
-            
+            t.bounds.x = 0;
+            t.bounds.y = 0;
+            t.bounds.w = width;
+            t.bounds.h = height;
+
             t.size.x = width;
             t.size.y = height;
 
@@ -259,7 +260,7 @@ IconSheet TexGui::loadIcons(const char* dir, int32_t iconWidth, int32_t iconHeig
     int width, height, channels;
     unsigned char* pixels = stbi_load(dir, &width, &height, &channels, 4);
     assert(pixels != nullptr);
-    
+
     uint32_t texID = GTexGui->rendererFns.createTexture(pixels, width, height);
     stbi_image_free(pixels);
 
@@ -378,7 +379,7 @@ void TexGui::clear()
     auto& g = *GTexGui;
     g.containers.clear();
     g.containers.reserve(2048);
-    auto& c = g.baseContainer; 
+    auto& c = g.baseContainer;
 
     //#TODO: waste to call "getscreensize" here again but who actually gaf
     c.bounds = Math::fbox({0,0}, g.getScreenSize());
@@ -458,7 +459,7 @@ uint32_t getBoxState(uint32_t& state, fbox box, uint32_t parentState)
             setBit(state, STATE_PRESS, 0);
 
         // if parent state is not active, it cant be active
-        // if parent state is not hover, it cant be hover 
+        // if parent state is not hover, it cant be hover
         if (!(parentState & STATE_ACTIVE))
             setBit(state, STATE_ACTIVE, 0);
         if (!(parentState & STATE_HOVER))
@@ -499,7 +500,7 @@ void TexGui::setRenderData(RenderData* renderData)
     GTexGui->baseContainer.renderData = renderData;
 }
 
-bool animate(const Animation& animation, Animation& out, fbox& box, fvec4& color, bool reset)
+bool animate(const Animation& animation, Animation& out, fbox& box, uint32_t& alpha, bool reset)
 {
     if (!animation.enabled) return false;
     bool active = false;
@@ -525,9 +526,8 @@ bool animate(const Animation& animation, Animation& out, fbox& box, fvec4& color
         out.offset = animation.offset * -1 * (1 - float(val));
         box.pos += out.offset;
 
-        // "color" is an offset
-        out.color = (color - animation.color) * -1 * (1 - float(val));
-        color += out.color;
+        out.alphaModifier = (alpha - animation.alphaModifier) * (1 - float(val));
+        alpha -= out.alphaModifier;
     }
 
     return active;
@@ -566,12 +566,12 @@ TGContainer* TexGui::Window(const char* name, float xpos, float ypos, float widt
     if (flags & (ALIGN_BOTTOM | ALIGN_CENTER_Y | ALIGN_TOP))
         box.y += ypos;
 
-    Math::fvec4 color = {1, 1, 1, 1};
-    bool animationActive = animate(style->InAnimation, GTexGui->animations[hash], box, color, !wstate.prevVisible);
+    uint32_t alpha = 0xFF;
+    bool animationActive = animate(style->InAnimation, GTexGui->animations[hash], box, alpha, !wstate.prevVisible);
 
     if (flags & LOCKED || !wstate.prevVisible || animationActive)
         wstate.box = box;
-    
+
     if (flags & BACK)
         wstate.order = INT_MAX;
     if (flags & FRONT)
@@ -634,11 +634,11 @@ TGContainer* TexGui::Window(const char* name, float xpos, float ypos, float widt
     child->renderData = &g.renderData->children.emplace_back();
     child->window = &wstate;
     child->renderData->priority = -wstate.order;
-    child->renderData->colorMultiplier = color;
-    child->renderData->addTexture(wstate.box, wintex, wstate.state, _PX, SLICE_9, {{0, 0}, g.getScreenSize()}, color);
+    child->renderData->alphaModifier = alpha;
+    child->renderData->addTexture(wstate.box, wintex, wstate.state, _PX, SLICE_9, {{0, 0}, g.getScreenSize()});
     child->scissor = {{0, 0}, g.getScreenSize()};
 
-    if (!(flags & HIDE_TITLE)) 
+    if (!(flags & HIDE_TITLE))
         child->renderData->addText(name, {wstate.box.x + padding.left, wstate.box.y + wintex->top * _PX / 2},
                  style->Text.Color, style->Text.Size * g.textScale, CENTER_Y, {{0, 0}, g.getScreenSize()}, style->Text.BorderColor);
 
@@ -661,7 +661,7 @@ bool TexGui::Button(TGContainer* c, const char* text, TexGui::ButtonStyle* style
     Texture* tex = style->Texture;
     c->renderData->addTexture(internal, tex, state, _PX, SLICE_9, c->scissor);
 
-    TexGui::Math::vec2 pos = state & STATE_PRESS 
+    TexGui::Math::vec2 pos = state & STATE_PRESS
                        ? c->bounds.pos + style->POffset
                        : c->bounds.pos;
 
@@ -669,7 +669,7 @@ bool TexGui::Button(TGContainer* c, const char* text, TexGui::ButtonStyle* style
 
     c->renderData->addText(text, internal, style->Text.Color, style->Text.Size * g.textScale, CENTER_X | CENTER_Y, c->scissor, style->Text.BorderColor);
 
-    bool hovered = c->scissor.contains(io.cursorPos) 
+    bool hovered = c->scissor.contains(io.cursorPos)
                 && c->bounds.contains(io.cursorPos);
 
     return state & STATE_ACTIVE && io.lmb == KEY_Release && hovered ? true : false;
@@ -703,7 +703,7 @@ TGContainer* TexGui::Box(TGContainer* c, float xpos, float ypos, float width, fl
         child->renderData->addTexture(boxBounds, texture, 0, 2, SLICE_9, boxBounds);
     }
 
-    return child; 
+    return child;
 
 }
 
@@ -734,8 +734,9 @@ void TexGui::RadioButton(TGContainer* c, uint32_t* selected, uint32_t id, RadioB
     c->renderData->addTexture(c->bounds, texture, *selected == id ? STATE_ACTIVE : 0, 2, SLICE_9, c->scissor);
 }
 
-void TexGui::Line(TGContainer* c, float x1, float y1, float x2, float y2, Math::fvec4 color, float lineWidth)
+void TexGui::Line(TGContainer* c, float x1, float y1, float x2, float y2, uint32_t color, float lineWidth)
 {
+    if (!c) c = &GTexGui->baseContainer;
     c->renderData->addLine(c->bounds.x + x1, c->bounds.y + y1, c->bounds.x + x2, c->bounds.y + y2, color, lineWidth);
 }
 
@@ -761,10 +762,10 @@ TGContainer* TexGui::ScrollPanel(TGContainer* c, const char* name, ScrollPanelSt
     TexGuiID id = c->window->getID(name);
     if (!GTexGui->scrollPanels.contains(id))
     {
-        ScrollPanelState _s = 
+        ScrollPanelState _s =
         {
             .contentPos = {0,0},
-            .bounds = c->bounds 
+            .bounds = c->bounds
         };
         GTexGui->scrollPanels.insert({id, _s});
     }
@@ -772,7 +773,7 @@ TGContainer* TexGui::ScrollPanel(TGContainer* c, const char* name, ScrollPanelSt
     auto& spstate = GTexGui->scrollPanels[id];
 
     fvec4 padding = style->Padding;
-    
+
     if (!bartex)
     {
         static auto defaultbt = bartex;
@@ -841,7 +842,7 @@ int TexGui::SliderInt(TGContainer* c, int* val, int minVal, int maxVal, SliderSt
 
     float percent = float(*val - minVal) / float(maxVal - minVal);
     //renderSlider(renderData, id, bounds, percent, bar, node);
-    
+
     assert(bar);
     fbox barArea = {c->bounds.x, c->bounds.y, c->bounds.width, bar->bounds.height * _PX};
     barArea = Arrange(c, barArea);
@@ -907,7 +908,7 @@ TGContainer* TexGui::BeginTooltip(Math::fvec2 size, TooltipStyle* style)
 
         bounds.pos = io.cursorPos + style.Tooltip.MouseOffset;
 
-        // The child is positioned by the tooptip parent 
+        // The child is positioned by the tooptip parent
         return fbox::pad(bounds, style.Tooltip.Padding);
     };
 
@@ -921,9 +922,9 @@ TGContainer* TexGui::BeginTooltip(Math::fvec2 size, TooltipStyle* style)
     if (style == nullptr)
         style = &GTexGui->styleStack.back()->Tooltip;
     auto& io = inputFrame;
-    
+
     fbox rect = {
-        io.cursorPos + style->MouseOffset, 
+        io.cursorPos + style->MouseOffset,
         size,
     };
 
@@ -1050,7 +1051,7 @@ TGContainer* TexGui::Grid(TGContainer* c, TexGui::GridStyle* style)
         Arrange(grid->parent, {grid->bounds.x, grid->bounds.y, grid->bounds.width, gs.y + gs.rowHeight + spacing});
 
         gs.n++;
-        
+
         return child;
     };
     if (style == nullptr)
@@ -1067,7 +1068,7 @@ void TexGui::Divider(TGContainer* c, float padding)
     fbox line = {
         ln.x, ln.y + padding, ln.width, width,
     };
-    c->renderData->addQuad(line, fvec4(1,1,1,0.5));
+    c->renderData->addQuad(line, 0xFFFFFF80);
 }
 
 TGContainer* TexGui::Stack(TGContainer* c, float padding, StackStyle* style)
@@ -1078,7 +1079,7 @@ TGContainer* TexGui::Stack(TGContainer* c, float padding, StackStyle* style)
 
         child = fbox(stack->bounds.pos + fvec2(0, s.y), child.size);
         s.y += child.size.y + s.padding;
-    
+
         //TexGui::Arrange(child);
         Arrange(stack->parent, {stack->bounds.x, stack->bounds.y, child.width, s.y});
 
@@ -1125,7 +1126,7 @@ TGContainer* TexGui::Node(TGContainer* c, float x, float y)
     };
 
     if (!c) c = &GTexGui->baseContainer;
-    //this is weird maybe there is btter way. bounds is different now 
+    //this is weird maybe there is btter way. bounds is different now
     //the bounds box itself is moved and not resized,
     //the child will be slightly out of bounds sincei t is centred on top left corner of bounds
     TGContainer* node = createChild(c, c->bounds, arrange);
@@ -1196,7 +1197,7 @@ void TextInputBehaviour(TextInputState& ti, char* buf, uint32_t bufsize, int tle
     bool right = io.keyStates[TexGuiKey_RightArrow] & (KEY_Press | KEY_Repeat);
 
     int dir = left ? -1 : right ? 1 : 0;
-    
+
     if (dir != 0 && ti.selection[0] == ti.selection[1])
     {
         if (io.keyStates[TexGuiKey_Backspace] & (KEY_Press | KEY_Repeat))
@@ -1218,7 +1219,7 @@ void TextInputBehaviour(TextInputState& ti, char* buf, uint32_t bufsize, int tle
                 const char& curr = buf[ti.textCursorPos];
                 const char& next = buf[ti.textCursorPos + dir];
                 //#TODO: more delimiters
-                if (curr != ' ' && curr != '.' && (next == ' ' || next == '.')) 
+                if (curr != ' ' && curr != '.' && (next == ' ' || next == '.'))
                 {
                     if (dir > 0) ti.textCursorPos++;
                     break;
@@ -1261,16 +1262,16 @@ void TextInputBehaviour(TextInputState& ti, char* buf, uint32_t bufsize, int tle
 
         uint32_t newlen = strlen(io.text);
         if (tlen + newlen < bufsize - 1 && newlen > 0)
-        { 
+        {
             if (ti.textCursorPos != tlen)
                 strcat(io.text, buf + ti.textCursorPos);
-            
+
             strcpy(buf + ti.textCursorPos, io.text);
             ti.textCursorPos += newlen;
             tlen += newlen;
         }
     }
-    
+
     //deselect
     if (dir != 0 || io.text[0] != '\0')
     {
@@ -1282,7 +1283,7 @@ void TexGui::TextInput(TGContainer* c, const char* name, char* buf, uint32_t buf
 {
     auto& g = *GTexGui;
     auto& io = inputFrame;
-    
+
     uint32_t id = c->window->getID(&buf);
 
     auto& ti = g.textInputs[id];
@@ -1298,7 +1299,7 @@ void TexGui::TextInput(TGContainer* c, const char* name, char* buf, uint32_t buf
         g.editingText = true;
         TextInputBehaviour(ti, buf, bufsize, len);
     }
-    
+
     renderTextInput(c->renderData, name, c->bounds, c->scissor, ti, buf, len, style);
 }
 
@@ -1335,7 +1336,7 @@ fvec2 TexGui::calculateTextBounds(Paragraph text, int32_t scale, float maxWidth)
     Style& style = *GTexGui->styleStack.back();
     fbox bounds = {x, y, maxWidth, 2000};
 
-    for (int32_t i = 0; i < text.count; i++) 
+    for (int32_t i = 0; i < text.count; i++)
     {
         auto& s = text.data[i];
         switch (s.type)
@@ -1348,7 +1349,7 @@ fvec2 TexGui::calculateTextBounds(Paragraph text, int32_t scale, float maxWidth)
             }
             break;
 
-        case TextSegment::ICON: 
+        case TextSegment::ICON:
             {
                 fvec2 tsize = fvec2(s.icon->bounds.width, s.icon->bounds.height) * _PX;
                 bumpline(x, y, tsize.x, bounds, scale);
@@ -1393,7 +1394,7 @@ inline static void drawChunk(TextSegment s, RenderData* renderData, TexGui::Math
             if (flags & UNDERLINE)
             {
                 fbox ul = fbox(fvec2(x - TTUL.x, y + scale / 2.0 - 2), fvec2(w + TTUL.x * 2, TTUL.y));
-                renderData->addQuad(ul, fvec4(1,1,1,0.3));
+                renderData->addQuad(ul, 0xFFFFFF80);
             }
         };
 
@@ -1418,7 +1419,7 @@ inline static void drawChunk(TextSegment s, RenderData* renderData, TexGui::Math
             }
             break;
 
-        case TextSegment::ICON: 
+        case TextSegment::ICON:
         case TextSegment::LAZY_ICON:
             {
                 Style& style = *GTexGui->styleStack.back();
@@ -1465,7 +1466,7 @@ inline static void drawChunk(TextSegment s, RenderData* renderData, TexGui::Math
             }
             break;
         }
-        
+
     }
 
 static bool writeText(Paragraph text, int32_t scale, TexGui::Math::fbox bounds, float& x, float& y, RenderData* renderData, TextStyle* style, bool checkHover, uint32_t flags, TextDecl parameters)
@@ -1474,7 +1475,7 @@ static bool writeText(Paragraph text, int32_t scale, TexGui::Math::fbox bounds, 
     // Index into the amount of placeholders we've substituted
     uint32_t placeholderIdx = 0;
 
-    for (int32_t i = 0; i < text.count; i++) 
+    for (int32_t i = 0; i < text.count; i++)
     {
         drawChunk(text.data[i], renderData, bounds, x, y, scale, flags, hovered, checkHover, placeholderIdx, parameters, style);
     }
@@ -1638,7 +1639,7 @@ TGContainerArray TexGui::Column(TGContainer* c, uint32_t heightCount, const floa
         }
         else
             height = pHeights[i];
-        
+
         if (i == 0)
             out.data = createChild(c, {x, y, width, height});
         else
@@ -1676,7 +1677,7 @@ static int32_t parseText(const char* text, TextSegment* out)
 {
     switch (text[0])
     {
-    case '\n': 
+    case '\n':
         *out = { .type = TextSegment::NEWLINE };
         return 1;
     case '\0':
@@ -1701,7 +1702,7 @@ static int32_t parseText(const char* text, TextSegment* out)
 
         // End of trailing whitespace. word complete
         if (ws) break;
-        
+
         len++;
     }
 
@@ -1715,7 +1716,7 @@ static int32_t parseText(const char* text, TextSegment* out)
 
 void cacheChunk(const TextChunk& chunk, std::vector<TextSegment>& out)
 {
-    if (chunk.type == TextChunk::TEXT) 
+    if (chunk.type == TextChunk::TEXT)
     {
         const char* t = chunk.text;
         while (true)
@@ -1729,7 +1730,7 @@ void cacheChunk(const TextChunk& chunk, std::vector<TextSegment>& out)
             t += len;
         }
     }
-    else if (chunk.type == TextChunk::ICON) 
+    else if (chunk.type == TextChunk::ICON)
     {
         out.push_back({
             .icon = chunk.icon,
@@ -1870,7 +1871,7 @@ bool cacheChunk(uint32_t& i, const TextChunk& chunk, TextSegment* buffer, uint32
             if (i >= capacity) return false;
             buffer[i] = {
                 .type = TextSegment::PLACEHOLDER,
-            }; 
+            };
             i++;
         } break;
     }
@@ -1882,7 +1883,7 @@ int32_t TexGui::cacheText(TextDecl text, TextSegment* buffer, uint32_t capacity)
     uint32_t i = 0;
     for (auto& chunk : text)
     {
-        if (!cacheChunk(i, chunk, buffer, capacity)) return -1; 
+        if (!cacheChunk(i, chunk, buffer, capacity)) return -1;
     }
     return i;
 }
@@ -1919,9 +1920,10 @@ float TexGui::computeTextWidth(const char* text, size_t numchars)
     return total;
 }
 
-void RenderData::addText(const char* text, Math::fvec2 pos, Math::fvec4 col, int _size, uint32_t flags, Math::fbox scissor, Math::fvec4 borderColor, int32_t len)
+void RenderData::addText(const char* text, Math::fvec2 pos, uint32_t col, int _size, uint32_t flags, Math::fbox scissor, Math::fvec4 borderColor, int32_t len)
 {
-    col *= colorMultiplier;
+    col &= ~(ALPHA_MASK);
+    col |= alphaModifier;
     size_t numchars = len == -1 ? strlen(text) : len;
     size_t numcopy = numchars;
 
@@ -1985,7 +1987,7 @@ void RenderData::addText(const char* text, Math::fvec2 pos, Math::fvec4 col, int
 
     Math::ivec2 framebufferSize = GTexGui->framebufferSize;
     commands.emplace_back(Command{
-        .indexCount = uint32_t(6 * numchars), 
+        .indexCount = uint32_t(6 * numchars),
         .textureIndex = font->textureIndex,
         .scale = {2.f / float(framebufferSize.x), 2.f / float(framebufferSize.y)},
         .translate = {-1.f, -1.f},
@@ -1996,9 +1998,10 @@ void RenderData::addText(const char* text, Math::fvec2 pos, Math::fvec4 col, int
     });
 }
 
-int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, Math::fvec4 col, int _size, uint32_t flags, Math::fbox scissor, TextInputState& textInput)
+int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, uint32_t col, int _size, uint32_t flags, Math::fbox scissor, TextInputState& textInput)
 {
-    col *= colorMultiplier;
+    col &= ~(ALPHA_MASK);
+    col |= alphaModifier;
     auto& io = inputFrame;
     size_t numchars = strlen(text);
     size_t numcopy = numchars;
@@ -2081,13 +2084,13 @@ int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, Math::fvec4
         if (i >= textInput.selection[0] && i < textInput.selection[1])
         {
             addQuad({currx, pos.y + size / 4.f - size, advance, float(size)}, style.TextInput.SelectColor);
-            color = {1.f - col.r, 1.f - col.g, 1.f - col.b, col.a};
+            //color = {1.f - col.r, 1.f - col.g, 1.f - col.b, col.a};
         }
 
-        vertices.emplace_back(Vertex{.pos = {xpos, ypos + height}, .uv = Math::fvec2(x, y), .col = color});
+        vertices.emplace_back(Vertex{.pos = {xpos, ypos + height}, .uv = Math::fvec2(x, y), .col = col});
         vertices.emplace_back(Vertex{.pos = {xpos + width, ypos + height}, .uv = {float(x + w), float(y)}, .col = col});
-        vertices.emplace_back(Vertex{.pos = {xpos, ypos}, .uv = {float(x), float(y + h)}, .col = color});
-        vertices.emplace_back(Vertex{.pos = {xpos + width, ypos}, .uv = {float(x + w), float(y + h)}, .col = color});
+        vertices.emplace_back(Vertex{.pos = {xpos, ypos}, .uv = {float(x), float(y + h)}, .col = col});
+        vertices.emplace_back(Vertex{.pos = {xpos + width, ypos}, .uv = {float(x + w), float(y + h)}, .col = col});
         uint32_t idx = vertices.size() - 4;
         indices.emplace_back(idx);
         indices.emplace_back(idx+1);
@@ -2101,7 +2104,7 @@ int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, Math::fvec4
         currx += advance;
 
         commands.emplace_back(Command{
-            .indexCount = uint32_t(6), 
+            .indexCount = uint32_t(6),
             .textureIndex = font->textureIndex,
             .scale = {2.f / float(framebufferSize.x), 2.f / float(framebufferSize.y)},
             .translate = {-1.f, -1.f},
@@ -2110,7 +2113,7 @@ int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, Math::fvec4
             .scissor = scissor,
         });
     }
-    
+
     if (textCursorPos == numchars)
         cursorPosLocation = currx;
 
@@ -2131,7 +2134,7 @@ int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, Math::fvec4
         indices.emplace_back(idx+3);
 
         commands.emplace_back(Command{
-            .indexCount = 6, 
+            .indexCount = 6,
             .textureIndex = 0,
             .scale = {2.f / float(framebufferSize.x), 2.f / float(framebufferSize.y)},
             .translate = {-1.f, -1.f},
@@ -2150,10 +2153,11 @@ static inline uint32_t getTextureIndexFromState(Texture* e, int state)
         state & STATE_ACTIVE && e->active != -1 ? e->active : e->id;
 }
 
-void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, fbox scissor, Math::fvec4 col)
+void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, fbox scissor, uint32_t col)
 {
     if (!e || e->id == -1 || !scissor.isValid()) return;
-    col *= colorMultiplier;
+    col &= ~(ALPHA_MASK);
+    col |= alphaModifier;
 
     uint32_t tex = getTextureIndexFromState(e, state);
 
@@ -2264,9 +2268,10 @@ void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, ui
     });
 }
 
-void RenderData::addQuad(Math::fbox rect, Math::fvec4 col)
+void RenderData::addQuad(Math::fbox rect, uint32_t col)
 {
-    col *= colorMultiplier;
+    col &= ~(ALPHA_MASK);
+    col |= alphaModifier;
     Math::ivec2 framebufferSize = GTexGui->framebufferSize;
     rect *= GTexGui->scale;
 
@@ -2291,19 +2296,21 @@ void RenderData::addQuad(Math::fbox rect, Math::fvec4 col)
 }
 
 // from imgui
-#define IM_NORMALIZE2F_OVER_ZERO(VX,VY)     { float d2 = VX*VX + VY*VY; if (d2 > 0.0f) { float inv_len = 1.0/sqrt(d2); VX *= inv_len; VY *= inv_len; } } (void)0 
+#define IM_NORMALIZE2F_OVER_ZERO(VX,VY)     { float d2 = VX*VX + VY*VY; if (d2 > 0.0f) { float inv_len = 1.0/sqrt(d2); VX *= inv_len; VY *= inv_len; } } (void)0
 
-void RenderData::addLine(float x1, float y1, float x2, float y2, Math::fvec4 col, float lineWidth)
+void RenderData::addLine(float x1, float y1, float x2, float y2, uint32_t col, float lineWidth)
 {
     Math::ivec2 framebufferSize = GTexGui->framebufferSize;
-    col *= colorMultiplier;
+
+    col &= ~(ALPHA_MASK);
+    col |= alphaModifier;
 
     auto& g = *GTexGui;
-    x1 *= g.scale; 
-    x2 *= g.scale; 
-    y1 *= g.scale; 
-    y2 *= g.scale; 
-    lineWidth *= g.scale; 
+    x1 *= g.scale;
+    x2 *= g.scale;
+    y1 *= g.scale;
+    y2 *= g.scale;
+    lineWidth *= g.scale;
 
     float dx = x2 - x1;
     float dy = y2 - y1;
