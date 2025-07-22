@@ -195,6 +195,7 @@ struct InputData {
 struct TGContainer
 {
     RenderData* renderData;
+    Math::fbox size;
     Math::fbox bounds;
     Math::fbox scissor;
     TexGuiWindow* window;

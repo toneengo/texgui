@@ -675,7 +675,7 @@ bool TexGui::Button(TGContainer* c, const char* text, TexGui::ButtonStyle* style
     return state & STATE_ACTIVE && io.lmb == KEY_Release && hovered ? true : false;
 }
 
-TGContainer* TexGui::Box(TGContainer* c, float xpos, float ypos, float width, float height, TexGui::BoxStyle* style)
+TGContainer* TexGui::Box(TGContainer* c, float xpos, float ypos, float width, float height, uint32_t flags, TexGui::BoxStyle* style)
 {
     if (width <= 1)
         width = width == 0 ? c->bounds.width : c->bounds.width * width;
@@ -687,20 +687,26 @@ TGContainer* TexGui::Box(TGContainer* c, float xpos, float ypos, float width, fl
     if (!c) c = &GTexGui->baseContainer;
     Texture* texture = style->Texture;
 
-    fbox boxBounds(c->bounds.x + xpos, c->bounds.y + ypos, width, height);
+    fbox box(c->bounds.x + xpos, c->bounds.y + ypos, width, height);
+    box = AlignBox(Math::fbox(0, 0, GTexGui->getScreenSize().x, GTexGui->getScreenSize().y), box, flags);
+    if (flags & (ALIGN_LEFT | ALIGN_CENTER_X | ALIGN_RIGHT))
+        box.x += xpos;
+    if (flags & (ALIGN_BOTTOM | ALIGN_CENTER_Y | ALIGN_TOP))
+        box.y += ypos;
 
-    fbox internal = fbox::pad(boxBounds, style->Padding);
+    fbox internal = fbox::pad(box, style->Padding);
     TGContainer* child = &GTexGui->containers.emplace_back();
 
+    child->size = box;
     child->bounds = internal;
     child->renderData = &c->renderData->children.emplace_back();
     child->window = c->window;
     //child->renderData->colorMultiplier = color;
-    child->scissor = boxBounds;
+    child->scissor = box;
 
     if (texture)
     {
-        child->renderData->addTexture(boxBounds, texture, 0, 2, SLICE_9, boxBounds);
+        child->renderData->addTexture(box, texture, 0, 2, SLICE_9, box);
     }
 
     return child;
@@ -884,6 +890,20 @@ void TexGui::Image(TGContainer* c, Texture* texture, int scale)
     c->renderData->addTexture(arranged, texture, STATE_NONE, scale, 0, c->scissor);
 }
 
+void TexGui::Image(TGContainer* c, Texture* texture, uint32_t colorOverride, int scale)
+{
+    if (!texture) return;
+    Style& style = *GTexGui->styleStack.back();
+    if (scale == -1)
+        scale = _PX;
+
+    Math::fvec2 tsize = Math::fvec2(texture->bounds.width, texture->bounds.height) * scale;
+
+    fbox sized = fbox(c->bounds.pos, tsize);
+    fbox arranged = Arrange(c, sized);
+
+    c->renderData->addTexture(arranged, texture, STATE_NONE, scale, 0, c->scissor, colorOverride);
+}
 /*
 bool Container::DropdownInt(int* val, std::initializer_list<std::pair<const char*, int>> names)
 {
@@ -1015,7 +1035,7 @@ TGContainer* TexGui::Align(TGContainer* c, uint32_t flags, const Math::fvec4 pad
         return fbox::pad(AlignBox(align->bounds, bounds, align->align.flags), pad);
     };
     // Add padding to the contents
-    Style& style = *GTexGui->styleStack.back();
+    if (!c) c = &GTexGui->baseContainer;
     TGContainer* aligner = createChild(c, fbox::pad(c->bounds, padding), arrange);
     aligner->align = {
         flags,
@@ -1695,6 +1715,11 @@ TGContainerArray TexGui::Column(TGContainer* c, std::initializer_list<float> hei
 Math::fbox TexGui::getBounds(TGContainer* c)
 {
     return c->bounds;
+}
+
+Math::fbox TexGui::getSize(TGContainer* c)
+{
+    return c->size;
 }
 // Text processing
 

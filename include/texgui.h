@@ -310,7 +310,7 @@ void EndTooltip(TGContainer* c);
 
 TGContainer* Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags = 0, TexGui::WindowStyle* style = nullptr);
 bool      Button(TGContainer* container, const char* text, TexGui::ButtonStyle* style = nullptr);
-TGContainer* Box(TGContainer* container, float xpos, float ypos, float width, float height, TexGui::BoxStyle* style = nullptr);
+TGContainer* Box(TGContainer* container, float xpos, float ypos, float width, float height, uint32_t flags = 0, TexGui::BoxStyle* style = nullptr);
 TGContainer* Box(TGContainer* container);
 void      CheckBox(TGContainer* container, bool* val, TexGui::CheckBoxStyle* style = nullptr);
 void      RadioButton(TGContainer* container, uint32_t* selected, uint32_t id, TexGui::RadioButtonStyle* style = nullptr);
@@ -346,7 +346,11 @@ TGContainerArray Column(TGContainer* container, std::initializer_list<float> hei
 TGContainerArray Row(TGContainer* container, uint32_t widthCount, const float* pWidths, float height = 0, TexGui::RowStyle* style = nullptr);
 TGContainerArray Column(TGContainer* container, uint32_t heightCount, const float* pHeights, float width = 0, TexGui::ColumnStyle* style = nullptr);
 Math::fbox getBounds(TGContainer* c);
+
+// #TODO: Doesn't work for all widgets.
+Math::fbox getSize(TGContainer* c);
 void Image(TGContainer* c, Texture* texture, int scale = -1);
+void Image(TGContainer* c, Texture* texture, uint32_t colorOverride, int scale);
 
 void newFrame();
 float getTextScale();
