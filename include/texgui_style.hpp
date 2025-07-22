@@ -33,6 +33,7 @@ struct TextStyle {
 };
 
 struct ProgressBarStyle {
+    TexGui::Texture* BackTexture = nullptr;
     TexGui::Texture* FrameTexture = nullptr;
     TexGui::Texture* BarTexture = nullptr;
     Math::fvec4 Padding;

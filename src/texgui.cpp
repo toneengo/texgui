@@ -1111,9 +1111,34 @@ void TexGui::ProgressBar(TGContainer* c, float percentage, const ProgressBarStyl
     fbox internal = fbox::pad(frame, style->Padding);
     internal.width = percentage * internal.width;
 
+    c->renderData->addTexture(frame, style->BackTexture, 0, _PX, SLICE_3_HORIZONTAL, c->scissor);
     c->renderData->addTexture(frame, bartex, 0, _PX, SLICE_3_HORIZONTAL, internal);
     c->renderData->addTexture(frame, frametex, 0, _PX, SLICE_3_HORIZONTAL, c->scissor);
 }
+
+void TexGui::ProgressBarV(TGContainer* c, float percentage, const ProgressBarStyle* style)
+{
+    if (style == nullptr)
+        style = &GTexGui->styleStack.back()->ProgressBar;
+
+    auto& g = *GTexGui;
+    auto& io = inputFrame;
+
+    //Fixed height
+    Texture* bartex = style->BarTexture;
+    Texture* frametex = style->FrameTexture;
+    assert(bartex);
+    fbox frame = {c->bounds.x, c->bounds.y, frametex ? frametex->bounds.width * _PX : bartex->bounds.width * _PX, c->bounds.height};
+    frame = Arrange(c, frame);
+
+    fbox internal = fbox::pad(frame, style->Padding);
+    internal.height = percentage * internal.height;
+
+    c->renderData->addTexture(frame, style->BackTexture, 0, _PX, SLICE_3_VERTICAL, c->scissor);
+    c->renderData->addTexture(frame, bartex, 0, _PX, SLICE_3_VERTICAL, internal);
+    c->renderData->addTexture(frame, frametex, 0, _PX, SLICE_3_VERTICAL, c->scissor);
+}
+
 
 TGContainer* TexGui::Node(TGContainer* c, float x, float y)
 {
