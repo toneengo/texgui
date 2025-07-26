@@ -706,7 +706,7 @@ TGContainer* TexGui::Box(TGContainer* c, float xpos, float ypos, float width, fl
 
     if (texture)
     {
-        child->renderData->addTexture(box, texture, 0, 2, SLICE_9, box);
+        child->renderData->addTexture(box, texture, 0, 2, flags, box);
     }
 
     return child;
@@ -1130,6 +1130,10 @@ void TexGui::ProgressBar(TGContainer* c, float percentage, const ProgressBarStyl
 
     fbox internal = fbox::pad(frame, style->Padding);
     internal.width = percentage * internal.width;
+    if (style->Flipped)
+    {
+        internal.x += c->bounds.width - internal.width;
+    }
 
     c->renderData->addTexture(frame, style->BackTexture, 0, _PX, SLICE_3_HORIZONTAL, c->scissor);
     c->renderData->addTexture(frame, bartex, 0, _PX, SLICE_3_HORIZONTAL, internal);
@@ -1153,6 +1157,10 @@ void TexGui::ProgressBarV(TGContainer* c, float percentage, const ProgressBarSty
 
     fbox internal = fbox::pad(frame, style->Padding);
     internal.height = percentage * internal.height;
+    if (style->Flipped)
+    {
+        internal.y += c->bounds.height - internal.height;
+    }
 
     c->renderData->addTexture(frame, style->BackTexture, 0, _PX, SLICE_3_VERTICAL, c->scissor);
     c->renderData->addTexture(frame, bartex, 0, _PX, SLICE_3_VERTICAL, internal);

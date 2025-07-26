@@ -37,6 +37,7 @@ struct ProgressBarStyle {
     TexGui::Texture* FrameTexture = nullptr;
     TexGui::Texture* BarTexture = nullptr;
     Math::fvec4 Padding;
+    bool Flipped = false;
 };
 
 struct GridStyle {
