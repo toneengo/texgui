@@ -713,18 +713,25 @@ TGContainer* TexGui::Box(TGContainer* c, float xpos, float ypos, float width, fl
 
 }
 
-void TexGui::CheckBox(TGContainer* c, bool* val, TexGui::CheckBoxStyle* style)
+bool TexGui::CheckBox(TGContainer* c, bool* val, TexGui::CheckBoxStyle* style)
 {
     if (style == nullptr)
         style = &GTexGui->styleStack.back()->CheckBox;
     Texture* texture = style->Texture;
 
     auto& io = inputFrame;
-    if (io.lmb == KEY_Release && c->bounds.contains(io.cursorPos) && c->window->state & STATE_HOVER) *val = !*val;
+    bool pressed = false;
+    if (io.lmb == KEY_Release && c->bounds.contains(io.cursorPos) && c->window->state & STATE_HOVER) 
+    {
+        *val = !*val;
+        pressed = true;
+    }
 
-    if (texture == nullptr) return;
+    if (texture == nullptr) return pressed;
+
     c->renderData->addTexture(c->bounds, texture, *val ? STATE_ACTIVE : 0, 2, SLICE_9);
 
+    return pressed;
 }
 
 void TexGui::RadioButton(TGContainer* c, uint32_t* selected, uint32_t id, RadioButtonStyle* style)

@@ -313,7 +313,7 @@ TGContainer* Window(const char* name, float xpos, float ypos, float width, float
 bool      Button(TGContainer* container, const char* text, TexGui::ButtonStyle* style = nullptr);
 TGContainer* Box(TGContainer* container, float xpos, float ypos, float width, float height, uint32_t flags = 0, TexGui::BoxStyle* style = nullptr);
 TGContainer* Box(TGContainer* container);
-void      CheckBox(TGContainer* container, bool* val, TexGui::CheckBoxStyle* style = nullptr);
+bool      CheckBox(TGContainer* container, bool* val, TexGui::CheckBoxStyle* style = nullptr);
 void      RadioButton(TGContainer* container, uint32_t* selected, uint32_t id, TexGui::RadioButtonStyle* style = nullptr);
 TGContainer* BeginScrollPanel(TGContainer* container, const char* name, TexGui::ScrollPanelStyle* style = nullptr);
 void EndScrollPanel(TGContainer* container);
