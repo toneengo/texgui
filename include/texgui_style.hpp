@@ -29,7 +29,7 @@ struct TextStyle {
     uint32_t Color;
     int Size;
     TexGui::Font* Font = nullptr;
-    Math::fvec4 BorderColor;
+    uint32_t BorderColor;
 };
 
 struct ProgressBarStyle {

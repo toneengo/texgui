@@ -1,3 +1,4 @@
+#include "texgui_flags.hpp"
 #include "texgui_types.hpp"
 
 #include "texgui.h"
@@ -134,7 +135,7 @@ struct VertexPushConstants
     uint32_t textureIndex;
     float pxRange;
     Math::fvec2 uvScale;
-    Math::fvec4 textBorderColor;
+    uint32_t textBorderColor;
 } vertPushConstants;
 
 static uint32_t createTexture(VkImageView imageView, VkSampler sampler)
@@ -639,16 +640,20 @@ static void framebufferSizeCallback_Vulkan(int width, int height)
 {
 }
 
-void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& data)
+static void cmdResetScissor(VkCommandBuffer cmd)
+{
+    VkRect2D rect = {};
+    rect.offset.x = 0;
+    rect.offset.y = 0;
+    rect.extent.width = GTexGui->framebufferSize.x;
+    rect.extent.height = GTexGui->framebufferSize.y;
+    vkCmdSetScissor(cmd, 0, 1, &rect);
+}
+
+std::vector<VkRect2D> scissorStack;
+static void _renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& data)
 {
     TexGui_ImplVulkan_Data* v = (TexGui_ImplVulkan_Data*)(GTexGui->rendererData);
-    // set dynamic scissor
-    VkRect2D scissor      = {};
-    scissor.offset.x      = data.scissor.x;
-    scissor.offset.y      = data.scissor.y;
-    scissor.extent.width  = data.scissor.width;
-    scissor.extent.height = data.scissor.height;
-    vkCmdSetScissor(cmd, 0, 1, &scissor);
 
     // allocate vertices buffer
     if (data.vertices.size() > 0)
@@ -693,26 +698,49 @@ void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
     int currIndex = 0;
     for (auto& c : data.commands)
     {
-        scissor.offset.x      = fmax(0, c.scissor.x);
-        scissor.offset.y      = fmax(0, c.scissor.y);
-        scissor.extent.width  = fmax(0, c.scissor.width);
-        scissor.extent.height = fmax(0, c.scissor.height);
-        vkCmdSetScissor(cmd, 0, 1, &scissor);
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->vertPipelineLayout, 0, 1, &v->samplerDescriptorSets[c.textureIndex], 0, nullptr);
+        switch (c.type)
+        {
+            case RD_CMD_Scissor:
+                if (c.scissor.push)
+                {
+                    auto scissor = scissorStack.emplace_back();
+                    scissor.offset.x      = fmax(0, c.scissor.x);
+                    scissor.offset.y      = fmax(0, c.scissor.y);
+                    scissor.extent.width  = fmax(0, c.scissor.width);
+                    scissor.extent.height = fmax(0, c.scissor.height);
+                    vkCmdSetScissor(cmd, 0, 1, &scissor);
+                }
+                else
+                {
+                    scissorStack.pop_back();
+                    if (scissorStack.size() > 0)
+                        vkCmdSetScissor(cmd, 0, 1, &scissorStack.back());
+                    else
+                    {
+                        cmdResetScissor(cmd);
+                    }
+                }
+                break;
+            case RD_CMD_Draw:
+                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->vertPipelineLayout, 0, 1, &v->samplerDescriptorSets[c.draw.textureIndex], 0, nullptr);
 
-        vertPushConstants.textureIndex = c.textureIndex;
-        vertPushConstants.scale = c.scale;
-        vertPushConstants.translate = c.translate;
-        vertPushConstants.pxRange = c.pxRange;
-        vertPushConstants.uvScale = c.uvScale;
-        vertPushConstants.textBorderColor = c.textBorderColor;
-        //size_t pushSz = c.textBorderColor.a > 0 ? sizeof(vertPushConstants) : sizeof(vertPushConstants) - sizeof(vertPushConstants.textBorderColor);
-        vkCmdPushConstants(cmd, v->vertPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(VertexPushConstants), &vertPushConstants);
+                vertPushConstants.textureIndex = c.draw.textureIndex;
+                vertPushConstants.scale = {c.draw.scaleX, c.draw.scaleY};
+                vertPushConstants.translate = {c.draw.translateX, c.draw.translateY};
+                vertPushConstants.pxRange = c.draw.pxRange;
+                vertPushConstants.uvScale = {c.draw.uvScaleX, c.draw.uvScaleY};
+                vertPushConstants.textBorderColor = c.draw.textBorderColor;
+                //size_t pushSz = c.textBorderColor.a > 0 ? sizeof(vertPushConstants) : sizeof(vertPushConstants) - sizeof(vertPushConstants.textBorderColor);
+                vkCmdPushConstants(cmd, v->vertPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(VertexPushConstants), &vertPushConstants);
 
-        vkCmdDrawIndexed(cmd, c.indexCount, 1, currIndex, 0, 0);
+                vkCmdDrawIndexed(cmd, c.draw.indexCount, 1, currIndex, 0, 0);
 
-        //#TODO: have firstIndex in the command itself maybe
-        currIndex += c.indexCount;
+                //#TODO: have firstIndex in the command itself maybe
+                currIndex += c.draw.indexCount;
+                break;
+            default:
+                break;
+        }
     }
 
     std::vector<RenderData> children(data.children);
@@ -731,6 +759,14 @@ void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
 
     children.clear();
 }
+
+
+void TexGui::renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& data)
+{
+    cmdResetScissor(cmd);
+    _renderFromRenderData_Vulkan(cmd, data);
+}
+
 
 static void newFrame_Vulkan()
 {

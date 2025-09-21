@@ -10,7 +10,7 @@ layout( push_constant ) uniform constants
     uint texID;
     float pxRange;
     vec2 uvScale;
-    vec4 textBorderColor;
+    uint textBorderColor;
 } pushConstants;
 
 out gl_PerVertex { vec4 gl_Position; };
@@ -25,6 +25,6 @@ void main()
     Out.UV = aUV * pushConstants.uvScale;
     texID = pushConstants.texID;
     pxRange = pushConstants.pxRange;
-    textBorderColor = pushConstants.textBorderColor;
+    textBorderColor = unpackUnorm4x8(pushConstants.textBorderColor).abgr;
     gl_Position = vec4(aPos * pushConstants.scale + pushConstants.translate, 0, 1);
 }

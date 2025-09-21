@@ -1,5 +1,6 @@
 #pragma once
 
+#include "texgui_flags.hpp"
 #if !defined(NAMESPACE_BEGIN) || defined(DOXYGEN_DOCUMENTATION_BUILD)
     #define NAMESPACE_BEGIN(name) namespace name {
 #endif
@@ -314,7 +315,8 @@ TGContainer* Box(TGContainer* container, float xpos, float ypos, float width, fl
 TGContainer* Box(TGContainer* container);
 void      CheckBox(TGContainer* container, bool* val, TexGui::CheckBoxStyle* style = nullptr);
 void      RadioButton(TGContainer* container, uint32_t* selected, uint32_t id, TexGui::RadioButtonStyle* style = nullptr);
-TGContainer* ScrollPanel(TGContainer* container, const char* name, TexGui::ScrollPanelStyle* style = nullptr);
+TGContainer* BeginScrollPanel(TGContainer* container, const char* name, TexGui::ScrollPanelStyle* style = nullptr);
+void EndScrollPanel(TGContainer* container);
 int       SliderInt(TGContainer* container, int* val, int minVal, int maxVal, TexGui::SliderStyle* style = nullptr);
 //void      Image(TGContainer* container, Texture* texture, int scale = -1);
 bool      DropdownInt(TGContainer* container, int* val, std::initializer_list<std::pair<const char*, int>> names);
@@ -392,7 +394,6 @@ public:
     bool ordered = false;
     int32_t priority = -1;
     std::vector<RenderData> children;
-    Math::fbox scissor = {0, 0, 8192, 8192};
     uint32_t alphaModifier = 0x000000FF;
 
     RenderData()
@@ -407,7 +408,6 @@ public:
         indices = other.indices;
         ordered = other.ordered;
         priority = other.priority;
-        scissor = other.scissor;
     }
 
     void operator=(RenderData&& other)
@@ -418,7 +418,6 @@ public:
         indices.swap(other.indices);
         std::swap(ordered, other.ordered);
         std::swap(priority, other.priority);
-        scissor = other.scissor;
     }
 
     RenderData(const RenderData& other)
@@ -440,9 +439,11 @@ public:
 
     void addLine(float x1, float y1, float x2, float y2, uint32_t col, float lineWidth);
     void addQuad(Math::fbox rect, uint32_t col);
-    void addTexture(Math::fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, Math::fbox scissor, uint32_t col = 0xFFFFFFFF);
-    void addText(const char* text, Math::fvec2 pos, uint32_t col, int size, uint32_t flags, Math::fbox scissor, Math::fvec4 borderColor, int32_t len = -1);
-    int addTextWithCursor(const char* text, Math::fvec2 pos, uint32_t col, int size, uint32_t flags, Math::fbox scissor, TextInputState& textInput);
+    void addTexture(Math::fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, uint32_t col = 0xFFFFFFFF);
+    void addText(const char* text, Math::fvec2 pos, uint32_t col, int size, uint32_t flags, uint32_t borderColor, int32_t len = -1);
+    int addTextWithCursor(const char* text, Math::fvec2 pos, uint32_t col, int size, uint32_t flags, TextInputState& textInput);
+    void pushScissor(Math::fbox region);
+    void popScissor();
 
     void clear() {
         commands.clear();
@@ -454,14 +455,30 @@ public:
 
     struct Command
     {
-        uint32_t indexCount;
-        uint32_t textureIndex;
-        Math::fvec2 scale;
-        Math::fvec2 translate;
-        float pxRange = 0;
-        Math::fvec2 uvScale = {1.f, 1.f};
-        Math::fbox scissor = {0, 0, 65535, 65535};
-        Math::fvec4 textBorderColor = {0, 0, 0, 0};
+        RenderDataCommandType type;
+        union {
+            struct
+            {
+                uint32_t indexCount;
+                uint32_t textureIndex;
+                float scaleX;
+                float scaleY;
+                float translateX = -1.f;
+                float translateY = -1.f;
+                float pxRange = 0;
+                float uvScaleX;
+                float uvScaleY;
+                uint32_t textBorderColor = 0x00000000;
+            } draw;
+            struct
+            {
+                bool push;
+                int x;
+                int y;
+                int width;
+                int height;
+            } scissor;
+        };
     };
 
     struct Vertex

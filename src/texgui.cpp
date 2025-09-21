@@ -635,12 +635,12 @@ TGContainer* TexGui::Window(const char* name, float xpos, float ypos, float widt
     child->window = &wstate;
     child->renderData->priority = -wstate.order;
     child->renderData->alphaModifier = alpha;
-    child->renderData->addTexture(wstate.box, wintex, wstate.state, _PX, SLICE_9, {{0, 0}, g.getScreenSize()});
+    child->renderData->addTexture(wstate.box, wintex, wstate.state, _PX, SLICE_9);
     child->scissor = {{0, 0}, g.getScreenSize()};
 
     if (!(flags & HIDE_TITLE))
         child->renderData->addText(name, {wstate.box.x + padding.left, wstate.box.y + wintex->top * _PX / 2},
-                 style->Text.Color, style->Text.Size * g.textScale, CENTER_Y, {{0, 0}, g.getScreenSize()}, style->Text.BorderColor);
+                 style->Text.Color, style->Text.Size * g.textScale, CENTER_Y, style->Text.BorderColor);
 
     return child;
 }
@@ -659,7 +659,7 @@ bool TexGui::Button(TGContainer* c, const char* text, TexGui::ButtonStyle* style
     uint32_t state = getState(id, c, internal, c->scissor);
 
     Texture* tex = style->Texture;
-    c->renderData->addTexture(internal, tex, state, _PX, SLICE_9, c->scissor);
+    c->renderData->addTexture(internal, tex, state, _PX, SLICE_9);
 
     TexGui::Math::vec2 pos = state & STATE_PRESS
                        ? c->bounds.pos + style->POffset
@@ -667,7 +667,7 @@ bool TexGui::Button(TGContainer* c, const char* text, TexGui::ButtonStyle* style
 
     internal = {pos + internal.size / 2, internal.size};
 
-    c->renderData->addText(text, internal, style->Text.Color, style->Text.Size * g.textScale, CENTER_X | CENTER_Y, c->scissor, style->Text.BorderColor);
+    c->renderData->addText(text, internal, style->Text.Color, style->Text.Size * g.textScale, CENTER_X | CENTER_Y, style->Text.BorderColor);
 
     bool hovered = c->scissor.contains(io.cursorPos)
                 && c->bounds.contains(io.cursorPos);
@@ -706,7 +706,7 @@ TGContainer* TexGui::Box(TGContainer* c, float xpos, float ypos, float width, fl
 
     if (texture)
     {
-        child->renderData->addTexture(box, texture, 0, 2, flags, box);
+        child->renderData->addTexture(box, texture, 0, 2, flags);
     }
 
     return child;
@@ -723,7 +723,7 @@ void TexGui::CheckBox(TGContainer* c, bool* val, TexGui::CheckBoxStyle* style)
     if (io.lmb == KEY_Release && c->bounds.contains(io.cursorPos) && c->window->state & STATE_HOVER) *val = !*val;
 
     if (texture == nullptr) return;
-    c->renderData->addTexture(c->bounds, texture, *val ? STATE_ACTIVE : 0, 2, SLICE_9, c->scissor);
+    c->renderData->addTexture(c->bounds, texture, *val ? STATE_ACTIVE : 0, 2, SLICE_9);
 
 }
 
@@ -737,7 +737,7 @@ void TexGui::RadioButton(TGContainer* c, uint32_t* selected, uint32_t id, RadioB
     if (io.lmb == KEY_Release && c->bounds.contains(io.cursorPos) && c->window->state & STATE_HOVER) *selected = id;
 
     if (texture == nullptr) return;
-    c->renderData->addTexture(c->bounds, texture, *selected == id ? STATE_ACTIVE : 0, 2, SLICE_9, c->scissor);
+    c->renderData->addTexture(c->bounds, texture, *selected == id ? STATE_ACTIVE : 0, 2, SLICE_9);
 }
 
 void TexGui::Line(TGContainer* c, float x1, float y1, float x2, float y2, uint32_t color, float lineWidth)
@@ -758,7 +758,7 @@ TGContainer* createChild(TGContainer* c, Math::fbox bounds, ArrangeFunc arrange 
     return child;
 }
 
-TGContainer* TexGui::ScrollPanel(TGContainer* c, const char* name, ScrollPanelStyle* style)
+TGContainer* TexGui::BeginScrollPanel(TGContainer* c, const char* name, ScrollPanelStyle* style)
 {
     if (style == nullptr)
         style = &GTexGui->styleStack.back()->ScrollPanel;
@@ -797,12 +797,11 @@ TGContainer* TexGui::ScrollPanel(TGContainer* c, const char* name, ScrollPanelSt
 
     TGContainer* sp = createChild(c, Math::fbox::pad(c->bounds, padding), arrange);
     sp->scrollPanelState = &spstate;
-    sp->scissor = sp->bounds;
 
     if (spstate.scrolling && io.cursorPos.y >= sp->bounds.y && io.cursorPos.y < sp->bounds.y + sp->bounds.height)
         spstate.contentPos.y -= inputFrame.mouseRelativeMotion.y * spstate.bounds.height / sp->bounds.height;
 
-    if (sp->scissor.contains(io.cursorPos))
+    if (sp->bounds.contains(io.cursorPos))
         spstate.contentPos.y += inputFrame.scroll.y;
 
     float height = sp->bounds.height - padding.top - padding.bottom;
@@ -816,8 +815,11 @@ TGContainer* TexGui::ScrollPanel(TGContainer* c, const char* name, ScrollPanelSt
                 padding.right,
                 barh};
 
-    c->renderData->addTexture(c->bounds, texture, 0, _PX, 0, c->bounds);
-    c->renderData->addTexture(bar, bartex, 0, 2, SLICE_9, c->bounds);
+    c->renderData->addTexture(c->bounds, texture, 0, _PX, 0);
+    c->renderData->addTexture(bar, bartex, 0, 2, SLICE_9);
+
+    sp->scissor = sp->bounds;
+    c->renderData->pushScissor(sp->bounds);
 
     if (bar.contains(io.cursorPos) && io.lmb == KEY_Press)
         spstate.scrolling = true;
@@ -827,6 +829,11 @@ TGContainer* TexGui::ScrollPanel(TGContainer* c, const char* name, ScrollPanelSt
     sp->bounds.y += spstate.contentPos.y;
 
     return sp;
+}
+
+void TexGui::EndScrollPanel(TGContainer* c)
+{
+    c->parent->renderData->popScissor();
 }
 
 void renderSlider(RenderData* renderData, TexGuiID id, const fbox& bounds, float percent, Texture* bar, Texture* node)
@@ -854,7 +861,7 @@ int TexGui::SliderInt(TGContainer* c, int* val, int minVal, int maxVal, SliderSt
     barArea = Arrange(c, barArea);
 
     uint32_t state = getState(id, c, barArea, c->scissor);
-    c->renderData->addTexture(barArea, bar, state, _PX, SLICE_3_HORIZONTAL, c->scissor);
+    c->renderData->addTexture(barArea, bar, state, _PX, SLICE_3_HORIZONTAL);
 
     if (g.activeWidget == id && io.lmb == KEY_Held)
     {
@@ -869,7 +876,7 @@ int TexGui::SliderInt(TGContainer* c, int* val, int minVal, int maxVal, SliderSt
                          node->bounds.width * _PX, node->bounds.height * _PX};
         uint32_t nodeState;
         getBoxState(nodeState, nodeArea, state);
-        c->renderData->addTexture(nodeArea, node, nodeState, _PX, 0, c->scissor);
+        c->renderData->addTexture(nodeArea, node, nodeState, _PX, 0);
     }
 
     return *val;
@@ -887,7 +894,7 @@ void TexGui::Image(TGContainer* c, Texture* texture, int scale)
     fbox sized = fbox(c->bounds.pos, tsize);
     fbox arranged = Arrange(c, sized);
 
-    c->renderData->addTexture(arranged, texture, STATE_NONE, scale, 0, c->scissor);
+    c->renderData->addTexture(arranged, texture, STATE_NONE, scale, 0);
 }
 
 void TexGui::Image(TGContainer* c, Texture* texture, uint32_t colorOverride, int scale)
@@ -902,7 +909,7 @@ void TexGui::Image(TGContainer* c, Texture* texture, uint32_t colorOverride, int
     fbox sized = fbox(c->bounds.pos, tsize);
     fbox arranged = Arrange(c, sized);
 
-    c->renderData->addTexture(arranged, texture, STATE_NONE, scale, 0, c->scissor, colorOverride);
+    c->renderData->addTexture(arranged, texture, STATE_NONE, scale, 0, colorOverride);
 }
 /*
 bool Container::DropdownInt(int* val, std::initializer_list<std::pair<const char*, int>> names)
@@ -936,7 +943,7 @@ TGContainer* TexGui::BeginTooltip(Math::fvec2 size, TooltipStyle* style)
     {
         Style& style = *GTexGui->styleStack.back();
         auto& io = inputFrame;
-        a->parentRenderData->addTexture(fbox(io.cursorPos + style.Tooltip.MouseOffset, fvec2(a->box.width, a->box.height)), a->texture, 0, _PX, SLICE_9, {0, 0, 8192, 8192});
+        a->parentRenderData->addTexture(fbox(io.cursorPos + style.Tooltip.MouseOffset, fvec2(a->box.width, a->box.height)), a->texture, 0, _PX, SLICE_9);
     };
 
     if (style == nullptr)
@@ -1010,7 +1017,7 @@ TGContainer* TexGui::ListItem(TGContainer* c, uint32_t* selected, uint32_t id, L
             state = listItem->listItem.id ? STATE_ACTIVE : STATE_NONE;
         }
 
-        listItem->renderData->addTexture(bounds, listItem->texture, state, _PX, SLICE_9, listItem->scissor);
+        listItem->renderData->addTexture(bounds, listItem->texture, state, _PX, SLICE_9);
 
         // The child is positioned by the list item's parent
         return fbox::pad(bounds, style.ListItem.Padding);
@@ -1135,9 +1142,11 @@ void TexGui::ProgressBar(TGContainer* c, float percentage, const ProgressBarStyl
         internal.x += c->bounds.width - internal.width;
     }
 
-    c->renderData->addTexture(frame, style->BackTexture, 0, _PX, SLICE_3_HORIZONTAL, c->scissor);
-    c->renderData->addTexture(frame, bartex, 0, _PX, SLICE_3_HORIZONTAL, internal);
-    c->renderData->addTexture(frame, frametex, 0, _PX, SLICE_3_HORIZONTAL, c->scissor);
+    c->renderData->addTexture(frame, style->BackTexture, 0, _PX, SLICE_3_HORIZONTAL);
+    c->renderData->pushScissor(internal);
+    c->renderData->addTexture(frame, bartex, 0, _PX, SLICE_3_HORIZONTAL);
+    c->renderData->popScissor();
+    c->renderData->addTexture(frame, frametex, 0, _PX, SLICE_3_HORIZONTAL);
 }
 
 void TexGui::ProgressBarV(TGContainer* c, float percentage, const ProgressBarStyle* style)
@@ -1162,9 +1171,11 @@ void TexGui::ProgressBarV(TGContainer* c, float percentage, const ProgressBarSty
         internal.y += c->bounds.height - internal.height;
     }
 
-    c->renderData->addTexture(frame, style->BackTexture, 0, _PX, SLICE_3_VERTICAL, c->scissor);
-    c->renderData->addTexture(frame, bartex, 0, _PX, SLICE_3_VERTICAL, internal);
-    c->renderData->addTexture(frame, frametex, 0, _PX, SLICE_3_VERTICAL, c->scissor);
+    c->renderData->addTexture(frame, style->BackTexture, 0, _PX, SLICE_3_VERTICAL);
+    c->renderData->pushScissor(internal);
+    c->renderData->addTexture(frame, bartex, 0, _PX, SLICE_3_VERTICAL);
+    c->renderData->popScissor();
+    c->renderData->addTexture(frame, frametex, 0, _PX, SLICE_3_VERTICAL);
 }
 
 
@@ -1217,7 +1228,7 @@ void renderTextInput(RenderData* renderData, const char* name, fbox bounds, fbox
         style = &GTexGui->styleStack.back()->TextInput;
     Texture* inputtex = style->Texture;
 
-    renderData->addTexture(bounds, inputtex, tstate.state, _PX, SLICE_9, scissor);
+    renderData->addTexture(bounds, inputtex, tstate.state, _PX, SLICE_9);
     float offsetx = 0;
     fvec4 padding = style->Padding;
     fvec4 color = style->Text.Color;
@@ -1236,7 +1247,6 @@ void renderTextInput(RenderData* renderData, const char* name, fbox bounds, fbox
         style->Text.Color,
         size,
         CENTER_Y,
-        bounds,
         tstate
     );
 }
@@ -1464,7 +1474,7 @@ inline static void drawChunk(TextSegment s, RenderData* renderData, TexGui::Math
 
                 underline(renderData, x, y, segwidth, scale, flags);
 
-                renderData->addText(s.word.data, {x, y}, style->Color, scale, CENTER_Y, {0,0,8192,8192}, style->BorderColor, s.word.len);
+                renderData->addText(s.word.data, {x, y}, style->Color, scale, CENTER_Y, style->BorderColor, s.word.len);
 
                 // if (checkHover) renderData->addQuad(bounds, fvec4(1, 0, 0, 1));
                 hovered |= checkHover && !hovered && textbounds.contains(io.cursorPos);
@@ -1488,7 +1498,7 @@ inline static void drawChunk(TextSegment s, RenderData* renderData, TexGui::Math
                 underline(renderData, x, y, tsize.x, scale, flags);
 
                 //#TODO: pass in container here
-                renderData->addTexture(bounds, icon, 0, _PX, 0, {0,0,8192,8192});
+                renderData->addTexture(bounds, icon, 0, _PX, 0);
 
                 // if (checkHover) renderData->addQuad(bounds, fvec4(1, 0, 0, 1));
                 hovered |= checkHover && !hovered && fbox::margin(bounds, style.Tooltip.HoverPadding).contains(io.cursorPos);
@@ -1978,7 +1988,7 @@ float TexGui::computeTextWidth(const char* text, size_t numchars)
     return total;
 }
 
-void RenderData::addText(const char* text, Math::fvec2 pos, uint32_t col, int _size, uint32_t flags, Math::fbox scissor, Math::fvec4 borderColor, int32_t len)
+void RenderData::addText(const char* text, Math::fvec2 pos, uint32_t col, int _size, uint32_t flags, uint32_t borderColor, int32_t len)
 {
     col &= ~(ALPHA_MASK);
     col |= alphaModifier;
@@ -1987,7 +1997,6 @@ void RenderData::addText(const char* text, Math::fvec2 pos, uint32_t col, int _s
 
     float size = _size * GTexGui->scale;
     pos *= GTexGui->scale;
-    scissor *= GTexGui->scale;
 
     Style& style = *GTexGui->styleStack.back();
     Font* font = style.Text.Font;
@@ -2044,19 +2053,23 @@ void RenderData::addText(const char* text, Math::fvec2 pos, uint32_t col, int _s
     }
 
     Math::ivec2 framebufferSize = GTexGui->framebufferSize;
+
     commands.emplace_back(Command{
-        .indexCount = uint32_t(6 * numchars),
-        .textureIndex = font->textureIndex,
-        .scale = {2.f / float(framebufferSize.x), 2.f / float(framebufferSize.y)},
-        .translate = {-1.f, -1.f},
-        .pxRange = float(fmax(float(size) / float(font->baseFontSize) * font->msdfPxRange, 1.f)),
-        .uvScale = {1.f / float(font->atlasWidth), 1.f /float(font->atlasHeight)},
-        .scissor = scissor,
-        .textBorderColor = borderColor
+        .type = RD_CMD_Draw,
+        .draw = {
+            .indexCount = uint32_t(6 * numchars),
+            .textureIndex = font->textureIndex,
+            .scaleX = 2.f / float(framebufferSize.x),
+            .scaleY = 2.f / float(framebufferSize.y),
+            .pxRange = float(fmax(float(size) / float(font->baseFontSize) * font->msdfPxRange, 1.f)),
+            .uvScaleX = 1.f / float(font->atlasWidth),
+            .uvScaleY = 1.f /float(font->atlasHeight),
+            .textBorderColor = borderColor,
+        }
     });
 }
 
-int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, uint32_t col, int _size, uint32_t flags, Math::fbox scissor, TextInputState& textInput)
+int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, uint32_t col, int _size, uint32_t flags, TextInputState& textInput)
 {
     col &= ~(ALPHA_MASK);
     col |= alphaModifier;
@@ -2066,7 +2079,6 @@ int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, uint32_t co
 
     float size = _size * GTexGui->scale;
     pos *= GTexGui->scale;
-    scissor *= GTexGui->scale;
 
     Style& style = *GTexGui->styleStack.back();
     Font* font = style.Text.Font;
@@ -2162,13 +2174,16 @@ int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, uint32_t co
         currx += advance;
 
         commands.emplace_back(Command{
-            .indexCount = uint32_t(6),
-            .textureIndex = font->textureIndex,
-            .scale = {2.f / float(framebufferSize.x), 2.f / float(framebufferSize.y)},
-            .translate = {-1.f, -1.f},
-            .pxRange = float(fmax(float(size) / float(font->baseFontSize) * font->msdfPxRange, 1.f)),
-            .uvScale = {1.f / float(font->atlasWidth), 1.f /float(font->atlasHeight)},
-            .scissor = scissor,
+            .type = RD_CMD_Draw,
+            .draw = {
+                .indexCount = uint32_t(6),
+                .textureIndex = font->textureIndex,
+                .scaleX = 2.f / float(framebufferSize.x),
+                .scaleY = 2.f / float(framebufferSize.y),
+                .pxRange = float(fmax(float(size) / float(font->baseFontSize) * font->msdfPxRange, 1.f)),
+                .uvScaleX = 1.f / float(font->atlasWidth),
+                .uvScaleY = 1.f /float(font->atlasHeight),
+            }
         });
     }
 
@@ -2192,11 +2207,13 @@ int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, uint32_t co
         indices.emplace_back(idx+3);
 
         commands.emplace_back(Command{
-            .indexCount = 6,
-            .textureIndex = 0,
-            .scale = {2.f / float(framebufferSize.x), 2.f / float(framebufferSize.y)},
-            .translate = {-1.f, -1.f},
-            .scissor = scissor,
+            .type = RD_CMD_Draw,
+            .draw = {
+                .indexCount = 6,
+                .textureIndex = 0,
+                .scaleX = 2.f / float(framebufferSize.x),
+                .scaleY = 2.f / float(framebufferSize.y),
+            }
         });
 
     }
@@ -2211,9 +2228,34 @@ static inline uint32_t getTextureIndexFromState(Texture* e, int state)
         state & STATE_ACTIVE && e->active != -1 ? e->active : e->id;
 }
 
-void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, fbox scissor, uint32_t col)
+void RenderData::pushScissor(Math::fbox region)
 {
-    if (!e || e->id == -1 || !scissor.isValid()) return;
+    region *= GTexGui->scale;
+    commands.emplace_back(Command{
+        .type = RD_CMD_Scissor,
+        .scissor = {
+            .push = true,
+            .x = int(region.x),
+            .y = int(region.y),
+            .width = int(region.width),
+            .height = int(region.height),
+        }
+    });
+}
+
+void RenderData::popScissor()
+{
+    commands.emplace_back(Command{
+        .type = RD_CMD_Scissor,
+        .scissor = {
+            .push = false,
+        }
+    });
+}
+
+void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, uint32_t col)
+{
+    if (!e || e->id == -1) return;
     col &= ~(ALPHA_MASK);
     col |= alphaModifier;
 
@@ -2223,7 +2265,6 @@ void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, ui
     Math::ivec2 framebufferSize = g.framebufferSize;
 
     rect *= g.scale;
-    scissor *= g.scale;
     if (!(flags & SLICE_9))
     {
         Math::fbox texBounds = e->bounds;
@@ -2241,12 +2282,15 @@ void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, ui
         indices.emplace_back(idx+3);
 
         commands.emplace_back(Command{
-            .indexCount = 6,
-            .textureIndex = tex,
-            .scale = {2.f / float(framebufferSize.x), 2.f / float(framebufferSize.y)},
-            .translate = {-1.f, -1.f},
-            .uvScale = {1.f / float(e->size.x), 1.f / float(e->size.y)},
-            .scissor = scissor,
+            .type = RD_CMD_Draw,
+            .draw = {
+                .indexCount = 6,
+                .textureIndex = tex,
+                .scaleX = 2.f / float(framebufferSize.x),
+                .scaleY = 2.f / float(framebufferSize.y),
+                .uvScaleX = 1.f / float(e->size.x),
+                .uvScaleY = 1.f / float(e->size.y),
+            }
         });
         return;
     }
@@ -2317,12 +2361,15 @@ void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, ui
     }
 
     commands.emplace_back(Command{
-        .indexCount = uint32_t(6 * (flags & SLICE_3_HORIZONTAL ? 3 : 1) * (flags & SLICE_3_VERTICAL ? 3 : 1)),
-        .textureIndex = tex,
-        .scale = {2.f / float(framebufferSize.x), 2.f / float(framebufferSize.y)},
-        .translate = {-1.f, -1.f},
-        .uvScale = {1.f / float(e->size.x), 1.f / float(e->size.y)},
-        .scissor = scissor,
+            .type = RD_CMD_Draw,
+            .draw = {
+                .indexCount = uint32_t(6 * (flags & SLICE_3_HORIZONTAL ? 3 : 1) * (flags & SLICE_3_VERTICAL ? 3 : 1)),
+                .textureIndex = tex,
+                .scaleX = 2.f / float(framebufferSize.x),
+                .scaleY = 2.f / float(framebufferSize.y),
+                .uvScaleX = 1.f / float(e->size.x),
+                .uvScaleY = 1.f / float(e->size.y),
+            }
     });
 }
 
@@ -2346,10 +2393,13 @@ void RenderData::addQuad(Math::fbox rect, uint32_t col)
     indices.emplace_back(idx+3);
 
     commands.emplace_back(Command{
-        .indexCount = 6,
-        .textureIndex = 0,
-        .scale = {2.f / float(framebufferSize.x), 2.f / float(framebufferSize.y)},
-        .translate = {-1.f, -1.f},
+        .type = RD_CMD_Draw,
+        .draw = {
+            .indexCount = 6,
+            .textureIndex = 0,
+            .scaleX = 2.f / float(framebufferSize.x),
+            .scaleY = 2.f / float(framebufferSize.y),
+        }
     });
 }
 
@@ -2392,9 +2442,12 @@ void RenderData::addLine(float x1, float y1, float x2, float y2, uint32_t col, f
     indices.emplace_back(idx+3);
 
     commands.emplace_back(Command{
-        .indexCount = 6,
-        .textureIndex = 0,
-        .scale = {2.f / float(framebufferSize.x), 2.f / float(framebufferSize.y)},
-        .translate = {-1.f, -1.f},
+        .type = RD_CMD_Draw,
+        .draw = {
+            .indexCount = 6,
+            .textureIndex = 0,
+            .scaleX = 2.f / float(framebufferSize.x),
+            .scaleY = 2.f / float(framebufferSize.y),
+        }
     });
 }

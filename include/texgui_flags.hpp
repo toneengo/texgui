@@ -55,6 +55,15 @@ enum ContainerStateEnum : uint8_t
 };
 using ContainerState = uint32_t;
 
+enum RenderDataCommandTypeEnum : uint32_t 
+{
+    RD_CMD_None,
+    RD_CMD_Draw,
+    RD_CMD_Scissor,
+};
+using RenderDataCommandType = uint32_t;
+
+
 enum {
     INHERIT = 0
 };
