@@ -51,6 +51,17 @@ using LazyData = int64_t;
 
 using LazyIconFunc = Texture*(*)(LazyData);
 
+struct TGStr {
+    const uint8_t* utf8;
+    size_t len;
+
+    /*
+    TGStr() = default;
+    TGStr(const char* c_str) :
+        utf8((const uint8_t*) c_str), len(strlen(c_str)) {}
+    */
+};
+
 // Text chunks are used to describe the layout of a text block. They get cached into Paragraphs.
 struct TextChunk
 {
@@ -105,9 +116,9 @@ struct TextSegment
     union
     {
         struct {
-            const char* data;
+            const uint8_t* data;
             float tw; // Width of the text (not including whitespace)
-            int16_t len;
+            uint16_t len;
         } word;
 
         Texture* icon;
@@ -139,7 +150,6 @@ struct TextSegment
     static TextSegment FromChunkFast(TextChunk chunk);
 };
 
-// initialiser lists can't be implicitly converted to spans until c++26 so just make our own span type.
 struct TextDecl
 {
     const TextChunk* data;
@@ -157,136 +167,6 @@ struct TextDecl
 
 using CharacterFilter = bool(*)(unsigned int c);
 struct TexGuiWindow;
-/*
-class Container
-{
-    friend struct Arrangers;
-    friend class RenderData;
-
-public:
-    using ArrangeFunc = Math::fbox(*)(Container* parent, Math::fbox in);
-    using RenderFunc = void(*)(Container* parent);
-
-    RenderFunc render; // equivalent to ::End() and then rendering it immediately for now
-
-    //#TODO: these should be private
-    RenderData* parentRenderData;
-    RenderData* renderData;
-    uint32_t parentState = STATE_ALL;
-    Math::fbox bounds;
-    Math::fbox scissor = {-1, -1, -1, -1};
-
-    Container Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags = 0, TexGui::WindowStyle* style = nullptr);
-    bool      Button(const char* text, Container* out = nullptr, TexGui::ButtonStyle* style = nullptr);
-    Container Box(float xpos, float ypos, float width, float height, TexGui::BoxStyle* style = nullptr);
-    Container Box();
-    void      CheckBox(bool* val, TexGui::CheckBoxStyle* style = nullptr);
-    void      RadioButton(uint32_t* selected, uint32_t id, TexGui::RadioButtonStyle* style = nullptr);
-    Container ScrollPanel(const char* name, TexGui::ScrollPanelStyle* style = nullptr);
-    int       SliderInt(int* val, int minVal, int maxVal, TexGui::SliderStyle* style = nullptr);
-    void      Image(Texture* texture, int scale = -1);
-    bool      DropdownInt(int* val, std::initializer_list<std::pair<const char*, int>> names);
-    Container Tooltip(Math::fvec2 size, TexGui::TooltipStyle* style = nullptr);
-
-    void      TextInput(const char* name, char* buf, uint32_t bufsize, TexGui::TextInputStyle* style = nullptr);
-    void      Text(Paragraph text, int32_t scale = 0, TextDecl parameters = {}, TexGui::TextStyle* style = nullptr);
-    void      Text(const char* text, int32_t scale = 0, TextDecl parameters = {}, TexGui::TextStyle* style = nullptr);
-
-    Container Align(uint32_t flags = 0, const Math::fvec4 padding = {0,0,0,0});
-
-    Container ProgressBar(float percentage, TexGui::ProgressBarStyle* style = nullptr);
-
-    void      Divider(float padding = 0);
-    void      Line(float x1, float y1, float x2, float y2, Math::fvec4 color, float lineWidth = 1.f);
-
-    // Similar to radio buttons - the id of the selected one is stored in the *selected pointer.
-    // If you don't want them to be clickable - set selected to nullptr, and 0 or 1 for whether it is active in id
-    Container ListItem(uint32_t* selected, uint32_t id, TexGui::ListItemStyle* style = nullptr);
-
-    // Arranges children in a bento-grid layout.
-    Container Grid(float spacing = -1);
-    // Arranges children in a vertical stack.
-    Container Stack(float padding = -1, TexGui::StackStyle* style = nullptr);
-
-    Container Node(float x, float y);
-
-    //for widgets that have multiple child containers
-    void Row(Container* out, const float* widths, uint32_t n, float height, uint32_t flags = 0);
-    template <uint32_t N>
-    std::array<Container, N> Row(const float (&widths)[N], float height = 0, uint32_t flags = 0)
-    {
-        std::array<Container, N> out;
-        Row(&out[0], widths, N, height, flags);
-        return out;
-    }
-
-    void Column(Container* out, const float* widths, uint32_t n, float height);
-    template <uint32_t N>
-    std::array<Container, N> Column(const float (&heights)[N], float width = 0)
-    {
-        std::array<Container, N> out;
-        Column(&out[0], heights, N, width);
-        return out;
-    }
-
-private:
-    Texture* texture = nullptr;
-
-    TexGuiWindow* window = nullptr;
-    Container* parent;
-    ArrangeFunc arrange;
-
-    union
-    {
-        struct
-        {
-            float x, y, rowHeight;
-            int n;
-            float spacing;
-        } grid;
-        struct
-        {
-            uint32_t* selected;
-            uint32_t id;
-        } listItem;
-
-        struct
-        {
-            uint32_t width;
-            uint32_t height;
-        } box;
-        struct
-        {
-            uint32_t flags;
-            float top, right, bottom, left;
-        } align;
-
-        struct
-        {
-            float y;
-            float padding;
-            float maxWidth;
-        } stack;
-    };
-
-    void* scrollPanelState = nullptr;
-
-
-    inline Container withBounds(Math::fbox bounds, ArrangeFunc arrange = nullptr)
-    {
-        Container copy = *this;
-        copy.bounds = bounds;
-        copy.scissor = scissor;
-        copy.parent = this;
-        copy.arrange = arrange;
-        copy.parentState = parentState;
-        copy.renderData = renderData;
-        return copy;
-    }
-
-    static Math::fbox Arrange(Container* o, Math::fbox child);
-};
-*/
 
 struct IconSheet
 {
@@ -309,8 +189,8 @@ using RenderFunc = void(*)(TGContainer* container);
 TGContainer* BeginTooltip(Math::fvec2 size, TooltipStyle* style = nullptr);
 void EndTooltip(TGContainer* c);
 
-TGContainer* Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags = 0, TexGui::WindowStyle* style = nullptr);
-bool      Button(TGContainer* container, const char* text, TexGui::ButtonStyle* style = nullptr);
+TGContainer* Window(const char* id, TGStr name, float xpos, float ypos, float width, float height, uint32_t flags = 0, TexGui::WindowStyle* style = nullptr);
+bool      Button(TGContainer* container, const char* id, TGStr label, TexGui::ButtonStyle* style = nullptr);
 TGContainer* Box(TGContainer* container, float xpos, float ypos, float width, float height, uint32_t flags = 0, TexGui::BoxStyle* style = nullptr);
 TGContainer* Box(TGContainer* container);
 bool      CheckBox(TGContainer* container, bool* val, TexGui::CheckBoxStyle* style = nullptr);
@@ -319,11 +199,11 @@ TGContainer* BeginScrollPanel(TGContainer* container, const char* name, TexGui::
 void EndScrollPanel(TGContainer* container);
 int       SliderInt(TGContainer* container, int* val, int minVal, int maxVal, TexGui::SliderStyle* style = nullptr);
 //void      Image(TGContainer* container, Texture* texture, int scale = -1);
-bool      DropdownInt(TGContainer* container, int* val, std::initializer_list<std::pair<const char*, int>> names);
+bool      DropdownInt(TGContainer* container, int* val, std::initializer_list<std::pair<TGStr, int>> names);
 
 void      TextInput(TGContainer* container, const char* name, char* buf, uint32_t bufsize, TexGui::TextInputStyle* style = nullptr);
 void      Text(TGContainer* container, Paragraph text, int32_t scale = 0, TextDecl parameters = {}, TexGui::TextStyle* style = nullptr);
-void      Text(TGContainer* container, const char* text, int32_t scale = 0, TextDecl parameters = {}, TexGui::TextStyle* style = nullptr);
+void      Text(TGContainer* container, TGStr text, int32_t scale = 0, TextDecl parameters = {}, TexGui::TextStyle* style = nullptr);
 
 TGContainer* Align(TGContainer* container, uint32_t flags = 0, const Math::fvec4 padding = {0,0,0,0});
 
@@ -370,6 +250,11 @@ IconSheet loadIcons(const char* dir, int32_t iconWidth, int32_t iconHeight);
 void clear();
 void destroy();
 
+// DBG shorthands
+inline bool Button(TGContainer* container, const char* id, TexGui::ButtonStyle* style = nullptr) {
+    return Button(container, id, {(const uint8_t*)id, strlen(id)}, style);    
+}
+
 struct Texture;
 
 // Get a specific texture that was read by loadTextures
@@ -385,7 +270,7 @@ std::vector<TextSegment> cacheText(TextDecl text);
 // Caches text into a buffer. Returns -1 on failure (if there's not enough buffer space), or the amount otherwise
 int32_t cacheText(TextDecl text, TextSegment* buffer, uint32_t capacity);
 
-float computeTextWidth(const char* text, size_t numchars);
+float computeTextWidth(TGStr);
 
 struct TextInputState;
 class RenderData
@@ -440,8 +325,8 @@ public:
     void addLine(float x1, float y1, float x2, float y2, uint32_t col, float lineWidth);
     void addQuad(Math::fbox rect, uint32_t col);
     void addTexture(Math::fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, uint32_t col = 0xFFFFFFFF);
-    void addText(const char* text, Math::fvec2 pos, uint32_t col, int size, uint32_t flags, uint32_t borderColor, int32_t len = -1);
-    int addTextWithCursor(const char* text, Math::fvec2 pos, uint32_t col, int size, uint32_t flags, TextInputState& textInput);
+    void addText(TGStr text, Math::fvec2 pos, uint32_t col, int size, uint32_t flags, uint32_t borderColor);
+    int addTextWithCursor(TGStr text, Math::fvec2 pos, uint32_t col, int size, uint32_t flags, TextInputState& textInput);
     void pushScissor(Math::fbox region);
     void popScissor();
 

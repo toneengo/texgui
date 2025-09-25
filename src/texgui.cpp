@@ -533,11 +533,11 @@ bool animate(const Animation& animation, Animation& out, fbox& box, uint32_t& al
     return active;
 }
 
-TGContainer* TexGui::Window(const char* name, float xpos, float ypos, float width, float height, uint32_t flags, WindowStyle* style)
+TGContainer* TexGui::Window(const char* id, TGStr name, float xpos, float ypos, float width, float height, uint32_t flags, WindowStyle* style)
 {
     auto& io = inputFrame;
     auto& g = *GTexGui;
-    TexGuiID hash = ImHashStr(name, strlen(name), -1);
+    TexGuiID hash = ImHashStr(id, strlen(id), -1);
     if (!GTexGui->windows.contains(hash))
     {
         for (auto& entry : GTexGui->windows)
@@ -645,18 +645,18 @@ TGContainer* TexGui::Window(const char* name, float xpos, float ypos, float widt
     return child;
 }
 
-bool TexGui::Button(TGContainer* c, const char* text, TexGui::ButtonStyle* style)
+bool TexGui::Button(TGContainer* c, const char* id, TGStr text, TexGui::ButtonStyle* style)
 {
     auto& g = *GTexGui;
     auto& io = inputFrame;
-    TexGuiID id = c->window->getID(text);
+    TexGuiID bid = c->window->getID(id);
 
     fbox internal = Arrange(c, c->bounds);
 
     if (style == nullptr)
         style = &GTexGui->styleStack.back()->Button;
 
-    uint32_t state = getState(id, c, internal, c->scissor);
+    uint32_t state = getState(bid, c, internal, c->scissor);
 
     Texture* tex = style->Texture;
     c->renderData->addTexture(internal, tex, state, _PX, SLICE_9);
@@ -1247,9 +1247,11 @@ void renderTextInput(RenderData* renderData, const char* name, fbox bounds, fbox
     int size = style->Text.Size;
     size *= GTexGui->textScale;
 
+    const char* renderText = !getBit(tstate.state, STATE_ACTIVE) && len == 0
+                             ? name : text;
+
     renderData->addTextWithCursor(
-        !getBit(tstate.state, STATE_ACTIVE) && len == 0
-        ? name : text,
+        {(const uint8_t*)renderText, strlen(renderText)},
         {startx, starty},
         style->Text.Color,
         size,
@@ -1481,7 +1483,8 @@ inline static void drawChunk(TextSegment s, RenderData* renderData, TexGui::Math
 
                 underline(renderData, x, y, segwidth, scale, flags);
 
-                renderData->addText(s.word.data, {x, y}, style->Color, scale, CENTER_Y, style->BorderColor, s.word.len);
+                // #TODO fix
+                renderData->addText({(const uint8_t*)s.word.data, s.word.len}, {x, y}, style->Color, scale, CENTER_Y, style->BorderColor);
 
                 // if (checkHover) renderData->addQuad(bounds, fvec4(1, 0, 0, 1));
                 hovered |= checkHover && !hovered && textbounds.contains(io.cursorPos);
@@ -1586,14 +1589,18 @@ void TexGui::Text(TGContainer* c, Paragraph text, int32_t scale, TextDecl parame
     writeText(text, scale, c->bounds, textBounds.x, textBounds.y, c->renderData, style, false, 0, parameters);
 }
 
-void TexGui::Text(TGContainer* c, const char* text, int32_t scale, TextDecl parameters, TextStyle* style)
+void TexGui::Text(TGContainer* c, TGStr text, int32_t scale, TextDecl parameters, TextStyle* style)
 {
     if (style == nullptr)
         style = &GTexGui->styleStack.back()->Text;
     if (scale == 0) scale = style->Size;
 
     scale *= GTexGui->textScale;
-    auto ts = TextSegment::FromChunkFast(TextChunk(text));
+    // #TODO this should be before the prev line no?
+    if (scale == 0) scale = style->Size;
+
+    /*
+    TextSegment ts = { .type = TextSegment::WORD, .word = { text.utf8, computeTextWidth(text), text.len } };
     auto p = Paragraph(&ts, 1);
 
     fbox textBounds = {
@@ -1604,11 +1611,12 @@ void TexGui::Text(TGContainer* c, const char* text, int32_t scale, TextDecl para
     textBounds.width = ts.width * scale;
     textBounds.height = scale;
 
-    if (scale == 0) scale = style->Size;
     textBounds = Arrange(c, textBounds);
     textBounds.y += scale / 2.0f;
-
     writeText(p, scale, textBounds, textBounds.x, textBounds.y, c->renderData, style, false, 0, parameters);
+    */
+
+    c->renderData->addText(text, c->bounds.pos, style->Color, scale, CENTER_Y, style->BorderColor);
 }
 
 /*
@@ -1759,9 +1767,9 @@ static int32_t parseText(const char* text, TextSegment* out)
         return -1;
     }
 
-    int32_t i = 0;
-    int16_t len = 0;
-    int16_t ws = 0;
+    uint32_t i = 0;
+    uint16_t len = 0;
+    uint16_t ws = 0;
     // Loop through a single word
     for (;; i++)
     {
@@ -1781,9 +1789,11 @@ static int32_t parseText(const char* text, TextSegment* out)
         len++;
     }
 
+    TGStr tgs = { (const uint8_t*)text, len };
+
     *out = {
-        .word = { text, computeTextWidth(text, len), len },
-        .width = computeTextWidth(text, i),
+        .word = { tgs.utf8, computeTextWidth(tgs), len },
+        .width = computeTextWidth({ tgs.utf8, i }),
         .type = TextSegment::WORD,
     };
     return i;
@@ -1861,10 +1871,10 @@ TextSegment TextSegment::FromChunkFast(TextChunk chunk)
             chunk.text = "ERROR";
 
         case TextChunk::TEXT: {
-            int16_t len = strlen(chunk.text);
-            float w = computeTextWidth(chunk.text, len);
+            uint16_t len = strlen(chunk.text);
+            float w = computeTextWidth(TGStr((const uint8_t*)chunk.text, len));
             return {
-                .word = { chunk.text, w, len },
+                .word = { (const uint8_t*)chunk.text, w, len },
                 .width = w,
                 .type = TextSegment::WORD,
             };
@@ -1984,22 +1994,33 @@ Texture* IconSheet::getIcon(uint32_t x, uint32_t y)
     return &m_custom_texs.emplace_back(glID, bounds, Math::ivec2{w, h}, 0, 0, 0, 0);
 }
 
-float TexGui::computeTextWidth(const char* text, size_t numchars)
+float TexGui::computeTextWidth(TGStr text)
 {
     float total = 0;
     Style& style = *GTexGui->styleStack.back();
-    for (size_t i = 0; i < numchars; i++)
+    for (size_t i = 0; i < text.len; i++)
     {
-        total += style.Text.Font->codepointToGlyph[text[i]]->getAdvance();
+        // #TODO: decode utf8
+        total += style.Text.Font->codepointToGlyph[text.utf8[i]]->getAdvance();
     }
     return total;
 }
 
-void RenderData::addText(const char* text, Math::fvec2 pos, uint32_t col, int _size, uint32_t flags, uint32_t borderColor, int32_t len)
+void RenderData::addText(TGStr text, Math::fvec2 pos, uint32_t col, int _size, uint32_t flags, uint32_t borderColor)
 {
     col &= ~(ALPHA_MASK);
     col |= alphaModifier;
-    size_t numchars = len == -1 ? strlen(text) : len;
+    // #TODO: We don't actually know the number of chars!
+    // This will be the number of utf8 points which doesn't even remotely map to the number of glyphs to render
+    // We should change this to a multi-step thing:
+    // 1. Text shaping + breaking:
+    //    - Get correct x-advance of each character (with kerning based on prev character)
+    //    - Based on bounds (needs to be added as param), choose any break points necessary
+    //      (iterate line breaks using ICU (bleh) or kb_text_shape)
+    // 2. For each line:
+    //    - Choose pen start x,y based on line length and alignment (center_y, etc)
+    //    - Make quad for each, advancing XY
+    size_t numchars = text.len;
     size_t numcopy = numchars;
 
     float size = _size * GTexGui->scale;
@@ -2019,7 +2040,8 @@ void RenderData::addText(const char* text, Math::fvec2 pos, uint32_t col, int _s
 
     if (flags & CENTER_X)
     {
-        pos.x -= computeTextWidth(text, numchars) * size / 2.0;
+        // #TODO kill this
+        pos.x -= computeTextWidth(text) * size / 2.0;
     }
 
     float currx = pos.x;
@@ -2028,7 +2050,7 @@ void RenderData::addText(const char* text, Math::fvec2 pos, uint32_t col, int _s
     //#TODO: unicode
     for (int i = 0; i < numchars; i++)
     {
-        const auto& info = font->codepointToGlyph[text[i]];
+        const auto& info = font->codepointToGlyph[text.utf8[i]];
         int x, y, w, h;
         info->getBoxRect(x, y, w, h);
 
@@ -2076,12 +2098,12 @@ void RenderData::addText(const char* text, Math::fvec2 pos, uint32_t col, int _s
     });
 }
 
-int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, uint32_t col, int _size, uint32_t flags, TextInputState& textInput)
+int RenderData::addTextWithCursor(TGStr text, Math::fvec2 pos, uint32_t col, int _size, uint32_t flags, TextInputState& textInput)
 {
     col &= ~(ALPHA_MASK);
     col |= alphaModifier;
     auto& io = inputFrame;
-    size_t numchars = strlen(text);
+    size_t numchars = text.len;
     size_t numcopy = numchars;
 
     float size = _size * GTexGui->scale;
@@ -2101,7 +2123,8 @@ int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, uint32_t co
 
     if (flags & CENTER_X)
     {
-        pos.x -= computeTextWidth(text, numchars) * size / 2.0;
+        // #TODO kill
+        pos.x -= computeTextWidth(text) * size / 2.0;
     }
 
     float currx = pos.x;
@@ -2114,7 +2137,8 @@ int RenderData::addTextWithCursor(const char* text, Math::fvec2 pos, uint32_t co
     int& textCursorPos = textInput.textCursorPos;
     for (int i = 0; i < numchars; i++)
     {
-        const auto& info = font->codepointToGlyph[text[i]];
+        // #TODO decode utf8 properly
+        const auto& info = font->codepointToGlyph[text.utf8[i]];
 
         fvec4 color = col;
 
