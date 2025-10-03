@@ -712,7 +712,8 @@ static void _renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
                 }
                 else
                 {
-                    scissorStack.pop_back();
+                    if (scissorStack.size() > 0)
+                        scissorStack.pop_back();
                     if (scissorStack.size() > 0)
                         vkCmdSetScissor(cmd, 0, 1, &scissorStack.back());
                     else
@@ -727,9 +728,8 @@ static void _renderFromRenderData_Vulkan(VkCommandBuffer cmd, const RenderData& 
                 vertPushConstants.textureIndex = c.draw.textureIndex;
                 vertPushConstants.scale = {c.draw.scaleX, c.draw.scaleY};
                 vertPushConstants.translate = {c.draw.translateX, c.draw.translateY};
-                vertPushConstants.pxRange = c.draw.pxRange;
+                vertPushConstants.pxRange = 0;
                 vertPushConstants.uvScale = {c.draw.uvScaleX, c.draw.uvScaleY};
-                vertPushConstants.textBorderColor = c.draw.textBorderColor;
                 //size_t pushSz = c.textBorderColor.a > 0 ? sizeof(vertPushConstants) : sizeof(vertPushConstants) - sizeof(vertPushConstants.textBorderColor);
                 vkCmdPushConstants(cmd, v->vertPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(VertexPushConstants), &vertPushConstants);
 
@@ -843,7 +843,7 @@ Texture* TexGui::customTexture(VkImageView imageView, Math::ibox bounds, Math::i
 {
     TexGui_ImplVulkan_Data* v = (TexGui_ImplVulkan_Data*)(GTexGui->rendererData);
     int index = createTexture(imageView, v->textureSampler);
-
+  
     float xth = bounds.w / 3.f;
     float yth = bounds.h / 3.f;
     ivec2 size;

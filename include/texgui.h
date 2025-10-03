@@ -19,13 +19,13 @@
 #include "texgui_math.hpp"
 #include "texgui_style.hpp"
 
-#include <vulkan/vulkan_core.h>
-
 NAMESPACE_BEGIN(TexGui);
 
 Math::fvec2 getCursorPos();
 bool isCapturingMouse();
 
+Texture* loadTexture(const char* name, const unsigned char* pixels, int width, int height);
+bool loadTexture(const char* path);
 void init();
 
 using TexGuiID = uint32_t;
@@ -34,18 +34,6 @@ class RenderData;
 
 struct Texture;
 struct Font;
-struct TextSegment;
-struct Paragraph
-{
-    TextSegment* data;
-    uint32_t count;
-
-    Paragraph() = default;
-
-    Paragraph(std::vector<TextSegment>& s);
-
-    Paragraph(TextSegment* ptr, uint32_t n);
-};
 
 using LazyData = int64_t;
 
@@ -60,109 +48,6 @@ struct TGStr {
     TGStr(const char* c_str) :
         utf8((const uint8_t*) c_str), len(strlen(c_str)) {}
     */
-};
-
-// Text chunks are used to describe the layout of a text block. They get cached into Paragraphs.
-struct TextChunk
-{
-    enum Type : uint8_t {
-        TEXT,
-        ICON,        // An icon to render inline with the text
-        TOOLTIP,     // Marks the beginning/end of a tooltip's boundary
-        INDIRECT,    // include a dynamic part while still processing the rest at compile time
-        PLACEHOLDER, // Gets substituted for another chunk at draw time
-        LAZY_ICON,   // Lazily fetch an icon
-    } type;
-
-    union
-    {
-        const char* text;
-        Texture* icon;
-
-        struct {
-            Paragraph base;
-            Paragraph tooltip;
-        } tooltip;
-
-        TextChunk* indirect;
-
-        struct {
-            LazyData data;
-            LazyIconFunc func;
-        } lazyIcon;
-    };
-
-    TextChunk() = default;
-
-    constexpr TextChunk(const char* text) :
-        type(TEXT), text(text) {}
-
-    constexpr TextChunk(Texture* icon) :
-        type(ICON), icon(icon) {}
-
-    constexpr TextChunk(Paragraph baseText, Paragraph tooltip) :
-        type(TOOLTIP), tooltip({ baseText, tooltip }) {}
-
-    constexpr TextChunk(TextChunk* chunk) :
-        type(INDIRECT), indirect(chunk) {}
-
-    constexpr TextChunk(LazyData d, LazyIconFunc f) :
-        type(LAZY_ICON), lazyIcon({d, f}) {}
-};
-inline TextChunk Placeholder() { TextChunk c; c.type = TextChunk::PLACEHOLDER; return c; };
-
-struct TextSegment
-{
-    union
-    {
-        struct {
-            const uint8_t* data;
-            float tw; // Width of the text (not including whitespace)
-            uint16_t len;
-        } word;
-
-        Texture* icon;
-
-        struct {
-            Paragraph base;
-            Paragraph tooltip;
-        } tooltip;
-
-        struct {
-            LazyData data;
-            LazyIconFunc func;
-        } lazyIcon;
-    };
-
-    float width; // Width of the segment pre-scaling
-        // Pt for text, pixels for icons. Includes whitespace for text
-
-    enum Type : uint8_t {
-        WORD,        // Denotes text followed by whitespace
-        ICON,        // An icon to render inline with the text
-        NEWLINE,     // Line break
-        TOOLTIP,     // Marks the beginning/end of a tooltip's boundary
-        PLACEHOLDER, // Gets substituted for another chunk at draw time
-        LAZY_ICON,
-    } type;
-
-    // Doesn't break a chunk into words so you don't get text wrapping.
-    static TextSegment FromChunkFast(TextChunk chunk);
-};
-
-struct TextDecl
-{
-    const TextChunk* data;
-    uint32_t count;
-
-    TextDecl() = default;
-
-    TextDecl(TextChunk* d, uint32_t n);
-
-    TextDecl(std::initializer_list<TextChunk> s);
-
-    const TextChunk* begin() const { return data; }
-    const TextChunk* end() const { return data + count; }
 };
 
 using CharacterFilter = bool(*)(unsigned int c);
@@ -202,8 +87,8 @@ int       SliderInt(TGContainer* container, int* val, int minVal, int maxVal, Te
 bool      DropdownInt(TGContainer* container, int* val, std::initializer_list<std::pair<TGStr, int>> names);
 
 void      TextInput(TGContainer* container, const char* name, char* buf, uint32_t bufsize, TexGui::TextInputStyle* style = nullptr);
-void      Text(TGContainer* container, Paragraph text, int32_t scale = 0, TextDecl parameters = {}, TexGui::TextStyle* style = nullptr);
-void      Text(TGContainer* container, TGStr text, int32_t scale = 0, TextDecl parameters = {}, TexGui::TextStyle* style = nullptr);
+void      Text(TGContainer* container, TGStr text, int32_t scale = 0, uint32_t flags = 0, TexGui::TextStyle* style = nullptr);
+void      Text(TGContainer* container, const char* text, int32_t scale = 0, uint32_t flags = 0, TexGui::TextStyle* style = nullptr);
 
 TGContainer* Align(TGContainer* container, uint32_t flags = 0, const Math::fvec4 padding = {0,0,0,0});
 
@@ -244,7 +129,6 @@ RenderData* newRenderData();
 
 //"official" one
 const RenderData& getRenderData();
-uint32_t loadFont(const char* font, int baseFontSize, float msdfPxRange = 2);
 void loadTextures(const char* dir);
 IconSheet loadIcons(const char* dir, int32_t iconWidth, int32_t iconHeight);
 void clear();
@@ -266,11 +150,7 @@ Font* getFont(const char* name);
 
 Math::ivec2 getTextureSize(Texture* tex);
 
-std::vector<TextSegment> cacheText(TextDecl text);
-// Caches text into a buffer. Returns -1 on failure (if there's not enough buffer space), or the amount otherwise
-int32_t cacheText(TextDecl text, TextSegment* buffer, uint32_t capacity);
-
-float computeTextWidth(TGStr);
+float computeTextWidth(const std::vector<uint32_t>& codepoints);
 
 struct TextInputState;
 class RenderData
@@ -325,8 +205,8 @@ public:
     void addLine(float x1, float y1, float x2, float y2, uint32_t col, float lineWidth);
     void addQuad(Math::fbox rect, uint32_t col);
     void addTexture(Math::fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, uint32_t col = 0xFFFFFFFF);
-    void addText(TGStr text, Math::fvec2 pos, uint32_t col, int size, uint32_t flags, uint32_t borderColor);
-    int addTextWithCursor(TGStr text, Math::fvec2 pos, uint32_t col, int size, uint32_t flags, TextInputState& textInput);
+    void addText(TGStr text, Math::fvec2 pos, uint32_t col, int size, float boundWidth, float boundHeight, Math::fbox* boundsOut, uint32_t flags, TextInputState* textInput = nullptr);
+    bool drawTextSelection(const std::vector<uint32_t>& codepoints, TextInputState* textInput, Math::fvec2 textPos, int size);
     void pushScissor(Math::fbox region);
     void popScissor();
 
@@ -350,10 +230,8 @@ public:
                 float scaleY;
                 float translateX = -1.f;
                 float translateY = -1.f;
-                float pxRange = 0;
                 float uvScaleX;
                 float uvScaleY;
-                uint32_t textBorderColor = 0x00000000;
             } draw;
             struct
             {
@@ -380,7 +258,6 @@ public:
 };
 
 void setRenderData(RenderData* renderData);
-Math::fvec2 calculateTextBounds(Paragraph text, int32_t scale, float maxWidth);
 Math::fvec2 calculateTextBounds(const char* text, float maxWidth, int32_t scale = -1);
 
 //This is copied from Dear ImGui. Thank you Ocornut

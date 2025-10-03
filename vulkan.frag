@@ -26,7 +26,7 @@ void main()
         fColor.rgb = vec3(1.0);
 
         float neg = fColor.a - 0.5;
-        if (neg < 0)
+        if (neg < 0 && textBorderColor.a > 0.01)
         {
             opacity += smoothstep(fColor.a, 0.0, 0.01) * textBorderColor.a;
             fColor.rgb = textBorderColor.rgb;

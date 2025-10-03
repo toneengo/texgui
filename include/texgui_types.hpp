@@ -1,31 +1,26 @@
 #pragma once
 
 #include "texgui.h"
+#include <_strings.h>
 #include <stdint.h>
 #include <vector>
 #include "msdf-atlas-gen/msdf-atlas-gen.h"
 
 NAMESPACE_BEGIN(TexGui);
 
-// font information
-struct Font
+struct FontGlyph
 {
-    std::unordered_map<uint32_t, const msdf_atlas::GlyphGeometry*> codepointToGlyph;
-    std::vector<msdf_atlas::GlyphGeometry> glyphs;
-
-    //data for the renderer
-    uint32_t textureIndex;
-
-    //#TODO: remove these. Shader shouldnt need to know atlas width/height
-    uint32_t atlasWidth;
-    uint32_t atlasHeight;
-    float msdfPxRange;
-    uint32_t baseFontSize;
+    unsigned int colored : 1;
+    unsigned int visible : 1;
+    unsigned int codepoint : 30;
+    float advanceX;
+    float X0, Y0, X1, Y1;
+    float U0, V0, U1, V1;
 };
 
 struct Texture
 {
-    int id = -1;
+    uint32_t id = -1;
 
     //Texture sub-region
     Math::fbox bounds;
@@ -40,9 +35,49 @@ struct Texture
     float left;
 
     //texture IDs for hover press and active textures
-    unsigned int hover = -1;
-    unsigned int press = -1;
-    unsigned int active = -1;
+    uint32_t hover = -1;
+    uint32_t press = -1;
+    uint32_t active = -1;
+};
+
+// font information
+struct Font
+{
+    std::vector<uint32_t> indexLookup;
+    std::vector<FontGlyph> glyphs;
+
+    float pixelSize;
+
+    Texture* atlasTexture;
+
+    float ascent;
+    float descent;
+    float lineGap;
+
+    Font()
+    {
+        glyphs.resize(1);
+    }
+
+    // returns empty fontglyph on failure
+    FontGlyph getGlyph(uint32_t codepoint)
+    {
+        if (indexLookup.size() < codepoint) return {};
+        return glyphs[indexLookup[codepoint]];
+    }
+
+    void addGlyph(FontGlyph glyph)
+    {
+        if (indexLookup.size() < glyph.codepoint + 1)
+        {
+            indexLookup.resize(glyph.codepoint + 1);
+        }
+
+        if (glyph.X0 == glyph.X1 || glyph.Y0 == glyph.Y1) glyph.visible = false;
+
+        indexLookup[glyph.codepoint] = glyphs.size();
+        glyphs.push_back(glyph);
+    };
 };
 
 NAMESPACE_END(TexGui);
