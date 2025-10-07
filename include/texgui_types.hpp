@@ -43,7 +43,7 @@ struct Texture
 // font information
 struct Font
 {
-    std::vector<uint32_t> indexLookup;
+    std::vector<uint16_t> indexLookup;
     std::vector<FontGlyph> glyphs;
 
     float pixelSize;
@@ -54,12 +54,6 @@ struct Font
     float descent;
     float lineGap;
 
-    Font()
-    {
-        glyphs.resize(1);
-    }
-
-    // returns empty fontglyph on failure
     FontGlyph getGlyph(uint32_t codepoint)
     {
         if (indexLookup.size() < codepoint) return {};
@@ -78,6 +72,26 @@ struct Font
         indexLookup[glyph.codepoint] = glyphs.size();
         glyphs.push_back(glyph);
     };
+
+    float getXHeight()
+    {
+        // requires it be initialised ffirst
+        static auto glyph = glyphs[indexLookup['x']];
+        return glyph.Y1 - glyph.Y0;
+    }
+
+    float getDescent(float pixelSize)
+    {
+        return fabs(descent) * (pixelSize / (ascent + fabs(descent)));
+    }
+    float getAscent(float pixelSize)
+    {
+        return ascent * (pixelSize / (ascent + fabs(descent)));
+    }
+    float getLineGap(float pixelSize)
+    {
+        return lineGap * (pixelSize / (ascent + fabs(descent)));
+    }
 };
 
 NAMESPACE_END(TexGui);

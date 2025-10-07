@@ -16,6 +16,7 @@
 #include <cassert>
 #include <unordered_map>
 #include <vector>
+#include <span>
 #include "texgui_math.hpp"
 #include "texgui_style.hpp"
 
@@ -75,25 +76,23 @@ TGContainer* BeginTooltip(Math::fvec2 size, TooltipStyle* style = nullptr);
 void EndTooltip(TGContainer* c);
 
 TGContainer* Window(const char* id, TGStr name, float xpos, float ypos, float width, float height, uint32_t flags = 0, TexGui::WindowStyle* style = nullptr);
-bool      Button(TGContainer* container, const char* id, TGStr label, TexGui::ButtonStyle* style = nullptr);
+bool         Button(TGContainer* container, const char* id, TGStr label, TexGui::ButtonStyle* style = nullptr);
 TGContainer* Box(TGContainer* container, float xpos, float ypos, float width, float height, uint32_t flags = 0, TexGui::BoxStyle* style = nullptr);
 TGContainer* Box(TGContainer* container);
-bool      CheckBox(TGContainer* container, bool* val, TexGui::CheckBoxStyle* style = nullptr);
-void      RadioButton(TGContainer* container, uint32_t* selected, uint32_t id, TexGui::RadioButtonStyle* style = nullptr);
+bool         CheckBox(TGContainer* container, bool* val, TexGui::CheckBoxStyle* style = nullptr);
+void         RadioButton(TGContainer* container, uint32_t* selected, uint32_t id, TexGui::RadioButtonStyle* style = nullptr);
 TGContainer* BeginScrollPanel(TGContainer* container, const char* name, TexGui::ScrollPanelStyle* style = nullptr);
-void EndScrollPanel(TGContainer* container);
-int       SliderInt(TGContainer* container, int* val, int minVal, int maxVal, TexGui::SliderStyle* style = nullptr);
+void         EndScrollPanel(TGContainer* container);
+int          SliderInt(TGContainer* container, int* val, int minVal, int maxVal, TexGui::SliderStyle* style = nullptr);
 //void      Image(TGContainer* container, Texture* texture, int scale = -1);
-bool      DropdownInt(TGContainer* container, int* val, std::initializer_list<std::pair<TGStr, int>> names);
-
-void      TextInput(TGContainer* container, const char* name, char* buf, uint32_t bufsize, TexGui::TextInputStyle* style = nullptr);
-void      Text(TGContainer* container, TGStr text, int32_t scale = 0, uint32_t flags = 0, TexGui::TextStyle* style = nullptr);
-void      Text(TGContainer* container, const char* text, int32_t scale = 0, uint32_t flags = 0, TexGui::TextStyle* style = nullptr);
-
+bool         DropdownInt(TGContainer* container, int* val, std::initializer_list<std::pair<TGStr, int>> names);
+void         TextInput(TGContainer* container, const char* name, char* buf, uint32_t bufsize, TexGui::TextInputStyle* style = nullptr);
+void         Text(TGContainer* container, TGStr text, TexGui::TextStyle* style = nullptr);
+void         Text(TGContainer* container, const char* text, TexGui::TextStyle* style = nullptr);
+void         Text(TGContainer* container, TexGui::TextStyle* style, const char* text, ...);
 TGContainer* Align(TGContainer* container, uint32_t flags = 0, const Math::fvec4 padding = {0,0,0,0});
-
-void      Divider(TGContainer* container, float padding = 0);
-void      Line(TGContainer* container, float x1, float y1, float x2, float y2, uint32_t color, float lineWidth = 1.f);
+void         Divider(TGContainer* container, float padding = 0);
+void         Line(TGContainer* container, float x1, float y1, float x2, float y2, uint32_t color, float lineWidth = 1.f);
 
 // Similar to radio buttons - the id of the selected one is stored in the *selected pointer.
 // If you don't want them to be clickable - set selected to nullptr, and 0 or 1 for whether it is active in id
@@ -101,17 +100,20 @@ TGContainer* ListItem(TGContainer* container, uint32_t* selected, uint32_t id, T
 
 // Arranges children in a bento-grid layout.
 TGContainer* Grid(TGContainer* container, GridStyle* style = nullptr);
+
 // Arranges children in a vertical stack.
 TGContainer* Stack(TGContainer* container, float padding = -1, TexGui::StackStyle* style = nullptr);
 
-void ProgressBar(TGContainer* container, float percentage, const TexGui::ProgressBarStyle* style = nullptr);
-void ProgressBarV(TGContainer* container, float percentage, const TexGui::ProgressBarStyle* style = nullptr);
+void         ProgressBar(TGContainer* container, float percentage, const TexGui::ProgressBarStyle* style = nullptr);
+void         ProgressBarV(TGContainer* container, float percentage, const TexGui::ProgressBarStyle* style = nullptr);
 TGContainer* Node(TGContainer* container, float x, float y);
+
 TGContainerArray Row(TGContainer* container, std::initializer_list<float> widths, float height = 0, TexGui::RowStyle* style = nullptr);
 TGContainerArray Column(TGContainer* container, std::initializer_list<float> heights, float width = 0, TexGui::ColumnStyle* style = nullptr);
 
 TGContainerArray Row(TGContainer* container, uint32_t widthCount, const float* pWidths, float height = 0, TexGui::RowStyle* style = nullptr);
 TGContainerArray Column(TGContainer* container, uint32_t heightCount, const float* pHeights, float width = 0, TexGui::ColumnStyle* style = nullptr);
+
 Math::fbox getBounds(TGContainer* c);
 
 // #TODO: Doesn't work for all widgets.
@@ -205,8 +207,9 @@ public:
     void addLine(float x1, float y1, float x2, float y2, uint32_t col, float lineWidth);
     void addQuad(Math::fbox rect, uint32_t col);
     void addTexture(Math::fbox rect, Texture* e, int state, int pixel_size, uint32_t flags, uint32_t col = 0xFFFFFFFF);
-    void addText(TGStr text, Math::fvec2 pos, uint32_t col, int size, float boundWidth, float boundHeight, Math::fbox* boundsOut, uint32_t flags, TextInputState* textInput = nullptr);
-    bool drawTextSelection(const std::vector<uint32_t>& codepoints, TextInputState* textInput, Math::fvec2 textPos, int size);
+    void addText(TGStr text, TexGui::Font* font, Math::fvec2 pos, uint32_t col, int pixelSize, float boundWidth, float boundHeight, TextInputState* textInput = nullptr);
+    void addText(const uint16_t* codepointStart, const uint32_t len, TexGui::Font* font, Math::fvec2 pos, uint32_t col, int pixelSize, float boundWidth, float boundHeight, TextInputState* textInput = nullptr);
+    bool drawTextSelection(const uint16_t* codepointStart, const uint32_t len, TextInputState* textInput, Math::fvec2 textPos, int size);
     void pushScissor(Math::fbox region);
     void popScissor();
 

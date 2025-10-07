@@ -12,6 +12,8 @@
 #include "stb_image.h"
 #include "texgui_internal.hpp"
 #include <chrono>
+#include <numbers>
+#include <span>
 
 #define ALPHA_MASK 0x000000FF
 using namespace TexGui;
@@ -375,6 +377,7 @@ void TexGui::clear()
     currentTime = stc::steady_clock::now();
 
     auto& g = *GTexGui;
+    g.codepoints.clear();
     g.containers.clear();
     g.containers.reserve(2048);
     auto& c = g.baseContainer;
@@ -531,6 +534,88 @@ bool animate(const Animation& animation, Animation& out, fbox& box, uint32_t& al
     return active;
 }
 
+Math::fvec2 calculateUnscaledTextSize(uint16_t* codepointStart, uint32_t len, Font* font, uint32_t pixelSize, uint32_t boundWidth, uint32_t boundHeight)
+{
+    if (!font)
+    {
+        font = GTexGui->defaultStyle->Text.Font;
+    }
+    float currx = 0;
+    float curry = 0;
+    Math::fvec2 out = {};
+    float lineXHeight = ceil(font->getXHeight() * pixelSize);
+    float lineGap = ceil(font->getLineGap(pixelSize)); 
+    for (uint16_t* codepoint = codepointStart; codepoint != codepointStart + len; codepoint++)
+    {
+        FontGlyph glyph = font->getGlyph(*codepoint);
+        float advance = ceil(glyph.advanceX * pixelSize);
+
+        // #TODO: only linebreak on spaces
+        if (currx + advance > boundWidth && boundWidth > 0)
+        {
+            curry += pixelSize + lineGap;
+            currx = 0;
+        }
+
+        currx += advance;
+        out.x = std::max(currx, out.x);
+        out.y = std::max(curry + lineXHeight, out.y);
+    }
+    return out;
+}
+
+bool decodeUTF8(const TGStr& text, uint16_t** startOut, uint32_t* lenOut)
+{
+    GTexGui->codepoints.clear();
+    uint32_t curr = 0;
+    *lenOut = 0;
+    //#TODO: more invalid string checks
+    while (curr < text.len)
+    {
+        uint32_t codepoint = 0;
+        uint32_t start = curr;
+        if (text.utf8[curr] & 0b10000000)
+        {
+            if (text.utf8[curr] & 0b01000000)
+            {
+                if (text.utf8[curr] & 0b00100000)
+                {
+                    if (text.utf8[curr] & 0b00010000)
+                    {
+                        codepoint |= text.utf8[curr] & 0b00000111;
+                        codepoint <<= 6;
+                        curr++;
+                    }
+
+                    codepoint |= text.utf8[curr] & (curr == start ? 0b00001111 : 0b00111111);
+                    codepoint <<= 6;
+                    curr++;
+                }
+
+                codepoint |= text.utf8[curr] & (curr == start ? 0b00011111 : 0b00111111);
+                codepoint <<= 6;
+                curr++;
+            }
+            else
+            {
+                //Invalid string
+                assert(false);
+                return 1;
+            }
+            codepoint |= text.utf8[curr] & 0b00111111;
+            curr++;
+        }
+        else
+        {
+            codepoint = text.utf8[curr++];
+        }
+
+        GTexGui->codepoints.push_back(codepoint);
+        *lenOut += 1;
+    }
+    *startOut = *lenOut == 0 ? nullptr : &GTexGui->codepoints[0];
+}
+
 TGContainer* TexGui::Window(const char* id, TGStr name, float xpos, float ypos, float width, float height, uint32_t flags, WindowStyle* style)
 {
     auto& io = inputFrame;
@@ -637,8 +722,16 @@ TGContainer* TexGui::Window(const char* id, TGStr name, float xpos, float ypos, 
     child->scissor = {{0, 0}, g.getScreenSize()};
 
     if (!(flags & HIDE_TITLE))
-        child->renderData->addText(name, {wstate.box.x + padding.left, wstate.box.y},
-                 style->Text.Color, style->Text.Size * g.textScale, internal.width, wintex->top * _PX, nullptr, CENTER_Y);
+    {
+        uint16_t* codepointStart;
+        uint32_t len;
+        decodeUTF8(name, &codepointStart, &len);
+        //#TODO: truncate window title
+        auto size = calculateUnscaledTextSize(codepointStart, len, style->Text.Font, style->Text.Size, internal.width, wintex->top * _PX);
+        fvec2 textPos = {wstate.box.x + padding.left, wstate.box.y + ceil(wintex->top * _PX / 2.f - size.y / 2.f)};
+        child->renderData->addText(name, style->Text.Font, textPos,
+                 style->Text.Color, style->Text.Size * g.textScale, internal.width, wintex->top * _PX);
+    }
 
     return child;
 }
@@ -663,9 +756,16 @@ bool TexGui::Button(TGContainer* c, const char* id, TGStr text, TexGui::ButtonSt
                        ? c->bounds.pos + style->POffset
                        : c->bounds.pos;
 
-    internal = {pos, internal.size};
+    fvec2 textPos = pos;
 
-    c->renderData->addText(text, pos, style->Text.Color, style->Text.Size * g.textScale, internal.width, internal.height, nullptr, CENTER_X | CENTER_Y);
+    uint16_t* codepointStart;
+    uint32_t len;
+    decodeUTF8(text, &codepointStart, &len);
+    auto size = calculateUnscaledTextSize(codepointStart, len, style->Text.Font, style->Text.Size, internal.width, internal.height);
+    textPos.x += floor(internal.width / 2.f - size.x / 2.f);
+    textPos.y += floor(internal.height / 2.f - size.y / 2.f); 
+
+    c->renderData->addText(text, style->Text.Font, textPos, style->Text.Color, style->Text.Size * g.textScale, internal.width, internal.height);
 
     bool hovered = c->scissor.contains(io.cursorPos)
                 && c->bounds.contains(io.cursorPos);
@@ -1250,13 +1350,12 @@ void renderTextInput(RenderData* renderData, const char* name, fbox bounds, fbox
 
     renderData->addText(
         {(const uint8_t*)renderText, strlen(renderText)},
+        style->Text.Font,
         {startx, starty},
         style->Text.Color,
         size,
         bounds.width,
         bounds.height,
-        nullptr,
-        CENTER_Y,
         &tstate
     );
 }
@@ -1388,21 +1487,43 @@ static void bumpline(float& x, float& y, float w, TexGui::Math::fbox& bounds, in
 
 #define TTUL style.Tooltip.UnderlineSize
 
-void TexGui::Text(TGContainer* container, const char* text, int32_t scale, uint32_t flags, TexGui::TextStyle* style)
+void TexGui::Text(TGContainer* container, TexGui::TextStyle* style, const char* fmt, ...)
 {
-    Text(container, TGStr{(uint8_t*)text, strlen(text)}, scale, flags, style);
+    va_list args;
+    va_start(args, fmt);
+    int w = vsnprintf(GTexGui->tempBuffer.data(), GTexGui->tempBuffer.size(), fmt, args);
+    assert(w != -1);
+    if (w >= GTexGui->tempBuffer.size())
+    {
+        GTexGui->tempBuffer.resize(w + 1);
+        vsnprintf(GTexGui->tempBuffer.data(), GTexGui->tempBuffer.size(), fmt, args);
+    }
+    Text(container, GTexGui->tempBuffer.data(), style);
+    va_end(args);
 }
 
-void TexGui::Text(TGContainer* c, TGStr text, int32_t scale, uint32_t flags, TextStyle* style)
+void TexGui::Text(TGContainer* container, const char* text, TexGui::TextStyle* style)
+{
+    Text(container, TGStr{(uint8_t*)text, strlen(text)}, style);
+}
+
+void TexGui::Text(TGContainer* c, TGStr text, TextStyle* style)
 {
     if (style == nullptr)
         style = &GTexGui->styleStack.back()->Text;
 
-    if (scale == 0) scale = style->Size;
-    scale *= GTexGui->textScale;
+    uint32_t pixelSize = style->Size;
 
-    Math::fbox textBounds;
-    c->renderData->addText(text, c->bounds.pos, style->Color, scale, c->bounds.width, c->bounds.height, &textBounds, flags);
+    uint16_t* codepointStart;
+    uint32_t len;
+    decodeUTF8(text, &codepointStart, &len);
+
+    auto size = calculateUnscaledTextSize(codepointStart, len, style->Font, pixelSize, c->bounds.width, c->bounds.height);
+
+    fbox arranged = {c->bounds.x, c->bounds.y, size.x, size.y};
+    arranged = Arrange(c, arranged);
+
+    c->renderData->addText(text, style->Font, arranged.pos, style->Color, pixelSize, c->bounds.width, c->bounds.height, 0);
 }
 
 /*
@@ -1548,19 +1669,7 @@ Texture* IconSheet::getIcon(uint32_t x, uint32_t y)
     return &m_custom_texs.emplace_back(glID, bounds, Math::ivec2{w, h}, 0, 0, 0, 0);
 }
 
-float TexGui::computeTextWidth(const std::vector<uint32_t>& codepoints)
-{
-    float total = 0;
-    Style& style = *GTexGui->styleStack.back();
-    for (size_t i = 0; i < codepoints.size(); i++)
-    {
-        // #TODO: decode utf8
-        total += style.Text.Font->getGlyph(codepoints[i]).advanceX;
-    }
-    return total;
-}
-
-bool RenderData::drawTextSelection(const std::vector<uint32_t>& codepoints, TextInputState* textInput, Math::fvec2 textPos, int size)
+bool RenderData::drawTextSelection(const uint16_t* codepointStart, const uint32_t len, TextInputState* textInput, Math::fvec2 textPos, int size)
 {
 
     auto& io = inputFrame;
@@ -1572,9 +1681,9 @@ bool RenderData::drawTextSelection(const std::vector<uint32_t>& codepoints, Text
     float curry = textPos.y;
 
     float cursorPosLocation = -1;
-    for (int i = 0; i < codepoints.size(); i++)
+    for (int i = 0; i < len; i++)
     {
-        FontGlyph glyph = font->getGlyph(codepoints[i]);
+        FontGlyph glyph = font->getGlyph(codepointStart[i]);
         float advance = glyph.advanceX * size;
         if (textInput->state & STATE_ACTIVE && io.lmb == KEY_Press)
         {
@@ -1611,7 +1720,7 @@ bool RenderData::drawTextSelection(const std::vector<uint32_t>& codepoints, Text
         currx += advance;
     }
 
-    if (textCursorPos == codepoints.size())
+    if (textCursorPos == len)
         cursorPosLocation = currx;
 
     const Math::ivec2& framebufferSize = GTexGui->framebufferSize;
@@ -1647,61 +1756,8 @@ bool RenderData::drawTextSelection(const std::vector<uint32_t>& codepoints, Text
     return false;
 }
 
-bool decodeUTF8(const TGStr& text, std::vector<uint32_t>& out)
+void RenderData::addText(TGStr text, TexGui::Font* font, Math::fvec2 pos, uint32_t col, int pixelSize, float boundWidth, float boundHeight, TextInputState* textInput)
 {
-    uint32_t curr = 0;
-    //#TODO: more invalid string checks
-    while (curr < text.len)
-    {
-        uint32_t codepoint = 0;
-        uint32_t start = curr;
-        if (text.utf8[curr] & 0b10000000)
-        {
-            if (text.utf8[curr] & 0b01000000)
-            {
-                if (text.utf8[curr] & 0b00100000)
-                {
-                    if (text.utf8[curr] & 0b00010000)
-                    {
-                        codepoint |= text.utf8[curr] & 0b00000111;
-                        codepoint <<= 6;
-                        curr++;
-                    }
-
-                    codepoint |= text.utf8[curr] & (curr == start ? 0b00001111 : 0b00111111);
-                    codepoint <<= 6;
-                    curr++;
-                }
-
-                codepoint |= text.utf8[curr] & (curr == start ? 0b00011111 : 0b00111111);
-                codepoint <<= 6;
-                curr++;
-            }
-            else
-            {
-                //Invalid string
-                assert(false);
-                return 1;
-            }
-            codepoint |= text.utf8[curr] & 0b00111111;
-            curr++;
-        }
-        else
-        {
-            codepoint = text.utf8[curr++];
-        }
-
-        out.push_back(codepoint);
-    }
-}
-
-void RenderData::addText(TGStr text, Math::fvec2 pos, uint32_t col, int _size, float boundWidth, float boundHeight, Math::fbox* boundsOut, uint32_t flags, TextInputState* textInput)
-{
-    col &= ~(ALPHA_MASK);
-    col |= alphaModifier;
-
-    // #TODO: We don't actually know the number of chars!
-    // This will be the number of utf8 points which doesn't even remotely map to the number of glyphs to render
     // We should change this to a multi-step thing:
     // 1. Text shaping + breaking:
     //    - Get correct x-advance of each character (with kerning based on prev character)
@@ -1711,57 +1767,59 @@ void RenderData::addText(TGStr text, Math::fvec2 pos, uint32_t col, int _size, f
     //    - Choose pen start x,y based on line length and alignment (center_y, etc)
     //    - Make quad for each, advancing XY
 
-    float size = _size * GTexGui->scale;
+    uint16_t* codepointStart;
+    uint32_t len;
+    decodeUTF8(text, &codepointStart, &len);
+
+    addText(codepointStart, len, font, pos, col, pixelSize, boundWidth, boundHeight, textInput);
+}
+
+void RenderData::addText(const uint16_t* codepointStart, const uint32_t len, TexGui::Font* font, Math::fvec2 pos, uint32_t col, int pixelSize, float boundWidth, float boundHeight, TextInputState* textInput)
+{
+    if (!font)
+    {
+        font = GTexGui->defaultStyle->Text.Font;
+    }
+
+    col &= ~(ALPHA_MASK);
+    col |= alphaModifier;
+
+    pixelSize = pixelSize * GTexGui->scale;
     pos *= GTexGui->scale;
-
-    Style& style = *GTexGui->styleStack.back();
-    Font* font = style.Text.Font;
-
-    //i still have no idea how to do this properly i looked everywehre istg
-    if (flags & CENTER_Y)
-    {
-        pos.y += ceil(boundHeight / 2.f);
-    }
-
-    auto glyph = font->getGlyph('x');
-    pos.y += ceil((glyph.Y1 - glyph.Y0) * size / 2.f);
-
-    std::vector<uint32_t> codepoints;
-    //#TODO: do this in-place without fking everything else
-    decodeUTF8(text, codepoints);
-
-    // #TODO kill this
-    if (flags & CENTER_X)
-    {
-        pos.x += boundWidth / 2.f;
-        pos.x -= computeTextWidth(codepoints) * size / 2.0;
-    }
 
     float currx = pos.x;
     float curry = pos.y;
 
     if (textInput)
-        drawTextSelection(codepoints, textInput, pos, size);
+        drawTextSelection(codepointStart, len, textInput, pos, pixelSize);
 
     const Math::ivec2& framebufferSize = GTexGui->framebufferSize;
 
-    for (auto codepoint : codepoints)
-    {
-        FontGlyph glyph = font->getGlyph(codepoint);
-        float advance = glyph.advanceX * size;
+    uint32_t nChars = 0;
 
+    float lineGap = ceil(font->getLineGap(pixelSize)); 
+
+    // need to add xheight to y, to make the text sit under pos.y (like other widgets)
+    curry += ceil(font->getXHeight() * pixelSize);
+
+    for (const uint16_t* codepoint = codepointStart; codepoint != codepointStart + len; codepoint++)
+    {
+        FontGlyph glyph = font->getGlyph(*codepoint);
+        float advance = ceil(glyph.advanceX * pixelSize);
+
+        // #TODO: only linebreak on spaces
         if ((currx - pos.x) + advance > boundWidth && boundWidth > 0)
         {
-            curry += size;
+            curry += pixelSize + lineGap;
             currx = pos.x;
         }
 
         if (glyph.visible)
         {
-            float x0 = currx + glyph.X0 * size;
-            float y0 = curry + glyph.Y0 * size;
-            float x1 = currx + glyph.X1 * size;
-            float y1 = curry + glyph.Y1 * size;
+            float x0 = currx + glyph.X0 * pixelSize;
+            float y0 = curry + glyph.Y0 * pixelSize;
+            float x1 = currx + glyph.X1 * pixelSize;
+            float y1 = curry + glyph.Y1 * pixelSize;
 
             vertices.emplace_back(Vertex{.pos = {x0, y0}, .uv = {glyph.U0, glyph.V0}, .col = col});
             vertices.emplace_back(Vertex{.pos = {x1, y0}, .uv = {glyph.U1, glyph.V0}, .col = col});
@@ -1776,21 +1834,23 @@ void RenderData::addText(TGStr text, Math::fvec2 pos, uint32_t col, int _size, f
             indices.emplace_back(idx+2);
             indices.emplace_back(idx+3);
 
-            commands.emplace_back(Command{
-                .type = RD_CMD_Draw,
-                .draw = {
-                    .indexCount = 6,
-                    .textureIndex = font->atlasTexture->id,
-                    .scaleX = 2.f / float(framebufferSize.x),
-                    .scaleY = 2.f / float(framebufferSize.y),
-                    .uvScaleX = 1.f / float(font->atlasTexture->bounds.width),
-                    .uvScaleY = 1.f / float(font->atlasTexture->bounds.height),
-                }
-            });
+            nChars++;
         }
 
         currx += advance;
     }
+
+    commands.emplace_back(Command{
+        .type = RD_CMD_Draw,
+        .draw = {
+            .indexCount = 6 * nChars,
+            .textureIndex = font->atlasTexture->id,
+            .scaleX = 2.f / float(framebufferSize.x),
+            .scaleY = 2.f / float(framebufferSize.y),
+            .uvScaleX = 1.f / float(font->atlasTexture->bounds.width),
+            .uvScaleY = 1.f / float(font->atlasTexture->bounds.height),
+        }
+    });
 }
 
 static inline uint32_t getTextureIndexFromState(Texture* e, int state)

@@ -6,6 +6,7 @@ namespace TexGui
 {
 enum ContainerFlags : uint32_t
 {
+    //#TODO: these are internal flags. make this more clear
     CENTER_X = 0x01,
     CENTER_Y = 0x04,
     SLICE_3_VERTICAL  = 0x08,

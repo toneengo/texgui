@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <atomic>
 #include <stack>
+#include <vector>
 
 NAMESPACE_BEGIN(TexGui);
 
@@ -335,6 +336,10 @@ struct TexGuiContext
 
     InputData io;
     bool initialised = false;
+
+    std::vector<char> tempBuffer;
+
+    std::vector<uint16_t> codepoints;
 
     TGContainer baseContainer = {};
 };
