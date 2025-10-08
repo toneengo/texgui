@@ -844,8 +844,8 @@ Texture* TexGui::customTexture(VkImageView imageView, Math::ibox bounds, Math::i
     TexGui_ImplVulkan_Data* v = (TexGui_ImplVulkan_Data*)(GTexGui->rendererData);
     int index = createTexture(imageView, v->textureSampler);
   
-    float xth = bounds.w / 3.f;
-    float yth = bounds.h / 3.f;
+    float xth = bounds.size.width / 3.f;
+    float yth = bounds.size.height / 3.f;
     ivec2 size;
     if (atlasSize.x > 0 && atlasSize.y > 0) size = atlasSize;
     else size = bounds.size;

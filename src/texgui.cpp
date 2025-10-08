@@ -53,10 +53,12 @@ void TexGui::setUiScale(float scale)
 {
     GTexGui->scale = scale;
 }
+ 
 float TexGui::getTextScale()
 {
     return GTexGui->textScale;
 }
+ 
 RenderData* TexGui::newRenderData()
 {
     return new RenderData();
@@ -67,6 +69,7 @@ TGContainer* TGContainerArray::operator[](size_t index)
     assert(index < size);
     return &data[index];
 }
+
 bool TexGui::isCapturingMouse()
 {
     return GTexGui->lastCapturingMouse;
@@ -83,7 +86,7 @@ Texture* TexGui::loadTexture(const char* name, const unsigned char* pixels, int 
 {
     if (GTexGui->textures.contains(name) && GTexGui->textures[name].id > -1)
     {
-        if (GTexGui->textures[name].bounds.w != width || GTexGui->textures[name].bounds.h != height)
+        if (GTexGui->textures[name].bounds.size.width != width || GTexGui->textures[name].bounds.size.height != height)
         {
             printf("Texture variant dimension mismatch: %s\n", name);
             return nullptr;
@@ -92,10 +95,10 @@ Texture* TexGui::loadTexture(const char* name, const unsigned char* pixels, int 
     else
     {
         Texture& t = GTexGui->textures[name];
-        t.bounds.x = 0;
-        t.bounds.y = 0;
-        t.bounds.w = width;
-        t.bounds.h = height;
+        t.bounds.pos.x = 0;
+        t.bounds.pos.y = 0;
+        t.bounds.size.width = width;
+        t.bounds.size.height = height;
 
         t.size.x = width;
         t.size.y = height;
@@ -141,7 +144,7 @@ bool TexGui::loadTexture(const char* path)
 
     if (GTexGui->textures.contains(fstr) && GTexGui->textures[fstr].id > -1)
     {
-        if (GTexGui->textures[fstr].bounds.w != width || GTexGui->textures[fstr].bounds.h != height)
+        if (GTexGui->textures[fstr].bounds.size.width != width || GTexGui->textures[fstr].bounds.size.height != height)
         {
             printf("Texture variant dimension mismatch: %s\n", pstr.c_str());
             return 1;
@@ -150,10 +153,10 @@ bool TexGui::loadTexture(const char* path)
     else
     {
         Texture& t = GTexGui->textures[fstr];
-        t.bounds.x = 0;
-        t.bounds.y = 0;
-        t.bounds.w = width;
-        t.bounds.h = height;
+        t.bounds.pos.x = 0;
+        t.bounds.pos.y = 0;
+        t.bounds.size.width = width;
+        t.bounds.size.height = height;
 
         t.size.x = width;
         t.size.y = height;
@@ -214,7 +217,7 @@ void TexGui::loadTextures(const char* dir)
 
         if (GTexGui->textures.contains(fstr) && GTexGui->textures[fstr].id > -1)
         {
-            if (GTexGui->textures[fstr].bounds.w != width || GTexGui->textures[fstr].bounds.h != height)
+            if (GTexGui->textures[fstr].bounds.size.width != width || GTexGui->textures[fstr].bounds.size.height != height)
             {
                 printf("Texture variant dimension mismatch: %s\n", pstr.c_str());
                 continue;
@@ -223,10 +226,10 @@ void TexGui::loadTextures(const char* dir)
         else
         {
             Texture& t = GTexGui->textures[fstr];
-            t.bounds.x = 0;
-            t.bounds.y = 0;
-            t.bounds.w = width;
-            t.bounds.h = height;
+            t.bounds.pos.x = 0;
+            t.bounds.pos.y = 0;
+            t.bounds.size.width = width;
+            t.bounds.size.height = height;
 
             t.size.x = width;
             t.size.y = height;
@@ -294,7 +297,7 @@ Texture* TexGui::customTexture(unsigned int texID, Math::ibox pixelBounds)
 
 TexGui::Math::ivec2 TexGui::getTextureSize(Texture* tex)
 {
-    return tex->bounds.wh;
+    return {int(tex->bounds.size.width), int(tex->bounds.size.height)};
 }
 
 Math::fbox Arrange(TGContainer* c, Math::fbox child)
@@ -383,7 +386,7 @@ void TexGui::clear()
     auto& c = g.baseContainer;
 
     //#TODO: waste to call "getscreensize" here again but who actually gaf
-    c.bounds = Math::fbox({0,0}, g.getScreenSize());
+    c.bounds = {{0,0}, g.getScreenSize()};
     c.scissor = c.bounds;
 
     if (g.hoveredWidget == 0 && inputFrame.lmb == KEY_Press)
@@ -421,6 +424,16 @@ inline bool getBit(const unsigned int dest, const unsigned int flag)
 }
 
 using namespace TexGui::Math;
+
+fbox intToFloatBox(ibox box)
+{
+    fbox out;
+    out.pos.x = box.pos.x;
+    out.pos.y = box.pos.y;
+    out.size.y = box.size.y;
+    out.size.x = box.size.x;
+    return out;
+}
 
 ContainerState getState(TexGuiID id, TGContainer* c, const fbox& bounds, const fbox& scissor)
 {
@@ -482,14 +495,14 @@ uint32_t getBoxState(uint32_t& state, fbox box, uint32_t parentState)
 
 fbox AlignBox(fbox bounds, fbox child, uint32_t f)
 {
-    if (f & ALIGN_LEFT) child.x = bounds.x;
-    if (f & ALIGN_RIGHT) child.x = bounds.x + bounds.width - child.width;
+    if (f & ALIGN_LEFT) child.pos.x = bounds.pos.x;
+    if (f & ALIGN_RIGHT) child.pos.x = bounds.pos.x + bounds.size.width - child.size.width;
 
-    if (f & ALIGN_TOP) child.y = bounds.y;
-    if (f & ALIGN_BOTTOM) child.y = bounds.y + bounds.height - child.height;
+    if (f & ALIGN_TOP) child.pos.y = bounds.pos.y;
+    if (f & ALIGN_BOTTOM) child.pos.y = bounds.pos.y + bounds.size.height - child.size.height;
 
-    if (f & ALIGN_CENTER_X) child.x = floor(bounds.x + (bounds.width - child.width) / 2);
-    if (f & ALIGN_CENTER_Y) child.y = floor(bounds.y + (bounds.height - child.height) / 2);
+    if (f & ALIGN_CENTER_X) child.pos.x = floor(bounds.pos.x + (bounds.size.width - child.size.width) / 2);
+    if (f & ALIGN_CENTER_Y) child.pos.y = floor(bounds.pos.y + (bounds.size.height - child.size.height) / 2);
     return child;
 }
 
@@ -524,8 +537,10 @@ bool animate(const Animation& animation, Animation& out, fbox& box, uint32_t& al
                      3 * (1 - t) * pow(t, 2) * b[2] +
                      pow(t, 3) * b[3];
 
-        out.offset = animation.offset * -1 * (1 - float(val));
-        box.pos += out.offset;
+        out.offset.x = animation.offset.x * -1 * (1 - float(val));
+        out.offset.y = animation.offset.y * -1 * (1 - float(val));
+        box.pos.x += out.offset.x;
+        box.pos.y += out.offset.y;
 
         out.alphaModifier = (alpha - animation.alphaModifier) * (1 - float(val));
         alpha -= out.alphaModifier;
@@ -616,6 +631,8 @@ bool decodeUTF8(const TGStr& text, uint16_t** startOut, uint32_t* lenOut)
     *startOut = *lenOut == 0 ? nullptr : &GTexGui->codepoints[0];
 }
 
+// [Widgets]
+
 TGContainer* TexGui::Window(const char* id, TGStr name, float xpos, float ypos, float width, float height, uint32_t flags, WindowStyle* style)
 {
     auto& io = inputFrame;
@@ -643,11 +660,13 @@ TGContainer* TexGui::Window(const char* id, TGStr name, float xpos, float ypos, 
     wstate.visible = true;
 
     fbox box = {xpos, ypos, width, height};
-    box = AlignBox(Math::fbox(0, 0, GTexGui->getScreenSize().x, GTexGui->getScreenSize().y), box, flags);
+
+    auto screenSize = GTexGui->getScreenSize();
+    box = AlignBox({{0, 0}, screenSize}, box, flags);
     if (flags & (ALIGN_LEFT | ALIGN_CENTER_X | ALIGN_RIGHT))
-        box.x += xpos;
+        box.pos.x += xpos;
     if (flags & (ALIGN_BOTTOM | ALIGN_CENTER_Y | ALIGN_TOP))
-        box.y += ypos;
+        box.pos.y += ypos;
 
     uint32_t alpha = 0xFF;
     bool animationActive = animate(style->InAnimation, GTexGui->animations[hash], box, alpha, !wstate.prevVisible);
@@ -693,17 +712,23 @@ TGContainer* TexGui::Window(const char* id, TGStr name, float xpos, float ypos, 
         wstate.moving = false;
         wstate.resizing = false;
     }
-    else if (fbox(wstate.box.x, wstate.box.y, wstate.box.width, wintex->top * _PX).contains(io.cursorPos) && io.lmb == KEY_Press)
+    else if (fbox{wstate.box.pos.x, wstate.box.pos.y, wstate.box.size.width, wintex->top * _PX}.contains(io.cursorPos) && io.lmb == KEY_Press)
         wstate.moving = true;
-    else if (flags & RESIZABLE && fbox(wstate.box.x + wstate.box.width - wintex->right * _PX,
-             wstate.box.y + wstate.box.height - wintex->bottom * _PX,
-             wintex->right * _PX, wintex->bottom * _PX).contains(io.cursorPos) && io.lmb == KEY_Press)
+    else if (flags & RESIZABLE && fbox{wstate.box.pos.x + wstate.box.size.width - wintex->right * _PX,
+             wstate.box.pos.y + wstate.box.size.height - wintex->bottom * _PX,
+             wintex->right * _PX, wintex->bottom * _PX}.contains(io.cursorPos) && io.lmb == KEY_Press)
         wstate.resizing = true;
 
     if (wstate.moving)
-        wstate.box.pos += io.mouseRelativeMotion;
+    {
+        wstate.box.pos.x += io.mouseRelativeMotion.x;
+        wstate.box.pos.y += io.mouseRelativeMotion.y;
+    }
     else if (wstate.resizing)
-        wstate.box.size += io.mouseRelativeMotion;
+    {
+        wstate.box.size.width += io.mouseRelativeMotion.x;
+        wstate.box.size.height += io.mouseRelativeMotion.y;
+    }
 
     fvec4 padding = style->Padding;
 
@@ -727,10 +752,10 @@ TGContainer* TexGui::Window(const char* id, TGStr name, float xpos, float ypos, 
         uint32_t len;
         decodeUTF8(name, &codepointStart, &len);
         //#TODO: truncate window title
-        auto size = calculateUnscaledTextSize(codepointStart, len, style->Text.Font, style->Text.Size, internal.width, wintex->top * _PX);
-        fvec2 textPos = {wstate.box.x + padding.left, wstate.box.y + ceil(wintex->top * _PX / 2.f - size.y / 2.f)};
+        auto size = calculateUnscaledTextSize(codepointStart, len, style->Text.Font, style->Text.Size, internal.size.width, wintex->top * _PX);
+        fvec2 textPos = {wstate.box.pos.x + padding.left, wstate.box.pos.y + ceil(wintex->top * _PX / 2.f - size.y / 2.f)};
         child->renderData->addText(name, style->Text.Font, textPos,
-                 style->Text.Color, style->Text.Size * g.textScale, internal.width, wintex->top * _PX);
+                 style->Text.Color, style->Text.Size * g.textScale, internal.size.width, wintex->top * _PX);
     }
 
     return child;
@@ -752,20 +777,23 @@ bool TexGui::Button(TGContainer* c, const char* id, TGStr text, TexGui::ButtonSt
     Texture* tex = style->Texture;
     c->renderData->addTexture(internal, tex, state, _PX, SLICE_9);
 
-    TexGui::Math::vec2 pos = state & STATE_PRESS
-                       ? c->bounds.pos + style->POffset
-                       : c->bounds.pos;
+    TexGui::Math::vec2 pos = c->bounds.pos;
+    if (state & STATE_PRESS)
+    {
+        pos.x += style->POffset.x;
+        pos.y += style->POffset.y;
+    }
 
     fvec2 textPos = pos;
 
     uint16_t* codepointStart;
     uint32_t len;
     decodeUTF8(text, &codepointStart, &len);
-    auto size = calculateUnscaledTextSize(codepointStart, len, style->Text.Font, style->Text.Size, internal.width, internal.height);
-    textPos.x += floor(internal.width / 2.f - size.x / 2.f);
-    textPos.y += floor(internal.height / 2.f - size.y / 2.f); 
+    auto size = calculateUnscaledTextSize(codepointStart, len, style->Text.Font, style->Text.Size, internal.size.width, internal.size.height);
+    textPos.x += floor(internal.size.width / 2.f - size.x / 2.f);
+    textPos.y += floor(internal.size.height / 2.f - size.y / 2.f); 
 
-    c->renderData->addText(text, style->Text.Font, textPos, style->Text.Color, style->Text.Size * g.textScale, internal.width, internal.height);
+    c->renderData->addText(text, style->Text.Font, textPos, style->Text.Color, style->Text.Size * g.textScale, internal.size.width, internal.size.height);
 
     bool hovered = c->scissor.contains(io.cursorPos)
                 && c->bounds.contains(io.cursorPos);
@@ -776,21 +804,21 @@ bool TexGui::Button(TGContainer* c, const char* id, TGStr text, TexGui::ButtonSt
 TGContainer* TexGui::Box(TGContainer* c, float xpos, float ypos, float width, float height, uint32_t flags, TexGui::BoxStyle* style)
 {
     if (width <= 1)
-        width = width == 0 ? c->bounds.width : c->bounds.width * width;
+        width = width == 0 ? c->bounds.size.width : c->bounds.size.width * width;
     if (height <= 1)
-        height = height == 0 ? c->bounds.height : c->bounds.height * height;
+        height = height == 0 ? c->bounds.size.height : c->bounds.size.height * height;
 
     if (style == nullptr)
         style = &GTexGui->styleStack.back()->Box;
     if (!c) c = &GTexGui->baseContainer;
     Texture* texture = style->Texture;
 
-    fbox box(c->bounds.x + xpos, c->bounds.y + ypos, width, height);
-    box = AlignBox(Math::fbox(0, 0, GTexGui->getScreenSize().x, GTexGui->getScreenSize().y), box, flags);
+    fbox box{c->bounds.pos.x + xpos, c->bounds.pos.y + ypos, width, height};
+    box = AlignBox({0, 0, GTexGui->getScreenSize().x, GTexGui->getScreenSize().y}, box, flags);
     if (flags & (ALIGN_LEFT | ALIGN_CENTER_X | ALIGN_RIGHT))
-        box.x += xpos;
+        box.pos.x += xpos;
     if (flags & (ALIGN_BOTTOM | ALIGN_CENTER_Y | ALIGN_TOP))
-        box.y += ypos;
+        box.pos.y += ypos;
 
     fbox internal = fbox::pad(box, style->Padding);
     TGContainer* child = &GTexGui->containers.emplace_back();
@@ -848,7 +876,7 @@ void TexGui::RadioButton(TGContainer* c, uint32_t* selected, uint32_t id, RadioB
 void TexGui::Line(TGContainer* c, float x1, float y1, float x2, float y2, uint32_t color, float lineWidth)
 {
     if (!c) c = &GTexGui->baseContainer;
-    c->renderData->addLine(c->bounds.x + x1, c->bounds.y + y1, c->bounds.x + x2, c->bounds.y + y2, color, lineWidth);
+    c->renderData->addLine(c->bounds.pos.x + x1, c->bounds.pos.y + y1, c->bounds.pos.x + x2, c->bounds.pos.y + y2, color, lineWidth);
 }
 
 TGContainer* createChild(TGContainer* c, Math::fbox bounds, ArrangeFunc arrange = nullptr)
@@ -891,7 +919,7 @@ TGContainer* TexGui::BeginScrollPanel(TGContainer* c, const char* name, ScrollPa
         bartex = defaultbt;
     }
 
-    padding.right += bartex->bounds.width;
+    padding.right += bartex->bounds.size.width;
 
     static auto arrange = [](TGContainer* scroll, fbox child)
     {
@@ -903,20 +931,20 @@ TGContainer* TexGui::BeginScrollPanel(TGContainer* c, const char* name, ScrollPa
     TGContainer* sp = createChild(c, Math::fbox::pad(c->bounds, padding), arrange);
     sp->scrollPanelState = &spstate;
 
-    if (spstate.scrolling && io.cursorPos.y >= sp->bounds.y && io.cursorPos.y < sp->bounds.y + sp->bounds.height)
-        spstate.contentPos.y -= inputFrame.mouseRelativeMotion.y * spstate.bounds.height / sp->bounds.height;
+    if (spstate.scrolling && io.cursorPos.y >= sp->bounds.pos.y && io.cursorPos.y < sp->bounds.pos.y + sp->bounds.pos.height)
+        spstate.contentPos.y -= inputFrame.mouseRelativeMotion.y * spstate.bounds.size.height / sp->bounds.size.height;
 
     if (sp->bounds.contains(io.cursorPos))
         spstate.contentPos.y += inputFrame.scroll.y;
 
-    float height = sp->bounds.height - padding.top - padding.bottom;
-    if (spstate.bounds.height + spstate.contentPos.y < height)
-        spstate.contentPos.y = -(spstate.bounds.height - height);
+    float height = sp->bounds.size.height - padding.top - padding.bottom;
+    if (spstate.bounds.size.height + spstate.contentPos.y < height)
+        spstate.contentPos.y = -(spstate.bounds.size.height - height);
     spstate.contentPos.y = fmin(spstate.contentPos.y, 0);
 
-    float barh = fmin(c->bounds.height, c->bounds.height * height / spstate.bounds.height);
-    fbox bar = {c->bounds.x + c->bounds.width - padding.right,
-                c->bounds.y + (c->bounds.height - barh) * -spstate.contentPos.y / (spstate.bounds.height - height),
+    float barh = fmin(c->bounds.size.height, c->bounds.size.height * height / spstate.bounds.size.height);
+    fbox bar = {c->bounds.pos.x + c->bounds.size.width - padding.right,
+                c->bounds.pos.y + (c->bounds.size.height - barh) * -spstate.contentPos.y / (spstate.bounds.size.height - height),
                 padding.right,
                 barh};
 
@@ -931,7 +959,7 @@ TGContainer* TexGui::BeginScrollPanel(TGContainer* c, const char* name, ScrollPa
     else if (io.lmb != KEY_Held)
         spstate.scrolling = false;
 
-    sp->bounds.y += spstate.contentPos.y;
+    sp->bounds.pos.y += spstate.contentPos.y;
 
     return sp;
 }
@@ -962,7 +990,7 @@ int TexGui::SliderInt(TGContainer* c, int* val, int minVal, int maxVal, SliderSt
     //renderSlider(renderData, id, bounds, percent, bar, node);
 
     assert(bar);
-    fbox barArea = {c->bounds.x, c->bounds.y, c->bounds.width, bar->bounds.height * _PX};
+    fbox barArea = {c->bounds.pos.x, c->bounds.pos.y, c->bounds.size.width, float(bar->bounds.size.height * _PX)};
     barArea = Arrange(c, barArea);
 
     uint32_t state = getState(id, c, barArea, c->scissor);
@@ -970,15 +998,15 @@ int TexGui::SliderInt(TGContainer* c, int* val, int minVal, int maxVal, SliderSt
 
     if (g.activeWidget == id && io.lmb == KEY_Held)
     {
-        float p = clamp(float(io.cursorPos.x - barArea.x) / barArea.width, 0.f, 1.f);
+        float p = clamp(float(io.cursorPos.x - barArea.pos.x) / barArea.size.width, 0.f, 1.f);
         *val = minVal + p * (maxVal - minVal);
     }
 
     if (node)
     {
-        Math::fvec2 nodePos = {c->bounds.x - node->bounds.width * _PX * 0.5f + barArea.width * percent, barArea.y + barArea.height / 2.f - node->bounds.height * _PX / 2.f};
-        fbox nodeArea = {c->bounds.x - node->bounds.width * _PX * 0.5f + barArea.width * percent, barArea.y + barArea.height / 2.f - node->bounds.height * _PX / 2.f,
-                         node->bounds.width * _PX, node->bounds.height * _PX};
+        Math::fvec2 nodePos = {c->bounds.pos.x - node->bounds.size.width * _PX * 0.5f + barArea.size.width * percent, barArea.pos.y + barArea.size.height / 2.f - node->bounds.size.height * _PX / 2.f};
+        fbox nodeArea = {c->bounds.pos.x - node->bounds.size.width * _PX * 0.5f + barArea.size.width * percent, barArea.pos.y + barArea.size.height / 2.f - node->bounds.size.height * _PX / 2.f,
+                         float(node->bounds.size.width * _PX), float(node->bounds.size.height * _PX)};
         uint32_t nodeState;
         getBoxState(nodeState, nodeArea, state);
         c->renderData->addTexture(nodeArea, node, nodeState, _PX, 0);
@@ -994,7 +1022,7 @@ void TexGui::Image(TGContainer* c, Texture* texture, int scale)
     if (scale == -1)
         scale = _PX;
 
-    Math::fvec2 tsize = Math::fvec2(texture->bounds.width, texture->bounds.height) * scale;
+    Math::fvec2 tsize = {float(texture->bounds.size.width * scale), float(texture->bounds.size.height * scale)};
 
     fbox sized = fbox(c->bounds.pos, tsize);
     fbox arranged = Arrange(c, sized);
@@ -1009,7 +1037,7 @@ void TexGui::Image(TGContainer* c, Texture* texture, uint32_t colorOverride, int
     if (scale == -1)
         scale = _PX;
 
-    Math::fvec2 tsize = Math::fvec2(texture->bounds.width, texture->bounds.height) * scale;
+    Math::fvec2 tsize = {float(texture->bounds.size.width * scale), float(texture->bounds.size.height * scale)};
 
     fbox sized = fbox(c->bounds.pos, tsize);
     fbox arranged = Arrange(c, sized);
@@ -1031,14 +1059,15 @@ TGContainer* TexGui::BeginTooltip(Math::fvec2 size, TooltipStyle* style)
         // A bit scuffed since we add margins then unpad them but mehh
         fbox bounds = fbox::margin(child, style.Tooltip.Padding);
         // Get the parent to arrange the list item
-        if (bounds.width > tooltip->box.width) tooltip->box.width = bounds.width;
-        if (bounds.height > tooltip->box.height) tooltip->box.height = bounds.height;
+        if (bounds.size.width > tooltip->box.width) tooltip->box.width = bounds.size.width;
+        if (bounds.size.height > tooltip->box.height) tooltip->box.height = bounds.size.height;
 
         uint32_t state = STATE_NONE;
 
         auto& io = inputFrame;
 
-        bounds.pos = io.cursorPos + style.Tooltip.MouseOffset;
+        bounds.pos.x = io.cursorPos.x + style.Tooltip.MouseOffset.x;
+        bounds.pos.y = io.cursorPos.y + style.Tooltip.MouseOffset.y;
 
         // The child is positioned by the tooptip parent
         return fbox::pad(bounds, style.Tooltip.Padding);
@@ -1048,7 +1077,8 @@ TGContainer* TexGui::BeginTooltip(Math::fvec2 size, TooltipStyle* style)
     {
         Style& style = *GTexGui->styleStack.back();
         auto& io = inputFrame;
-        a->parentRenderData->addTexture(fbox(io.cursorPos + style.Tooltip.MouseOffset, fvec2(a->box.width, a->box.height)), a->texture, 0, _PX, SLICE_9);
+        fvec2 tooltipPos = {io.cursorPos.x + style.Tooltip.MouseOffset.x, io.cursorPos.y + style.Tooltip.MouseOffset.y};
+        a->parentRenderData->addTexture({tooltipPos, {float(a->box.width), float(a->box.height)}}, a->texture, 0, _PX, SLICE_9);
     };
 
     if (style == nullptr)
@@ -1056,7 +1086,8 @@ TGContainer* TexGui::BeginTooltip(Math::fvec2 size, TooltipStyle* style)
     auto& io = inputFrame;
 
     fbox rect = {
-        io.cursorPos + style->MouseOffset,
+        io.cursorPos.x + style->MouseOffset.x,
+        io.cursorPos.y + style->MouseOffset.x,
         size,
     };
 
@@ -1101,7 +1132,7 @@ TGContainer* TexGui::ListItem(TGContainer* c, uint32_t* selected, uint32_t id, L
 
         if (!listItem->scissor.contains(bounds))
         {
-            return fbox(0,0,0,0);
+            return fbox{};
         }
 
         uint32_t state = STATE_NONE;
@@ -1165,22 +1196,22 @@ TGContainer* TexGui::Grid(TGContainer* c, TexGui::GridStyle* style)
         Style& style = *GTexGui->styleStack.back();
         auto& gs = grid->grid;
 
-        gs.rowHeight = fmax(gs.rowHeight, child.height);
+        gs.rowHeight = fmax(gs.rowHeight, child.size.height);
 
         float spacing = gs.spacing == -1 ? style.Row.Spacing : gs.spacing;
-        if (gs.x + child.width > grid->bounds.width && gs.n > 0)
+        if (gs.x + child.size.width > grid->bounds.size.width && gs.n > 0)
         {
             gs.x = 0;
             gs.y += gs.rowHeight + spacing;
-            child = fbox(grid->bounds.pos + fvec2(gs.x, gs.y), child.size);
+
             gs.rowHeight = 0;
         }
-        else
-            child = fbox(grid->bounds.pos + fvec2(gs.x, gs.y), child.size);
 
-        gs.x += child.width + spacing;
+        child.pos = {grid->bounds.pos.x + gs.x, grid->bounds.pos.y + gs.y};
 
-        Arrange(grid->parent, {grid->bounds.x, grid->bounds.y, grid->bounds.width, gs.y + gs.rowHeight + spacing});
+        gs.x += child.size.width + spacing;
+
+        Arrange(grid->parent, {grid->bounds.pos.x, grid->bounds.pos.y, grid->bounds.size.width, gs.y + gs.rowHeight + spacing});
 
         gs.n++;
 
@@ -1196,9 +1227,9 @@ TGContainer* TexGui::Grid(TGContainer* c, TexGui::GridStyle* style)
 void TexGui::Divider(TGContainer* c, float padding)
 {
     float width = 2;
-    fbox ln = Arrange(c, {c->bounds.x,c->bounds.y, c->bounds.width, width + padding*2.f});
+    fbox ln = Arrange(c, {c->bounds.pos.x,c->bounds.pos.y, c->bounds.size.width, width + padding*2.f});
     fbox line = {
-        ln.x, ln.y + padding, ln.width, width,
+        ln.pos.x, ln.pos.y + padding, ln.size.width, width,
     };
     c->renderData->addQuad(line, 0xFFFFFF80);
 }
@@ -1209,11 +1240,13 @@ TGContainer* TexGui::Stack(TGContainer* c, float padding, StackStyle* style)
     {
         auto& s = stack->stack;
 
-        child = fbox(stack->bounds.pos + fvec2(0, s.y), child.size);
+        child.pos.x = stack->bounds.pos.x;
+        child.pos.y = stack->bounds.pos.y + s.y;
+
         s.y += child.size.y + s.padding;
 
         //TexGui::Arrange(child);
-        Arrange(stack->parent, {stack->bounds.x, stack->bounds.y, child.width, s.y});
+        Arrange(stack->parent, {stack->bounds.pos.x, stack->bounds.pos.y, child.size.width, s.y});
 
         return child;
     };
@@ -1237,14 +1270,14 @@ void TexGui::ProgressBar(TGContainer* c, float percentage, const ProgressBarStyl
     Texture* bartex = style->BarTexture;
     Texture* frametex = style->FrameTexture;
     assert(bartex && frametex);
-    fbox frame = {c->bounds.x, c->bounds.y, c->bounds.width, frametex ? frametex->bounds.height * _PX : bartex->bounds.height * _PX};
+    fbox frame = {c->bounds.pos.x, c->bounds.pos.y, c->bounds.size.width, frametex ? float(frametex->bounds.size.height * _PX) : float(bartex->bounds.size.height * _PX)};
     frame = Arrange(c, frame);
 
     fbox internal = fbox::pad(frame, style->Padding);
-    internal.width = percentage * internal.width;
+    internal.size.width = percentage * internal.size.width;
     if (style->Flipped)
     {
-        internal.x += c->bounds.width - internal.width;
+        internal.pos.x += c->bounds.size.width - internal.size.width;
     }
 
     c->renderData->addTexture(frame, style->BackTexture, 0, _PX, SLICE_3_HORIZONTAL);
@@ -1266,14 +1299,14 @@ void TexGui::ProgressBarV(TGContainer* c, float percentage, const ProgressBarSty
     Texture* bartex = style->BarTexture;
     Texture* frametex = style->FrameTexture;
     assert(bartex);
-    fbox frame = {c->bounds.x, c->bounds.y, frametex ? frametex->bounds.width * _PX : bartex->bounds.width * _PX, c->bounds.height};
+    fbox frame = {c->bounds.pos.x, c->bounds.pos.y, frametex ? float(frametex->bounds.size.width * _PX) : float(bartex->bounds.size.width * _PX), c->bounds.size.height};
     frame = Arrange(c, frame);
 
     fbox internal = fbox::pad(frame, style->Padding);
-    internal.height = percentage * internal.height;
+    internal.size.height = percentage * internal.size.height;
     if (style->Flipped)
     {
-        internal.y += c->bounds.height - internal.height;
+        internal.pos.y += c->bounds.size.height - internal.size.height;
     }
 
     c->renderData->addTexture(frame, style->BackTexture, 0, _PX, SLICE_3_VERTICAL);
@@ -1288,8 +1321,8 @@ TGContainer* TexGui::Node(TGContainer* c, float x, float y)
 {
     static auto arrange = [](TGContainer* align, fbox child)
     {
-        child.x -= child.width / 2.f;
-        child.y -= child.height / 2.f;
+        child.pos.x -= child.size.width / 2.f;
+        child.pos.y -= child.size.height / 2.f;
         fbox bounds = Arrange(align->parent, child);
         return bounds;
     };
@@ -1299,8 +1332,8 @@ TGContainer* TexGui::Node(TGContainer* c, float x, float y)
     //the bounds box itself is moved and not resized,
     //the child will be slightly out of bounds sincei t is centred on top left corner of bounds
     TGContainer* node = createChild(c, c->bounds, arrange);
-    node->bounds.x += x;
-    node->bounds.y += y;
+    node->bounds.pos.x += x;
+    node->bounds.pos.y += y;
     return node;
 }
 
@@ -1336,10 +1369,9 @@ void renderTextInput(RenderData* renderData, const char* name, fbox bounds, fbox
     renderData->addTexture(bounds, inputtex, tstate.state, _PX, SLICE_9);
     float offsetx = 0;
     fvec4 padding = style->Padding;
-    fvec4 color = style->Text.Color;
 
-    float startx = bounds.x + offsetx + padding.left;
-    float starty = bounds.y + bounds.height / 2;
+    float startx = bounds.pos.x + offsetx + padding.left;
+    float starty = bounds.pos.y + bounds.size.height / 2;
 
     //#TODO: size
     int size = style->Text.Size;
@@ -1354,8 +1386,8 @@ void renderTextInput(RenderData* renderData, const char* name, fbox bounds, fbox
         {startx, starty},
         style->Text.Color,
         size,
-        bounds.width,
-        bounds.height,
+        bounds.size.width,
+        bounds.size.height,
         &tstate
     );
 }
@@ -1478,10 +1510,10 @@ void TexGui::TextInput(TGContainer* c, const char* name, char* buf, uint32_t buf
 // Bump the line of text
 static void bumpline(float& x, float& y, float w, TexGui::Math::fbox& bounds, int32_t scale)
 {
-    if (x + w > bounds.x + bounds.width)
+    if (x + w > bounds.pos.x + bounds.size.width)
     {
         y += scale * 1.1f;
-        x = bounds.x;
+        x = bounds.pos.x;
     }
 }
 
@@ -1518,12 +1550,12 @@ void TexGui::Text(TGContainer* c, TGStr text, TextStyle* style)
     uint32_t len;
     decodeUTF8(text, &codepointStart, &len);
 
-    auto size = calculateUnscaledTextSize(codepointStart, len, style->Font, pixelSize, c->bounds.width, c->bounds.height);
+    auto size = calculateUnscaledTextSize(codepointStart, len, style->Font, pixelSize, c->bounds.size.width, c->bounds.size.height);
 
-    fbox arranged = {c->bounds.x, c->bounds.y, size.x, size.y};
+    fbox arranged = {c->bounds.pos.x, c->bounds.pos.y, size.x, size.y};
     arranged = Arrange(c, arranged);
 
-    c->renderData->addText(text, style->Font, arranged.pos, style->Color, pixelSize, c->bounds.width, c->bounds.height, 0);
+    c->renderData->addText(text, style->Font, arranged.pos, style->Color, pixelSize, c->bounds.size.width, c->bounds.size.height, 0);
 }
 
 /*
@@ -1539,7 +1571,7 @@ TGContainerArray TexGui::Row(TGContainer* c, uint32_t widthCount, const float* p
         style = &GTexGui->styleStack.back()->Row;
     int n = widthCount;
     if (height < 1) {
-        height = height == 0 ? c->bounds.height : c->bounds.height * height;
+        height = height == 0 ? c->bounds.size.height : c->bounds.size.height * height;
     }
     float absoluteWidth = 0;
     float inherit = 0;
@@ -1563,12 +1595,12 @@ TGContainerArray TexGui::Row(TGContainer* c, uint32_t widthCount, const float* p
         if (pWidths[i] <= 1)
         {
             float mult = pWidths[i] == 0 ? 1 : pWidths[i];
-            width = (c->bounds.width - absoluteWidth - (spacing * (n - 1))) * mult / inherit;
+            width = (c->bounds.size.width - absoluteWidth - (spacing * (n - 1))) * mult / inherit;
         }
         else
             width = pWidths[i];
 
-        if (style->Wrapped && x + width > c->bounds.width)
+        if (style->Wrapped && x + width > c->bounds.size.width)
         {
             x = 0;
             y += height + spacing;
@@ -1582,11 +1614,12 @@ TGContainerArray TexGui::Row(TGContainer* c, uint32_t widthCount, const float* p
         x += width;
     }
 
-    fbox arranged = Arrange(c, {c->bounds.x, c->bounds.y, x, y + height});
+    fbox arranged = Arrange(c, {c->bounds.pos.x, c->bounds.pos.y, x, y + height});
 
     for (uint32_t i = 0; i < n; i++)
     {
-        out[i]->bounds.pos = out[i]->bounds.pos + arranged.pos;
+        out[i]->bounds.pos.x = out[i]->bounds.pos.x + arranged.pos.x;
+        out[i]->bounds.pos.y = out[i]->bounds.pos.y + arranged.pos.y;
     }
 
     return out;
@@ -1597,7 +1630,7 @@ TGContainerArray TexGui::Column(TGContainer* c, uint32_t heightCount, const floa
     if (style == nullptr)
         style = &GTexGui->styleStack.back()->Column;
     if (width < 1) {
-        width = width == 0 ? c->bounds.width : c->bounds.width * width;
+        width = width == 0 ? c->bounds.size.width : c->bounds.size.width * width;
     }
     float absoluteHeight = 0;
     int inherit = 0;
@@ -1620,7 +1653,7 @@ TGContainerArray TexGui::Column(TGContainer* c, uint32_t heightCount, const floa
         if (pHeights[i] <= 1)
         {
             float mult = pHeights[i] == 0 ? 1 : pHeights[i];
-            height = (c->bounds.height - absoluteHeight - (spacing * (n - 1))) * mult / inherit;
+            height = (c->bounds.size.height - absoluteHeight - (spacing * (n - 1))) * mult / inherit;
         }
         else
             height = pHeights[i];
@@ -1633,10 +1666,11 @@ TGContainerArray TexGui::Column(TGContainer* c, uint32_t heightCount, const floa
         y += height + spacing;
     }
 
-    fbox arranged = Arrange(c, {c->bounds.x, c->bounds.y, x + width, y});
+    fbox arranged = Arrange(c, {c->bounds.pos.x, c->bounds.pos.y, x + width, y});
     for (uint32_t i = 0; i < n; i++)
     {
-        out[i]->bounds.pos = out[i]->bounds.pos + arranged.pos;
+        out[i]->bounds.pos.x = out[i]->bounds.pos.x + arranged.pos.x;
+        out[i]->bounds.pos.y = out[i]->bounds.pos.y + arranged.pos.y;
     }
     return out;
 
@@ -1665,9 +1699,11 @@ Math::fbox TexGui::getSize(TGContainer* c)
 
 Texture* IconSheet::getIcon(uint32_t x, uint32_t y)
 {
-    ibox bounds = { Math::ivec2(x, y + 1) * Math::ivec2(iw, ih), Math::ivec2(iw, ih) };
+    ibox bounds = { int(x * iw), int((y + 1) * ih), int(iw), int(ih) };
     return &m_custom_texs.emplace_back(glID, bounds, Math::ivec2{w, h}, 0, 0, 0, 0);
 }
+
+// [RenderData]
 
 bool RenderData::drawTextSelection(const uint16_t* codepointStart, const uint32_t len, TextInputState* textInput, Math::fvec2 textPos, int size)
 {
@@ -1785,7 +1821,8 @@ void RenderData::addText(const uint16_t* codepointStart, const uint32_t len, Tex
     col |= alphaModifier;
 
     pixelSize = pixelSize * GTexGui->scale;
-    pos *= GTexGui->scale;
+    pos.x *= floor(GTexGui->scale);
+    pos.y *= floor(GTexGui->scale);
 
     float currx = pos.x;
     float curry = pos.y;
@@ -1847,8 +1884,8 @@ void RenderData::addText(const uint16_t* codepointStart, const uint32_t len, Tex
             .textureIndex = font->atlasTexture->id,
             .scaleX = 2.f / float(framebufferSize.x),
             .scaleY = 2.f / float(framebufferSize.y),
-            .uvScaleX = 1.f / float(font->atlasTexture->bounds.width),
-            .uvScaleY = 1.f / float(font->atlasTexture->bounds.height),
+            .uvScaleX = 1.f / float(font->atlasTexture->bounds.size.width),
+            .uvScaleY = 1.f / float(font->atlasTexture->bounds.size.height),
         }
     });
 }
@@ -1862,15 +1899,18 @@ static inline uint32_t getTextureIndexFromState(Texture* e, int state)
 
 void RenderData::pushScissor(Math::fbox region)
 {
-    region *= GTexGui->scale;
+    region.pos.x *= GTexGui->scale;
+    region.pos.y *= GTexGui->scale;
+    region.size.width *= GTexGui->scale;
+    region.size.height *= GTexGui->scale;
     commands.emplace_back(Command{
         .type = RD_CMD_Scissor,
         .scissor = {
             .push = true,
-            .x = int(region.x),
-            .y = int(region.y),
-            .width = int(region.width),
-            .height = int(region.height),
+            .x = int(region.pos.x),
+            .y = int(region.pos.y),
+            .width = int(region.size.width),
+            .height = int(region.size.height),
         }
     });
 }
@@ -1896,15 +1936,18 @@ void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, ui
     auto& g = *GTexGui;
     Math::ivec2 framebufferSize = g.framebufferSize;
 
-    rect *= g.scale;
+    rect.pos.x *= GTexGui->scale;
+    rect.pos.y *= GTexGui->scale;
+    rect.size.width *= GTexGui->scale;
+    rect.size.height *= GTexGui->scale;
+    Math::fbox texBounds = intToFloatBox(e->bounds);
     if (!(flags & SLICE_9))
     {
-        Math::fbox texBounds = e->bounds;
 
-        vertices.emplace_back(Vertex{.pos = {rect.x, rect.y}, .uv = {texBounds.x, texBounds.y}, .col = col});
-        vertices.emplace_back(Vertex{.pos = {rect.x + rect.w, rect.y}, .uv = {texBounds.x + texBounds.w, texBounds.y}, .col = col});
-        vertices.emplace_back(Vertex{.pos = {rect.x, rect.y + rect.h}, .uv = {texBounds.x, texBounds.y + texBounds.h}, .col = col});
-        vertices.emplace_back(Vertex{.pos = {rect.x + rect.w, rect.y + rect.h}, .uv = {texBounds.x + texBounds.w, texBounds.y + texBounds.h}, .col = col});
+        vertices.emplace_back(Vertex{.pos = {rect.pos.x, rect.pos.y}, .uv = {texBounds.pos.x, texBounds.pos.y}, .col = col});
+        vertices.emplace_back(Vertex{.pos = {rect.pos.x + rect.size.width, rect.pos.y}, .uv = {texBounds.pos.x + texBounds.size.width, texBounds.pos.y}, .col = col});
+        vertices.emplace_back(Vertex{.pos = {rect.pos.x, rect.pos.y + rect.size.height}, .uv = {texBounds.pos.x, texBounds.pos.y + texBounds.size.height}, .col = col});
+        vertices.emplace_back(Vertex{.pos = {rect.pos.x + rect.size.width, rect.pos.y + rect.size.height}, .uv = {texBounds.pos.x + texBounds.size.width, texBounds.pos.y + texBounds.size.height}, .col = col});
         uint32_t idx = vertices.size() - 4;
         indices.emplace_back(idx);
         indices.emplace_back(idx+1);
@@ -1928,26 +1971,26 @@ void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, ui
     }
 
     float rectSliceH[][2] = {
-        {rect.x, e->left * pixel_size},
-        {rect.x + e->left * pixel_size, rect.width - (e->left + e->right) * pixel_size},
-        {rect.x + rect.width - e->right * pixel_size, e->right * pixel_size}
+        {rect.pos.x, e->left * pixel_size},
+        {rect.pos.x + e->left * pixel_size, rect.size.width - (e->left + e->right) * pixel_size},
+        {rect.pos.x + rect.size.width - e->right * pixel_size, e->right * pixel_size}
     };
     float texBoundsSliceH[][2] = {
-        {e->bounds.x, e->left},
-        {e->bounds.x + e->left, e->bounds.width - (e->left + e->right)},
-        {e->bounds.x + e->bounds.width - e->right, e->right}
+        {texBounds.pos.x, e->left},
+        {texBounds.pos.x + e->left, texBounds.size.width - (e->left + e->right)},
+        {texBounds.pos.x + texBounds.size.width - e->right, e->right}
     };
 
     float rectSliceV[][2] = {
-        {rect.y, e->top * pixel_size},
-        {rect.y + e->top * pixel_size, rect.height - (e->top + e->bottom) * pixel_size},
-        {rect.y + rect.height - e->bottom * pixel_size, e->bottom * pixel_size}
+        {rect.pos.y, e->top * pixel_size},
+        {rect.pos.y + e->top * pixel_size, rect.size.height - (e->top + e->bottom) * pixel_size},
+        {rect.pos.y + rect.size.height - e->bottom * pixel_size, e->bottom * pixel_size}
     };
 
     float texBoundsSliceV[][2] = {
-        {e->bounds.y, e->top},
-        {e->bounds.y + e->top, e->bounds.height - (e->top + e->bottom)},
-        {e->bounds.y + e->bounds.height - e->bottom, e->bottom}
+        {texBounds.pos.y, e->top},
+        {texBounds.pos.y + e->top, texBounds.size.height - (e->top + e->bottom)},
+        {texBounds.pos.y + texBounds.size.height - e->bottom, e->bottom}
     };
 
     int minY = flags & SLICE_3_VERTICAL ? 0 : 1;
@@ -1960,28 +2003,27 @@ void RenderData::addTexture(fbox rect, Texture* e, int state, int pixel_size, ui
         for (int x = minX; x < maxX; x++)
         {
             Math::fbox slice = rect;
-            Math::fbox texBounds = e->bounds;
 
             if (flags & SLICE_3_HORIZONTAL)
             {
-                slice.x = rectSliceH[x][0];
-                slice.width = rectSliceH[x][1];
-                texBounds.x = texBoundsSliceH[x][0];
-                texBounds.width = texBoundsSliceH[x][1];
+                slice.pos.x = rectSliceH[x][0];
+                slice.size.width = rectSliceH[x][1];
+                texBounds.pos.x = texBoundsSliceH[x][0];
+                texBounds.size.width = texBoundsSliceH[x][1];
             }
 
             if (flags & SLICE_3_VERTICAL)
             {
-                slice.y = rectSliceV[y][0];
-                slice.height = rectSliceV[y][1];
-                texBounds.y = texBoundsSliceV[y][0];
-                texBounds.height = texBoundsSliceV[y][1];
+                slice.pos.y = rectSliceV[y][0];
+                slice.size.height = rectSliceV[y][1];
+                texBounds.pos.y = texBoundsSliceV[y][0];
+                texBounds.size.height = texBoundsSliceV[y][1];
             }
 
-            vertices.emplace_back(Vertex{.pos = {slice.x, slice.y}, .uv = {texBounds.x, texBounds.y}, .col = col});
-            vertices.emplace_back(Vertex{.pos = {slice.x + slice.w, slice.y}, .uv = {texBounds.x + texBounds.w, texBounds.y}, .col = col});
-            vertices.emplace_back(Vertex{.pos = {slice.x, slice.y + slice.h}, .uv = {texBounds.x, texBounds.y + texBounds.h}, .col = col});
-            vertices.emplace_back(Vertex{.pos = {slice.x + slice.w, slice.y + slice.h}, .uv = {texBounds.x + texBounds.w, texBounds.y + texBounds.h}, .col = col});
+            vertices.emplace_back(Vertex{.pos = {slice.pos.x, slice.pos.y}, .uv = {texBounds.pos.x, texBounds.pos.y}, .col = col});
+            vertices.emplace_back(Vertex{.pos = {slice.pos.x + slice.size.width, slice.pos.y}, .uv = {texBounds.pos.x + texBounds.size.width, texBounds.pos.y}, .col = col});
+            vertices.emplace_back(Vertex{.pos = {slice.pos.x, slice.pos.y + slice.size.height}, .uv = {texBounds.pos.x, texBounds.pos.y + texBounds.size.height}, .col = col});
+            vertices.emplace_back(Vertex{.pos = {slice.pos.x + slice.size.width, slice.pos.y + slice.size.height}, .uv = {texBounds.pos.x + texBounds.size.width, texBounds.pos.y + texBounds.size.height}, .col = col});
             uint32_t idx = vertices.size() - 4;
             indices.emplace_back(idx);
             indices.emplace_back(idx+1);
@@ -2010,12 +2052,16 @@ void RenderData::addQuad(Math::fbox rect, uint32_t col)
     col &= ~(ALPHA_MASK);
     col |= alphaModifier;
     Math::ivec2 framebufferSize = GTexGui->framebufferSize;
-    rect *= GTexGui->scale;
 
-    vertices.emplace_back(Vertex{.pos = {rect.x, rect.y}, .uv = {0,0}, .col = col,});
-    vertices.emplace_back(Vertex{.pos = {rect.x + rect.w, rect.y}, .uv = {0, 0}, .col = col,});
-    vertices.emplace_back(Vertex{.pos = {rect.x, rect.y + rect.h}, .uv = {0, 0}, .col = col,});
-    vertices.emplace_back(Vertex{.pos = {rect.x + rect.w, rect.y + rect.h}, .uv = {0, 0}, .col = col,});
+    rect.pos.x *= GTexGui->scale;
+    rect.pos.y *= GTexGui->scale;
+    rect.size.width *= GTexGui->scale;
+    rect.size.height *= GTexGui->scale;
+
+    vertices.emplace_back(Vertex{.pos = {rect.pos.x, rect.pos.y}, .uv = {0,0}, .col = col,});
+    vertices.emplace_back(Vertex{.pos = {rect.pos.x + rect.size.width, rect.pos.y}, .uv = {0, 0}, .col = col,});
+    vertices.emplace_back(Vertex{.pos = {rect.pos.x, rect.pos.y + rect.size.height}, .uv = {0, 0}, .col = col,});
+    vertices.emplace_back(Vertex{.pos = {rect.pos.x + rect.size.width, rect.pos.y + rect.size.height}, .uv = {0, 0}, .col = col,});
     uint32_t idx = vertices.size() - 4;
     indices.emplace_back(idx);
     indices.emplace_back(idx+1);
@@ -2082,4 +2128,97 @@ void RenderData::addLine(float x1, float y1, float x2, float y2, uint32_t col, f
             .scaleY = 2.f / float(framebufferSize.y),
         }
     });
+}
+
+// [Style]
+
+Style* TexGui::BeginStyle()
+{
+    Style* style = new Style;
+    if (!GTexGui->styleStack.empty())
+    {
+        *style = *GTexGui->styleStack.back();
+    };
+    GTexGui->styleStack.push_back(style);
+    return style;
+}
+
+void TexGui::EndStyle()
+{
+    delete GTexGui->styleStack.back();
+    GTexGui->styleStack.pop_back();
+}
+
+Style* initDefaultStyle()
+{
+    auto style = BeginStyle();
+    style->Tooltip.HoverPadding = {6, 12, 6, 12};
+    style->Tooltip.TextScale = 20;
+    style->Tooltip.MouseOffset = {16, 16};
+    style->Tooltip.Texture = &GTexGui->textures["tooltip"];
+    style->Tooltip.Padding = {8, 12, 8, 12};
+    style->Tooltip.MaxWidth = 400;
+    style->Tooltip.UnderlineSize = {0, 2};
+
+    style->Stack.Padding = 8;
+
+    style->Text.Color = 0xFFFFFFFF;
+    style->Text.Size = 20;
+
+    style->Window.Texture = &GTexGui->textures["window"];
+    style->Window.Padding = {12, 12, 12, 12};
+    style->Window.Text.Color = 0xFFFFFFFF;
+    style->Window.Text.Size = 20;
+    style->Window.Flags = 0;
+
+    style->Button.Texture = &GTexGui->textures["button"];
+    style->Button.Padding = {12, 12, 12, 12};
+    style->Button.POffset = {0, 0};
+    style->Button.Text = style->Text;
+
+    style->TextInput.Texture = &GTexGui->textures["textinput"];
+    style->TextInput.SelectColor = 0xFFFFFFFF;
+    style->TextInput.Padding = {8, 8, 8, 8};
+    style->TextInput.Text = style->Text;
+
+    style->ListItem.Texture = &GTexGui->textures["listitem"];
+    style->ListItem.Padding = {4, 4, 4, 4};
+
+    style->Box.Padding = {8, 8, 8, 8};
+
+    style->Slider.BarTexture = &GTexGui->textures["sliderbar"];
+    style->Slider.NodeTexture = &GTexGui->textures["slidernode"];
+
+    style->CheckBox.Texture = &GTexGui->textures["checkbox"];
+
+    style->RadioButton.Texture = &GTexGui->textures["radiobutton"];
+
+    style->ScrollPanel.Padding = {8, 8, 8, 8};
+    //style->ScrollPanel.PanelTexture = &GTexGui->textures["scroll_bar"];
+    style->ScrollPanel.BarTexture = &GTexGui->textures["scroll_bar"];
+
+    style->Row.Height = INHERIT;
+    style->Row.Spacing = 4;
+
+    style->Column.Height = INHERIT;
+    style->Column.Spacing = 4;
+
+    style->ProgressBar.BackTexture = &GTexGui->textures["progress_bar_back"];
+    style->ProgressBar.FrameTexture = &GTexGui->textures["progress_bar_frame"];
+    style->ProgressBar.BarTexture = &GTexGui->textures["progress_bar_bar"];
+
+    style->Grid.Spacing = -1;
+    return style;
+}
+
+Style* TexGui::getDefaultStyle()
+{
+    return GTexGui->styleStack[0];
+}
+
+int TexGui::setPixelSize(int px)
+{
+    int old = GTexGui->pixelSize;
+    GTexGui->pixelSize = px;
+    return old;
 }

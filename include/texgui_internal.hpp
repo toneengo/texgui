@@ -293,7 +293,7 @@ struct TexGuiContext
 
     Math::fvec2 getScreenSize()
     {
-        return Math::fvec2(framebufferSize) / scale;
+        return {framebufferSize.x / scale, framebufferSize.y / scale};
     }
     std::atomic<bool> editingText = false;
     int pixelSize = 1;

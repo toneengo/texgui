@@ -310,13 +310,18 @@ void TexGui::processEvent_SDL3(const SDL_Event& event)
             break;
         case SDL_EVENT_MOUSE_WHEEL:
             TGInputLock.lock();
-            io.scroll += Math::fvec2(event.wheel.x * 25, event.wheel.y * 25);
+            io.scroll.x += event.wheel.x * 25;
+            io.scroll.y += event.wheel.y * 25;
             TGInputLock.unlock();
             break;
         case SDL_EVENT_MOUSE_MOTION:
             TGInputLock.lock();
-            io.cursorPos = Math::fvec2(event.motion.x, event.motion.y) / GTexGui->scale;
-            io.mouseRelativeMotion += Math::fvec2(event.motion.xrel, event.motion.yrel) / GTexGui->scale;
+            io.cursorPos.x = event.motion.x / GTexGui->scale; 
+            io.cursorPos.y = event.motion.y / GTexGui->scale;
+            
+            io.mouseRelativeMotion.x += event.motion.xrel / GTexGui->scale;
+            io.mouseRelativeMotion.y += event.motion.yrel / GTexGui->scale;
+
             TGInputLock.unlock();
             break;
         case SDL_EVENT_TEXT_INPUT:

@@ -25,7 +25,7 @@ struct Texture
     uint32_t id = -1;
 
     //Texture sub-region
-    Math::fbox bounds;
+    Math::ibox bounds;
 
     //Total size of texture
     Math::ivec2 size;
