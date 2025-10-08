@@ -1,7 +1,9 @@
 #pragma once
 
 #include "texgui.h"
+#ifdef __APPLE__
 #include <_strings.h>
+#endif
 #include <stdint.h>
 #include <vector>
 #include "msdf-atlas-gen/msdf-atlas-gen.h"
